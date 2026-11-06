@@ -8,6 +8,7 @@
   const $ = (sel, root) => (root || document).querySelector(sel);
   const RAW = JSON.parse($('#wslsa-data').textContent);
   const META = RAW.meta;
+  const PREREQS = RAW.prereqs || { subjects: {}, sequences: [] };
   const CAMPUS_NAMES = Object.assign({}, META.campuses, { TBC: 'Session not yet published for 2027' });
   const PRIMARY_CAMPUSES = ['PS', 'CA', 'PC', 'HA', 'BC', 'PE', 'LC'];
   const SESSIONS = ['Autumn', 'Spring'];
@@ -1046,6 +1047,10 @@
     document.title = 'WSLSA 2027 · ' + d.code + ' ' + d.title;
   }
 
+  function progressMeta(ctx) {
+    const remaining = Math.max(ctx.deg.cp - ctx.doneCP, 0);
+    return remaining ? remaining + ' CP to go · ≈ ' + plural(Math.ceil(remaining / LOAD_CP[state.load]), 'session') + ' ' + (state.load === 'FT' ? 'FT' : 'PT') : 'All ' + ctx.deg.cp + ' CP complete';
+  }
   function renderDock(ctx) {
     const deg = ctx.deg;
     const single = DEGREES.filter(function (d) { return d.code === '2848'; });
@@ -1085,13 +1090,11 @@
 
     const total = deg.cp;
     const done = ctx.doneCP;
-    const remaining = Math.max(total - done, 0);
-    const per = LOAD_CP[state.load];
     const pct = total ? Math.min(100, Math.round(done / total * 100)) : 0;
     const progress = '<div class="progress"><div class="progress-top"><span class="field-label">Progress</span>' +
-      '<span class="progress-num" id="progress-num">' + done + ' / ' + total + ' <small>CP</small></span></div>' +
+      '<span class="progress-num" id="progress-num"><span class="num">' + done + '</span> / ' + total + ' <small>CP</small></span></div>' +
       '<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="' + total + '" aria-valuenow="' + done + '" aria-label="Credit points completed"><span style="width:' + pct + '%"></span></div>' +
-      '<div class="progress-meta">' + (remaining ? remaining + ' CP to go · ≈ ' + plural(Math.ceil(remaining / per), 'session') + ' ' + (state.load === 'FT' ? 'FT' : 'PT') : 'All ' + total + ' CP complete') + '</div></div>';
+      '<div class="progress-meta" id="progress-meta">' + progressMeta(ctx) + '</div></div>';
 
     $('#dock').innerHTML =
       '<div class="field"><label for="sel-degree">Degree</label>' + degSelect + '</div>' +
@@ -1110,7 +1113,7 @@
     if (ctx.custom) {
       const open = ctx.risks.pending.length;
       $('#facts').innerHTML =
-        item('Credit points required', d.cp + ' CP', 'big') +
+        item('Credit points required', '<span class="num">' + d.cp + '</span> CP', 'big') +
         item('Placed so far', ctx.placedCP + ' CP <small>· ' + plural(open, 'open slot') + '</small>') +
         finish +
         item('Starting point', ctx.tdeg ? esc(ctx.tdeg.code) + ' <small>' + esc(selectionLabel({ deg: ctx.tdeg, opt: ctx.topt })) + '</small>' : 'Blank plan') +
@@ -1118,7 +1121,7 @@
       return;
     }
     $('#facts').innerHTML =
-      item('Credit points', d.cp + ' CP', 'big') +
+      item('Credit points', '<span class="num">' + d.cp + '</span> CP', 'big') +
       finish +
       item('Intake', esc(d.intake) + (d.intakeList.length === 1 ? ' <small>only</small>' : '')) +
       item('Campuses', esc(d.campuses)) +
@@ -1184,9 +1187,9 @@
     if (r.pending.length && !ctx.custom) checks.push('<p><b>Still to choose:</b> ' + r.pending.map(function (s) { return '<button type="button" class="linkish" data-action="jump" data-slot="' + s.id + '">' + where(s) + '</button>'; }).join(', ') + '.</p>');
     if (checks.length) secs.push('<section class="adv-sec"><h3><span class="idx">' + idx() + '</span>' + (ctx.custom ? 'Campus &amp; session checks' : 'Campus &amp; choice checks') + '</h3>' + checks.join('') + '</section>');
 
-    $('#advisory').innerHTML = '<details class="advisory ' + sev + '" id="advisory-box"' + (ui.advisoryOpen ? ' open' : '') + '>' +
+    setHTML($('#advisory'), '<details class="advisory ' + sev + '" id="advisory-box"' + (ui.advisoryOpen ? ' open' : '') + '>' +
       '<summary>' + ALERT_ICON + '<span class="adv-label">Pathway Advisory</span><span class="adv-counts">' + parts.join(' · ') + '</span><span class="adv-cta">View details</span></summary>' +
-      '<div class="adv-body">' + secs.join('') + '</div></details>';
+      '<div class="adv-body">' + secs.join('') + '</div></details>');
   }
 
   // The next session with subjects still to do, with its codes ready to copy for enrolment.
@@ -1198,21 +1201,21 @@
         '<button type="button" class="tbtn tbtn-outline" data-action="import-open" title="Paste your academic record or results to tick off the subjects you have passed">Tick off from my results</button></div>';
     };
     if (!next) {
-      $('#next').innerHTML = '<div class="next-card"><div class="next-main"><p class="kicker">Next to enrol</p><h3>' + (ctx.slots.length ? 'Every subject in your plan is ticked off' : 'Your plan has no subjects yet') + '</h3></div>' + actions([]) + '</div>';
+      setHTML($('#next'), '<div class="next-card"><div class="next-main"><p class="kicker">Next to enrol</p><h3>' + (ctx.slots.length ? 'Every subject in your plan is ticked off' : 'Your plan has no subjects yet') + '</h3></div>' + actions([]) + '</div>');
       return;
     }
     const todo = next.slots.filter(function (s) { return !s.done; });
     const codes = todo.filter(function (s) { return !s.pending; }).map(function (s) { return s.code; });
     const choices = todo.filter(function (s) { return s.pending; }).length;
     const started = ctx.slots.some(function (s) { return s.done; });
-    $('#next').innerHTML = '<div class="next-card"><div class="next-main">' +
+    setHTML($('#next'), '<div class="next-card"><div class="next-main">' +
       '<p class="kicker">' + (started ? 'Next to enrol' : 'Your first session') + '</p>' +
       '<h3>' + sessionLabel(next.year, next.session) + ' <small>Year ' + next.year + (state.load === 'PT' ? ' · part-time' : '') + '</small></h3>' +
       '<div class="chiplist">' + todo.map(function (s) {
         return '<button type="button" class="chipbtn' + (s.pending ? ' is-open' : '') + '" data-action="jump" data-slot="' + s.id + '"><code>' + esc(s.pending ? 'Choose' : s.code) + '</code>' + esc(s.title) + ' <span>' + s.cp + ' CP</span></button>';
       }).join('') + '</div>' +
       (choices ? '<p class="next-note">' + plural(choices, 'choice') + ' to make before you enrol.</p>' : '') + '</div>' +
-      actions(codes) + '</div>';
+      actions(codes) + '</div>');
   }
 
   function renderLegend(ctx) {
@@ -1225,7 +1228,9 @@
       '<div class="lg-group"><span class="lg-title">Campus</span>' + Object.keys(META.campuses).map(function (c) {
         return '<span class="lg-camp">' + pill(c, { focus: true }) + esc(META.campuses[c].replace(' (Kingswood)', '')) + '</span>';
       }).join('') + '<span class="lg-camp">' + pill('TBC', { focus: true }) + 'Not yet published</span>' +
-      (state.campus ? '<button type="button" class="linkish small" data-action="campus-clear">Clear highlight</button>' : '') + '</div>';
+      (state.campus ? '<button type="button" class="linkish small" data-action="campus-clear">Clear highlight</button>' : '') + '</div>' +
+      '<span class="lg-sep" aria-hidden="true"></span>' +
+      '<div class="lg-group"><span class="lg-title">Chain</span><span>Hover a subject, or press its Chain button, to see what it depends on and unlocks.</span></div>';
   }
 
   function selectLabel(s) {
@@ -1233,13 +1238,9 @@
     if (s.kind === 'elective') return 'Select Elective';
     return 'Select Subject';
   }
-  function slotHTML(s, ctx) {
-    const kc = kindClass(s);
-    const cls = ['subj', kc];
-    if (kc === 'k-slot') cls.push(s.pending ? 'is-pending' : 'is-chosen');
-    if (s.done) cls.push('is-done');
+  // the flags under a subject's title and its offering column change when it is ticked, so ticking can update just these
+  function slotFlags(s, ctx) {
     const offCampus = state.campus && ctx.risks.campus.indexOf(s) >= 0;
-    if (offCampus) cls.push('offcampus');
     const flags = [];
     if (s.done) flags.push('<span class="flag flag-done">✓ Completed</span>');
     const live = s.offer && !s.done;
@@ -1253,7 +1254,22 @@
     if (offCampus) flags.push('<span class="flag flag-campus">Not at ' + state.campus + '</span>');
     if (ctx.risks.advisor.some(function (a) { return a.flagSlot === s; })) flags.push('<button type="button" class="flag flag-warn" data-action="open-advisory">Check prerequisite</button>');
     if (live && s.offer.none && !s.pending) flags.push('<span class="flag flag-warn">Not offered this session</span>');
-
+    if (!s.pending && s.code && hasChain(s.code, ctx)) flags.push('<button type="button" class="chain-btn" data-action="xray" data-slot="' + s.id + '" aria-pressed="' + (ui.xrayPin === s.id) + '" title="Show what this subject depends on and unlocks">Chain</button>');
+    return flags.join('');
+  }
+  function slotOffer(s) {
+    if (s.pending || s.done) return '';
+    if (s.session === 'Summer') return '<span class="muted small" title="The 2027 guides list Autumn and Spring sessions only">Check Handbook</span>';
+    if (s.listSubject) return '<span class="muted small" title="The WSU subject list has no session or campus data">Check Handbook</span>';
+    return pillsFor(s.offer);
+  }
+  function slotHTML(s, ctx) {
+    const kc = kindClass(s);
+    const cls = ['subj', kc];
+    if (kc === 'k-slot') cls.push(s.pending ? 'is-pending' : 'is-chosen');
+    if (s.done) cls.push('is-done');
+    const offCampus = state.campus && ctx.risks.campus.indexOf(s) >= 0;
+    if (offCampus) cls.push('offcampus');
     let body = '';
     if (s.pending && s.kind === 'llb') body += '<div class="subj-note">Any LLB Alternate offered in ' + s.session + ' 2027.</div>';
     if (s.kind === 'inline' && s.raw.options.length > 1) {
@@ -1289,12 +1305,10 @@
 
     const codeTxt = s.pending ? (s.kind === 'cslot' ? s.pendingCode : s.kind === 'llb' ? 'LLB ALT' : s.kind === 'elective' ? 'ELECTIVE' : 'CHOICE') : s.code;
     const check = '<label class="tick" title="Mark complete"><input type="checkbox" data-action="done" data-slot="' + s.id + '"' + (s.done ? ' checked' : '') + ' aria-label="Mark ' + esc((s.pending ? '' : s.code + ' ') + s.title) + ' complete"><span class="tick-box" aria-hidden="true"></span></label>';
-    return '<div class="' + cls.join(' ') + '" id="slot-' + s.id + '" data-slot="' + s.id + '">' +
+    return '<div class="' + cls.join(' ') + '" id="slot-' + s.id + '" data-slot="' + s.id + '"' + (ctx.custom && state.load !== 'PT' ? ' draggable="true"' : '') + (s.vt ? ' style="--vt:' + s.vt + '"' : '') + '>' +
       '<div class="subj-lead">' + check + '<span class="code-pill">' + esc(codeTxt) + '</span></div>' +
-      '<div class="subj-main"><div class="subj-title">' + esc(s.title) + '</div><div class="subj-meta"><span class="cat">' + esc(s.typeLabel) + '</span>' + flags.join('') + '</div>' + body + '</div>' +
-      '<div class="subj-side"><span class="pills">' + (s.pending || s.done ? ''
-        : s.session === 'Summer' ? '<span class="muted small" title="The 2027 guides list Autumn and Spring sessions only">Check Handbook</span>'
-        : s.listSubject ? '<span class="muted small" title="The WSU subject list has no session or campus data">Check Handbook</span>' : pillsFor(s.offer)) + '</span><span class="cp-badge">' + s.cp + ' CP</span></div></div>';
+      '<div class="subj-main"><div class="subj-title">' + esc(s.title) + '</div><div class="subj-meta"><span class="cat">' + esc(s.typeLabel) + '</span>' + slotFlags(s, ctx) + '</div>' + body + '</div>' +
+      '<div class="subj-side"><span class="pills">' + slotOffer(s) + '</span><span class="cp-badge">' + s.cp + ' CP</span></div></div>';
   }
 
   function sortSlots(list) {
@@ -1307,6 +1321,13 @@
     const pt = state.load === 'PT';
     let html = pt ? '<p class="pt-note"><b>Part-time view (indicative).</b> ' + (ctx.custom && ctx.plan.start ? 'Sessions that have begun stay as they are, and the rest is laid out at 20 CP a session, keeping every subject in the session type it is planned for.' : 'Each full-time session is split into two 20 CP sessions, keeping every subject in the session type it is offered in.') + ' This lengthens the pathway to about ' + fmt(ctx.deg.ptYears) + ' years and can shift prerequisite timing, so confirm your sequence with the Academic Program Advisor.' + (ctx.custom ? ' Switch to Full-time to add, remove or move slots.' : '') + '</p>' : '';
     const edit = ctx.custom && !pt;
+    // cards glide by subject, as slot numbers shift when a custom plan changes; names must be unique
+    const named = {};
+    ctx.slots.forEach(function (s) {
+      const base = s.pending ? 'open-' + s.id : String(s.code).replace(/[^A-Za-z0-9]/g, '-');
+      named[base] = (named[base] || 0) + 1;
+      s.vt = 'vt-' + base + (named[base] > 1 ? '-' + named[base] : '');
+    });
     years.forEach(function (y) {
       const lists = { Autumn: sortSlots(y.Autumn), Spring: sortSlots(y.Spring), Summer: sortSlots(y.Summer) };
       const all = lists.Autumn.concat(lists.Spring, lists.Summer);
@@ -1325,7 +1346,7 @@
         const list = lists[sess];
         const allDone = list.length && list.every(function (s) { return s.done; });
         const over = ctx.custom && !pt && sumCP(list) > LOAD_CP.FT;
-        html += '<section class="session' + (sess === 'Summer' ? ' session-summer' : '') + '" aria-label="' + sess + ' session"><div class="session-head"><h3>' + sess + '<span>Session</span></h3><div class="session-tools">' +
+        html += '<section class="session' + (sess === 'Summer' ? ' session-summer' : '') + '" aria-label="' + sess + ' session" data-y="' + y.year + '" data-s="' + sess + '"><div class="session-head"><h3>' + sess + '<span>Session</span></h3><div class="session-tools"><span class="commute-slot">' + commutePill(list) + '</span>' +
           (edit ? '<button type="button" class="mark-all add-slot" data-action="cadd" data-y="' + y.year + '" data-s="' + sess + '">+ Add slot</button>' : '') +
           (list.length ? '<button type="button" class="mark-all" data-action="session-done" data-ids="' + list.map(function (s) { return s.id; }).join(',') + '">' + (allDone ? 'Unmark all' : 'Mark all done') + '</button>' : '') +
           '<span class="session-cp' + (over ? ' over' : '') + '"' + (over ? ' title="More than the 40 CP full-time load"' : '') + '>' + sumCP(list) + ' CP</span></div></div><div class="slots">' +
@@ -1428,7 +1449,7 @@
           (EXTRA.length ? '<option value="__extra__"' + (ui.cat.comp === '__extra__' ? ' selected' : '') + '>WSU subject list (' + EXTRA.length.toLocaleString('en-AU') + ' more subjects)</option>' : '') + '</select></div></div>' +
         '<div class="field"><label for="cat-session">Session</label><div class="select-wrap"><select id="cat-session"><option value="">Autumn or Spring</option><option value="Autumn"' + (ui.cat.session === 'Autumn' ? ' selected' : '') + '>Offered in Autumn</option><option value="Spring"' + (ui.cat.session === 'Spring' ? ' selected' : '') + '>Offered in Spring</option><option value="TBC"' + (ui.cat.session === 'TBC' ? ' selected' : '') + '>Session TBC</option></select></div></div>' +
         '<label class="check-row" style="padding-bottom:10px"><input type="checkbox" id="cat-inplan"' + (ui.cat.inPlan ? ' checked' : '') + '>In my plan</label>' +
-        '</div><div id="cat-results"></div>';
+        '</div><p class="kbd-hint"><kbd>/</kbd> search the catalogue · <kbd>Esc</kbd> close a window or clear a highlight</p><div id="cat-results"></div>';
     }
     html += '</div>';
     $('#details').innerHTML = html;
@@ -1465,6 +1486,7 @@
         const inPlan = !!ctx.used[e.code];
         return '<tr class="extra' + (inPlan ? ' in-plan' : '') + '"><td class="c-code">' + hlCode(e.code, q) + '</td><td>' + hl(e.title, q) + (inPlan ? ' <span class="status status-major">In plan</span>' : '') + '</td><td class="c-comp">WSU subject list (any-subject electives)</td><td class="small">' + e.level + '</td><td colspan="2" class="small muted">Check the 2027 Handbook</td><td class="small muted">—</td><td class="small muted">Subject list</td></tr>';
       }).join('') + '</tbody></table></div>';
+    if (!rows.length && !extraHits.length) $('#cat-results .table-scroll').outerHTML = '<div class="pick-empty">No subjects match these filters. <button type="button" class="linkish" data-action="cat-reset">Clear filters</button></div>';
   }
 
   function disclaimerText() {
@@ -1510,12 +1532,556 @@
 
   function renderSectionHead(ctx) {
     $('#section-kicker').innerHTML = (ctx.custom ? 'Custom pathway' : 'Recommended pathway') + ' <i>·</i> 2027';
-    $('#section-tools').innerHTML = ctx.custom
+    $('#section-tools').innerHTML = suggestButtons(ctx) + (ctx.custom
       ? '<button type="button" class="tbtn tbtn-outline" data-action="custom-setup" title="Change the degree name, credit points or starting template">Edit setup</button>' +
         '<button type="button" class="tbtn" data-action="custom-exit" title="Your custom plan is kept; switch back any time from the Degree menu">← WSLSA pathways</button>'
       : '<button type="button" class="tbtn tbtn-outline" data-action="custom-from-current" title="Copy this pathway into your own editable plan">Customise this pathway →</button>' +
-        (state.custom ? '<button type="button" class="tbtn" data-action="custom-open" title="Switch to your saved custom plan">Open my custom plan</button>' : '<button type="button" class="tbtn" data-action="custom-open" title="Set the credit points and build a degree from scratch">Build my own</button>');
+        (state.custom ? '<button type="button" class="tbtn" data-action="custom-open" title="Switch to your saved custom plan">Open my custom plan</button>' : '<button type="button" class="tbtn" data-action="custom-open" title="Set the credit points and build a degree from scratch">Build my own</button>'));
   }
+
+  // ======================================================================== motion
+  // Every flourish checks this first: a student who asks for reduced motion gets instant updates.
+  function motionOK() { return !window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  function scrollMode() { return motionOK() ? 'smooth' : 'auto'; }
+  function setHTML(el, html) {
+    if (el._html === html) return false;
+    el._html = html;
+    el.innerHTML = html;
+    return true;
+  }
+  // Runs a change that rebuilds part of the page inside a view transition, where the browser has one, so
+  // old and new cross-fade. With cards on, each subject card also glides to its new place (the names
+  // the transition needs are switched on only while it runs). Other browsers just make the change.
+  let cardMoves = 0;
+  function transition(change, cards) {
+    if (!motionOK() || !document.startViewTransition) { change(); return; }
+    const root = document.documentElement;
+    if (cards) { cardMoves++; root.classList.add('vt-cards'); }
+    const vt = document.startViewTransition(change);
+    const finish = function () { if (cards && --cardMoves === 0) root.classList.remove('vt-cards'); };
+    vt.finished.then(finish, finish);
+    vt.ready.catch(function () { /* a skipped transition is not an error */ });
+  }
+  function renderMoving(after) { transition(function () { render(); if (after) after(); }, true); }
+  // A new degree or major: the cards on screen settle in one after another, and the rest appear at once.
+  function renderEntering() {
+    render();
+    if (!motionOK()) return;
+    const grid = $('#grid');
+    let i = 0;
+    grid.querySelectorAll('.year, .subj').forEach(function (el) {
+      const r = el.getBoundingClientRect();
+      el.style.setProperty('--i', r.top < window.innerHeight && r.bottom > 0 ? Math.min(i++, 16) : 0);
+    });
+    grid.classList.remove('is-entering');
+    void grid.offsetWidth;
+    grid.classList.add('is-entering');
+    clearTimeout(ui.enterTimer);
+    ui.enterTimer = setTimeout(function () { grid.classList.remove('is-entering'); }, 1000);
+  }
+  function countTo(el, from, to) {
+    if (!el) return;
+    const token = el._count = {};
+    if (from === to || !motionOK()) { el.textContent = to; return; }
+    const start = performance.now();
+    el.textContent = from;
+    requestAnimationFrame(function step(now) {
+      if (el._count !== token) return;
+      const t = Math.min(1, Math.max(0, now - start) / 450);
+      el.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - t, 3)));
+      if (t < 1) requestAnimationFrame(step);
+    });
+  }
+  function glowBars() {
+    if (!motionOK()) return;
+    document.querySelectorAll('.bar').forEach(function (b) {
+      b.classList.remove('glow');
+      void b.offsetWidth;
+      b.classList.add('glow');
+    });
+  }
+  function progressPct(ctx) { return ctx.deg.cp ? Math.min(100, Math.round(ctx.doneCP / ctx.deg.cp * 100)) : 0; }
+  // brings the credit point numbers and bars from what was last shown to what is true now
+  function showCounters(ctx) {
+    const shown = ui.shown;
+    const pct = progressPct(ctx);
+    ui.shown = { done: ctx.doneCP, cp: ctx.deg.cp, pct: pct };
+    countTo($('#progress-num .num'), shown ? shown.done : ctx.doneCP, ctx.doneCP);
+    countTo($('#facts .rb-v.big .num'), shown ? shown.cp : ctx.deg.cp, ctx.deg.cp);
+    const bar = $('#dock .bar');
+    bar.setAttribute('aria-valuenow', ctx.doneCP);
+    const fill = bar.firstElementChild;
+    if (shown && shown.pct !== pct && motionOK()) {
+      fill.style.transition = 'none';
+      fill.style.width = shown.pct + '%';
+      void fill.offsetWidth;
+      fill.style.transition = '';
+    }
+    fill.style.width = pct + '%';
+    $('#mini-num').innerHTML = '<b>' + ctx.doneCP + '</b> / ' + ctx.deg.cp + ' CP';
+    $('#mini-fill').style.width = pct + '%';
+    $('#mini-track').setAttribute('aria-valuemax', ctx.deg.cp);
+    $('#mini-track').setAttribute('aria-valuenow', ctx.doneCP);
+    if (shown && pct === 100 && shown.pct < 100) glowBars();
+  }
+  function afterRender(ctx) {
+    showCounters(ctx);
+    ui.xrayHover = '';
+    if (ui.xrayPin && ctx.byId[ui.xrayPin]) xrayShow(ui.xrayPin);
+    else { ui.xrayPin = ''; xrayClear(); }
+    restoreFocus();
+  }
+
+  // ---- ticking a subject off changes the card in place, so its checkbox spring, strike-through and fade
+  // can play, and updates only the numbers and panels that depend on it
+  function setDone(id, on) {
+    if (isCustom()) { state.custom.slots[lastCtx.byId[id].idx].done = on; return; }
+    const key = currentKey();
+    state.done[key] = state.done[key] || {};
+    if (on) state.done[key][id] = 1; else delete state.done[key][id];
+  }
+  function yearsDone(ctx) {
+    const out = {};
+    timeline(ctx, state.load).forEach(function (y) {
+      const all = y.Autumn.concat(y.Spring, y.Summer);
+      out[y.year] = all.length > 0 && all.every(function (s) { return s.done; });
+    });
+    return out;
+  }
+  function refreshDone(ids) {
+    const before = yearsDone(lastCtx);
+    const ctx = buildContext();
+    lastCtx = ctx;
+    ids.forEach(function (id) {
+      const s = ctx.byId[id];
+      const el = document.getElementById('slot-' + id);
+      if (!s || !el) return;
+      el.classList.toggle('is-done', s.done);
+      el.classList.toggle('just-done', s.done);
+      el.classList.toggle('offcampus', !!(state.campus && ctx.risks.campus.indexOf(s) >= 0));
+      el.querySelector('.tick input').checked = s.done;
+      el.querySelector('.subj-meta').innerHTML = '<span class="cat">' + esc(s.typeLabel) + '</span>' + slotFlags(s, ctx);
+      el.querySelector('.subj-side .pills').innerHTML = slotOffer(s);
+    });
+    const after = yearsDone(ctx);
+    timeline(ctx, state.load).forEach(function (y) {
+      const box = document.getElementById('year-' + y.year);
+      if (!box) return;
+      const all = y.Autumn.concat(y.Spring, y.Summer);
+      box.querySelector('.year-cp .done').textContent = sumCP(all, true) + ' / ' + sumCP(all) + ' CP completed';
+      PLAN_SESSIONS.forEach(function (sess) {
+        const section = box.querySelector('.session[data-s="' + sess + '"]');
+        if (!section) return;
+        const button = section.querySelector('[data-action="session-done"]');
+        if (button) button.textContent = y[sess].length && y[sess].every(function (s) { return s.done; }) ? 'Unmark all' : 'Mark all done';
+        section.querySelector('.commute-slot').innerHTML = commutePill(y[sess]);
+      });
+      if (after[y.year] && !before[y.year] && motionOK()) {
+        const bar = box.querySelector('.year-bar');
+        bar.classList.remove('year-glow');
+        void bar.offsetWidth;
+        bar.classList.add('year-glow');
+        glowBars();
+      }
+    });
+    $('#progress-meta').textContent = progressMeta(ctx);
+    renderAdvisory(ctx);
+    const next = $('#next');
+    const was = next._html;
+    renderNext(ctx);
+    if (next._html !== was && motionOK()) {
+      next.classList.remove('is-changed');
+      void next.offsetWidth;
+      next.classList.add('is-changed');
+    }
+    showCounters(ctx);
+    saveState();
+  }
+
+  // ======================================================================== prerequisite chain
+  // Only what has a source is shown as a rule: the 2027 Handbook entries in data/prerequisites.json and the
+  // workbook's advisor notes. Its general sequences are labelled Usually first and Usually after instead.
+  const REQUIRES = {};
+  const REQUIRED_BY = {};
+  const REQ_GROUPS = {};
+  function addRequirement(code, group, source) {
+    (REQ_GROUPS[code] = REQ_GROUPS[code] || []).push(group);
+    group.forEach(function (p) {
+      (REQUIRES[code] = REQUIRES[code] || []).push({ code: p, source: source });
+      (REQUIRED_BY[p] = REQUIRED_BY[p] || []).push({ code: code, source: source });
+    });
+  }
+  Object.keys(PREREQS.subjects).forEach(function (code) {
+    PREREQS.subjects[code].requires.forEach(function (group) { addRequirement(code, group, PREREQS.subjects[code].source); });
+  });
+  const NOTED = {};
+  DEGREES.forEach(function (d) {
+    d.advisorNotes.forEach(function (n) {
+      const k = n.subject + '<' + n.prereq;
+      if (!n.subject || !n.prereq || NOTED[k]) return;
+      NOTED[k] = 1;
+      addRequirement(n.subject, [n.prereq], 'WSLSA advisor note');
+    });
+  });
+  function followsSequence(code, seq) { return code.indexOf(seq.then.area + ' ') === 0 && seq.then.levels.indexOf(+code.charAt(5)) >= 0; }
+  // what a subject leads back to and on to, across the whole chain, limited to subjects in this plan
+  function chainOf(code, ctx) {
+    const walk = function (map) {
+      const seen = {};
+      const stack = [code];
+      while (stack.length) {
+        (map[stack.pop()] || []).forEach(function (e) {
+          if (seen[e.code]) return;
+          seen[e.code] = e.source;
+          stack.push(e.code);
+        });
+      }
+      return seen;
+    };
+    const up = walk(REQUIRES);
+    const down = walk(REQUIRED_BY);
+    const first = {};
+    const then = {};
+    PREREQS.sequences.forEach(function (seq) {
+      if (seq.first.indexOf(code) >= 0) Object.keys(ctx.used).forEach(function (c) { if (c !== code && followsSequence(c, seq)) then[c] = 1; });
+      else if (followsSequence(code, seq)) seq.first.forEach(function (c) { first[c] = 1; });
+    });
+    const inPlan = function (o, not) { return Object.keys(o).filter(function (c) { return ctx.used[c] && !(not && not[c]); }); };
+    const c = { up: inPlan(up), down: inPlan(down), first: inPlan(first, up), then: inPlan(then, down), sources: {} };
+    c.up.forEach(function (x) { c.sources[up[x]] = 1; });
+    c.down.forEach(function (x) { c.sources[down[x]] = 1; });
+    c.count = c.up.length + c.down.length + c.first.length + c.then.length;
+    return c;
+  }
+  function xrayClear() {
+    const grid = $('#grid');
+    if (grid.classList.contains('is-xray')) {
+      grid.classList.remove('is-xray');
+      grid.querySelectorAll('.xray-self, [data-xray]').forEach(function (el) { el.classList.remove('xray-self'); el.removeAttribute('data-xray'); });
+    }
+    $('#xray-note').hidden = true;
+    document.querySelectorAll('.chain-btn[aria-pressed="true"]').forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
+  }
+  function xrayShow(id) {
+    xrayClear();
+    const ctx = lastCtx;
+    const s = ctx.byId[id];
+    const c = s && !s.pending && s.code ? chainOf(s.code, ctx) : null;
+    if (!c || !c.count) return;
+    const labels = {};
+    c.then.forEach(function (x) { labels[x] = 'Usually after'; });
+    c.first.forEach(function (x) { labels[x] = 'Usually first'; });
+    c.down.forEach(function (x) { labels[x] = 'Unlocks'; });
+    c.up.forEach(function (x) { labels[x] = 'Prerequisite'; });
+    $('#grid').classList.add('is-xray');
+    $('#grid').querySelectorAll('.subj').forEach(function (el) {
+      const o = ctx.byId[el.dataset.slot];
+      if (!o || o.pending) return;
+      if (o.code === s.code) el.classList.add('xray-self');
+      else if (labels[o.code]) el.setAttribute('data-xray', labels[o.code]);
+    });
+    if (ui.xrayPin === id) {
+      const b = document.querySelector('#slot-' + id + ' .chain-btn');
+      if (b) b.setAttribute('aria-pressed', 'true');
+    }
+    const parts = [];
+    if (c.up.length) parts.push('Needs ' + c.up.join(', ') + ' (' + Object.keys(c.sources).join(', ') + ').');
+    if (c.down.length) parts.push('Unlocks ' + c.down.join(', ') + '.');
+    if (c.first.length) parts.push('Usually after ' + c.first.join(', ') + '.');
+    if (c.then.length) parts.push('Usually taken before ' + plural(c.then.length, 'later law subject') + '.');
+    if (c.first.length || c.then.length) parts.push('“Usually” is a general order, not a Handbook rule.');
+    const note = $('#xray-note');
+    note.textContent = s.code + ': ' + parts.join(' ') + ' Confirm prerequisites in the Handbook.';
+    note.hidden = false;
+  }
+  function hasChain(code, ctx) { return chainOf(code, ctx).count > 0; }
+
+  // ======================================================================== commute check
+  // The two Parramatta campuses and external study there count as one place for travel. A session is
+  // flagged only when its in-person subjects cannot all be taken in one place, whichever campuses are
+  // chosen; a subject with an online offering never forces a trip, and a passed one no longer matters.
+  const CAMPUS_AREA = { PS: 'Parramatta', PC: 'Parramatta', EX: 'Parramatta' };
+  function fewestCampuses(needs) {
+    const all = Array.from(new Set([].concat.apply([], needs)));
+    let best = null;
+    for (let mask = 1; mask < (1 << all.length); mask++) {
+      const pick = all.filter(function (c, i) { return mask & (1 << i); });
+      if (!needs.every(function (codes) { return codes.some(function (c) { return pick.indexOf(c) >= 0; }); })) continue;
+      const areas = new Set(pick.map(function (c) { return CAMPUS_AREA[c] || c; })).size;
+      const score = areas * 100 + pick.length * 10 - (state.campus && pick.indexOf(state.campus) >= 0 ? 5 : 0);
+      if (!best || score < best.score) best = { pick: pick, areas: areas, score: score };
+    }
+    return best;
+  }
+  function inPersonNeeds(list) {
+    return list.filter(function (s) { return !s.done && !s.pending && s.offer && !s.offer.none && !s.offer.tbc && s.offer.codes.length && s.offer.codes.indexOf('ON') < 0; })
+      .map(function (s) { return s.offer.codes; });
+  }
+  function commutePill(list) {
+    const needs = inPersonNeeds(list);
+    const c = needs.length > 1 ? fewestCampuses(needs) : null;
+    if (!c || c.areas < 2) return '';
+    return '<span class="commute-pill" title="These subjects cannot all be taken in one place or online this session, based on 2027 offerings.">' + c.pick.length + ' Campuses: ' + c.pick.join(' + ') + '</span>';
+  }
+
+  // ======================================================================== auto-suggest open slots
+  // A quick baseline, one click to undo: each open choice gets a subject from its own list that runs in
+  // that session, at the student's campus or online, with its known prerequisites earlier in the plan and
+  // without adding a campus trip to the session. Anything without such a subject stays open.
+  function openChoices(ctx) {
+    return ctx.slots.filter(function (s) { return s.pending && s.session !== 'Summer'; })
+      .map(function (s) { return choiceList(ctx, s); })
+      .filter(function (c) { return c.rank != null && Object.keys(c.codes).length; })
+      .sort(function (a, b) { return a.rank - b.rank || a.at - b.at || a.s.raw.slot - b.s.raw.slot; });
+  }
+  function planSnapshot(ctx) { return JSON.stringify(ctx.custom ? state.custom.slots : state.picks[ctx.key] || {}); }
+  function suggestButtons(ctx) {
+    const canUndo = ui.autoUndo && ui.autoUndo.key === ctx.key && ui.autoUndo.after === planSnapshot(ctx);
+    return (canUndo ? '<button type="button" class="tbtn" data-action="suggest-undo">↶ Undo suggestions</button>' : '') +
+      (openChoices(ctx).length ? '<button type="button" class="tbtn tbtn-outline" data-action="suggest" title="Fill open choices with subjects that run in that session' + (state.campus ? ' at ' + esc(META.campuses[state.campus]) + ' or online' : ', online first') + '">Auto-suggest open slots</button>' : '');
+  }
+  function prereqsMet(code, idx, ctx, placed) {
+    return (REQ_GROUPS[code] || []).every(function (group) {
+      return group.some(function (p) {
+        if (placed[p] != null && placed[p] < idx) return true;
+        return ctx.slots.some(function (s) { return !s.pending && s.code === p && (s.done || orderIdx(s.year, s.session) < idx); });
+      });
+    });
+  }
+  function autoSuggest() {
+    const ctx = lastCtx;
+    const before = planSnapshot(ctx);
+    const placed = {};
+    const needs = {};
+    ctx.slots.forEach(function (s) {
+      const k = orderIdx(s.year, s.session);
+      needs[k] = needs[k] || [];
+      if (s.pending) return;
+      placed[s.code] = k;
+      needs[k].push.apply(needs[k], inPersonNeeds([s]));
+    });
+    const planned = Object.assign({}, placed);
+    let count = 0;
+    const open = openChoices(ctx);
+    open.forEach(function (c) {
+      const s = c.s;
+      const k = orderIdx(s.year, s.session);
+      let best = null;
+      Object.keys(c.codes).forEach(function (code) {
+        if (planned[code] != null) return;
+        const off = offerFor(ctx.deg, code, s.session);
+        if (!off || off.none || off.tbc) return;
+        const here = !!state.campus && off.codes.indexOf(state.campus) >= 0;
+        const online = off.codes.indexOf('ON') >= 0;
+        if (state.campus && !here && !online) return;
+        if (!prereqsMet(code, k, ctx, placed)) return;
+        if (!online && needs[k].length) {
+          const cover = fewestCampuses(needs[k].concat([off.codes]));
+          if (cover && cover.areas > 1 && (!fewestCampuses(needs[k]) || cover.areas > fewestCampuses(needs[k]).areas)) return;
+        }
+        const score = (state.campus ? (here ? 0 : 1000) : (online ? 0 : 1000)) + (off.y2026 ? 100 : 0) + (+code.charAt(5) || 9);
+        if (!best || score < best.score || (score === best.score && code < best.code)) best = { code: code, score: score, off: off };
+      });
+      if (!best) return;
+      const e = c.codes[best.code];
+      if (ctx.custom) setCustomSubject(s.idx, best.code, '', GLOBAL_BY_CODE[best.code] ? GLOBAL_BY_CODE[best.code].cp : null);
+      else setPick(s.id, { code: e.code, title: e.title });
+      planned[best.code] = k;
+      placed[best.code] = k;
+      if (best.off.codes.indexOf('ON') < 0) needs[k].push(best.off.codes);
+      count++;
+    });
+    if (!count) { toast('No subject fits the open slots with these settings. Try another campus or choose by hand.'); return; }
+    ui.autoUndo = { key: ctx.key, before: before, after: planSnapshot(ctx) };
+    renderMoving();
+    const left = open.length - count;
+    toast('Suggested ' + plural(count, 'subject') + (left ? ', ' + left + ' left open' : '') + '. A starting point only, so check them in the Handbook.', { action: 'suggest-undo', label: 'Undo' });
+  }
+  function undoSuggest() {
+    const u = ui.autoUndo;
+    if (!u) return;
+    const was = JSON.parse(u.before);
+    if (isCustom()) state.custom.slots = was;
+    else if (Object.keys(was).length) state.picks[u.key] = was;
+    else delete state.picks[u.key];
+    ui.autoUndo = null;
+    $('#toast').classList.remove('show');
+    renderMoving();
+    toast('Suggestions removed.');
+  }
+
+  // ======================================================================== drag between sessions
+  // Custom plans at the full-time view only; Change or move stays as the way in for keyboards and phones.
+  function dropIssues(ctx, s, y, sess) {
+    const issues = [];
+    if (!s.pending && s.code) {
+      if (sess === 'Summer') issues.push('Check Handbook for Summer');
+      else if (s.listSubject || s.custom) issues.push('Check Handbook');
+      else {
+        const off = offerFor(ctx.deg, s.code, sess);
+        if (off && off.none) issues.push('Not offered in ' + sess);
+        else if (off && off.tbc) issues.push(sess + ' TBC');
+      }
+    }
+    const load = sumCP(ctx.slots.filter(function (o) { return o !== s && o.year === y && o.session === sess; })) + s.cp;
+    if (load > LOAD_CP.FT) issues.push(load + ' CP, over the ' + LOAD_CP.FT + ' CP load');
+    return issues;
+  }
+  function dropZone(el) { return el && el.closest ? el.closest('#grid .session, #grid .summer-add') : null; }
+  function zoneTarget(zone) { return { y: +zone.dataset.y, s: zone.dataset.s || 'Summer' }; }
+  function markDropZones() {
+    const ctx = lastCtx;
+    const s = ctx.byId[ui.drag];
+    if (!s) return;
+    document.getElementById('slot-' + s.id).classList.add('is-dragging');
+    $('#grid').querySelectorAll('.session, .summer-add').forEach(function (zone) {
+      const t = zoneTarget(zone);
+      if (t.y === s.year && t.s === s.session) { zone.classList.add('drop-home'); return; }
+      const issues = dropIssues(ctx, s, t.y, t.s);
+      zone.classList.add(issues.length ? 'drop-warn' : 'drop-ok');
+      if (zone.classList.contains('summer-add')) return;
+      const badge = document.createElement('span');
+      badge.className = 'drop-badge';
+      badge.textContent = issues.length ? issues.join(' · ') : (s.pending ? 'Fits' : 'Offered, fits load');
+      zone.querySelector('.session-head').appendChild(badge);
+    });
+  }
+  function clearDrag() {
+    ui.drag = '';
+    const grid = $('#grid');
+    grid.querySelectorAll('.drop-badge').forEach(function (b) { b.remove(); });
+    grid.querySelectorAll('.drop-ok, .drop-warn, .drop-home, .drop-over, .is-dragging').forEach(function (el) {
+      el.classList.remove('drop-ok', 'drop-warn', 'drop-home', 'drop-over', 'is-dragging');
+    });
+  }
+  document.addEventListener('dragstart', function (ev) {
+    const card = ev.target.closest ? ev.target.closest('.subj[draggable="true"]') : null;
+    if (!card) return;
+    clearTimeout(xrayTimer);
+    ui.drag = card.dataset.slot;
+    ui.xrayPin = '';
+    xrayClear();
+    ev.dataTransfer.effectAllowed = 'move';
+    ev.dataTransfer.setData('text/plain', lastCtx.byId[ui.drag].code || 'Open slot');
+    // after the browser has taken its drag picture of the card
+    requestAnimationFrame(markDropZones);
+  });
+  document.addEventListener('dragover', function (ev) {
+    if (!ui.drag) return;
+    const zone = dropZone(ev.target);
+    $('#grid').querySelectorAll('.drop-over').forEach(function (z) { if (z !== zone) z.classList.remove('drop-over'); });
+    if (!zone) return;
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = 'move';
+    zone.classList.add('drop-over');
+  });
+  document.addEventListener('drop', function (ev) {
+    if (!ui.drag) return;
+    const zone = dropZone(ev.target);
+    if (!zone) return;
+    ev.preventDefault();
+    const ctx = lastCtx;
+    const s = ctx.byId[ui.drag];
+    const t = zoneTarget(zone);
+    const issues = dropIssues(ctx, s, t.y, t.s);
+    clearDrag();
+    if (s.year === t.y && s.session === t.s) return;
+    const id = moveCustomSlot(s.idx, t.y, t.s);
+    renderMoving(function () { flashSlot(id, true); });
+    toast((s.pending ? 'Open slot' : s.code) + ' moved to Year ' + t.y + ' ' + t.s + (issues.length ? '. Check: ' + issues.join(', ') : '') + '.');
+  });
+  document.addEventListener('dragend', function () { if (ui.drag) clearDrag(); });
+
+  // ======================================================================== modals: focus and closing
+  let modalTimer = 0;
+  let focusBack = null;
+  function showModal(html) {
+    const root = $('#modal-root');
+    const closing = root.classList.contains('closing');
+    clearTimeout(modalTimer);
+    root.classList.remove('closing');
+    if ((!root.firstChild || closing) && !focusBack) {
+      const a = document.activeElement;
+      focusBack = a && a !== document.body ? { el: a, id: a.id, action: a.dataset && a.dataset.action, slot: a.dataset && a.dataset.slot } : null;
+    }
+    const opening = !root.firstChild || closing;
+    root.innerHTML = html;
+    $('#app').inert = true;
+    document.body.style.overflow = 'hidden';
+    if (opening) {
+      const m = root.querySelector('.modal');
+      m.tabIndex = -1;
+      m.focus({ preventScroll: true });
+    }
+  }
+  function closeModal(now) {
+    ui.modal = null;
+    ui.picker = null;
+    ui.setupSummer = 0;
+    ui.importFound = null;
+    ui.progress = null;
+    ui.importJob = (ui.importJob || 0) + 1;
+    const root = $('#modal-root');
+    clearTimeout(modalTimer);
+    $('#app').inert = false;
+    document.body.style.overflow = '';
+    if (now === true || !root.firstChild || !motionOK()) {
+      root.classList.remove('closing');
+      root.innerHTML = '';
+    } else {
+      root.classList.add('closing');
+      modalTimer = setTimeout(function () {
+        root.classList.remove('closing');
+        root.innerHTML = '';
+      }, 150);
+    }
+    setTimeout(restoreFocus, 0);
+  }
+  // back to what opened the window, or its stand-in if the page was rebuilt meanwhile
+  function restoreFocus() {
+    if (!focusBack || ui.modal) return;
+    const f = focusBack;
+    focusBack = null;
+    let el = f.el && f.el.isConnected ? f.el : f.id ? document.getElementById(f.id) : null;
+    if (!el && f.action) el = document.querySelector('[data-action="' + f.action + '"]' + (f.slot ? '[data-slot="' + f.slot + '"]' : ''));
+    if (el && el.focus) el.focus({ preventScroll: true });
+  }
+  function trapTab(ev) {
+    const box = $('#modal-root .modal');
+    if (!box) return;
+    const items = Array.from(box.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+      .filter(function (el) { return !el.hidden && el.offsetParent !== null; });
+    if (!items.length) { ev.preventDefault(); box.focus(); return; }
+    const first = items[0];
+    const last = items[items.length - 1];
+    const at = document.activeElement;
+    if (!box.contains(at) || at === box) { ev.preventDefault(); (ev.shiftKey ? last : first).focus(); }
+    else if (ev.shiftKey && at === first) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && at === last) { ev.preventDefault(); first.focus(); }
+  }
+  const KEY_HINT = '<p class="kbd-hint"><kbd>/</kbd> search · <kbd>Esc</kbd> close</p>';
+  const CLEAR_PICK = ' <button type="button" class="linkish" data-action="pick-reset">Clear filters</button>';
+
+  // the chain view follows the pointer, or the keyboard, unless a Chain button has pinned it
+  let xrayTimer = 0;
+  function xrayFollow(id) {
+    if (ui.xrayPin || ui.drag || ui.modal || id === ui.xrayHover) return;
+    ui.xrayHover = id;
+    clearTimeout(xrayTimer);
+    xrayTimer = setTimeout(function () { if (id) xrayShow(id); else xrayClear(); }, id ? 140 : 80);
+  }
+  document.addEventListener('mouseover', function (ev) {
+    if (!window.matchMedia('(hover: hover)').matches) return;
+    const card = ev.target.closest ? ev.target.closest('#grid .subj') : null;
+    xrayFollow(card ? card.dataset.slot : '');
+  });
+  document.addEventListener('focusin', function (ev) {
+    const card = ev.target.closest ? ev.target.closest('#grid .subj') : null;
+    if (card && ev.target.matches(':focus-visible')) xrayFollow(card.dataset.slot);
+  });
+  document.addEventListener('focusout', function (ev) {
+    if (ev.target.closest && ev.target.closest('#grid .subj') && !(ev.relatedTarget && ev.relatedTarget.closest && ev.relatedTarget.closest('#grid .subj'))) xrayFollow('');
+  });
 
   // ======================================================================== render: main
   let lastCtx = null;
@@ -1536,6 +2102,7 @@
     renderFoot(ctx);
     if (active && document.getElementById(active) && /^(sel-|cat-|custom-name)/.test(active)) document.getElementById(active).focus({ preventScroll: true });
     saveState();
+    afterRender(ctx);
     if (ui.modal === 'export') renderExportPreview();
   }
 
@@ -1559,21 +2126,30 @@
       if (!state.picks[newKey][raw.id]) state.picks[newKey][raw.id] = p;
     });
   }
-  function flashSlot(id) {
+  function flashSlot(id, stay) {
     const el = document.getElementById('slot-' + id);
     if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!stay) el.scrollIntoView({ behavior: scrollMode(), block: 'center' });
     el.classList.remove('flash');
     void el.offsetWidth;
     el.classList.add('flash');
   }
   let toastTimer = null;
-  function toast(msg) {
+  function toast(msg, act) {
     const t = $('#toast');
     t.textContent = msg;
+    if (act) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'toast-action';
+      b.dataset.action = act.action;
+      b.textContent = act.label;
+      t.appendChild(b);
+    }
+    t.classList.toggle('has-action', !!act);
     t.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2600);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, act ? 8000 : 2600);
   }
 
   // ======================================================================== picker modal
@@ -1581,16 +2157,6 @@
     ui.modal = 'picker';
     ui.picker = { slotId: slotId, q: '', campusOnly: !!state.campus, showOff: false, level: '', ugOnly: true, custom: !!(lastCtx && lastCtx.custom) };
     renderPicker(true);
-  }
-  function closeModal() {
-    ui.modal = null;
-    ui.picker = null;
-    ui.setupSummer = 0;
-    ui.importFound = null;
-    ui.progress = null;
-    ui.importJob = (ui.importJob || 0) + 1;
-    $('#modal-root').innerHTML = '';
-    document.body.style.overflow = '';
   }
   function pickerTitle(s) {
     if (s.kind === 'llb') return 'Choose an LLB Alternate subject';
@@ -1614,13 +2180,13 @@
       ? '<div class="pick-section"><h4>Not on the list? Enter it yourself</h4><form class="custom-form" id="custom-form"><div class="field"><label for="cu-code">Code</label><input class="input" id="cu-code" placeholder="e.g. HUMN 1052" maxlength="12" value="' + esc(s.custom ? s.code : '') + '"></div><div class="field"><label for="cu-title">Title</label><input class="input" id="cu-title" placeholder="Subject title" maxlength="120" value="' + esc(s.custom ? s.title : '') + '"></div><button type="submit" class="btn btn-primary">Use subject</button></form><p class="small muted" style="margin:4px 8px 0">Check prerequisites and session availability in the 2027 Handbook.</p></div>'
       : '';
 
-    $('#modal-root').innerHTML = '<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="picker-h">' +
+    showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="picker-h">' +
       '<div class="modal-head"><div><h2 id="picker-h">' + esc(pickerTitle(s)) + '</h2><p>' + where(s) + ' · ' + s.cp + ' CP · ' + esc(ctx.deg.code) + ' ' + esc(ctx.opt.majorCode !== 'BASE' ? ctx.opt.majorLabel : ctx.deg.title) + '</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
-      '<div class="modal-tools">' + tools + '</div>' +
+      '<div class="modal-tools">' + tools + KEY_HINT + '</div>' +
       '<div class="modal-body"><div id="pick-results"></div>' + custom + '</div>' +
       '<div class="modal-foot"><span class="small muted">Subjects already in your plan are disabled. TBC = 2027 session not yet published.</span><div style="display:flex;gap:8px">' +
       (s.pick ? '<button type="button" class="btn" data-action="pick-clear">' + (s.kind === 'option' ? 'Reset to WSLSA pick' : 'Clear choice') + '</button>' : '') +
-      '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button></div></div></div></div>';
+      '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button></div></div></div></div>');
     document.body.style.overflow = 'hidden';
     renderPickerResults();
     if (first) { const q = $('#pick-q'); if (q && window.matchMedia('(pointer:fine)').matches) q.focus(); }
@@ -1698,7 +2264,7 @@
     const offeredHead = (s.kind === 'elective' ? 'LLB Alternates offered in ' : 'Offered in ') + s.session + ' 2027';
     if (offered.length || !q || s.kind !== 'elective') {
       html += '<div class="pick-section"><h4><span>' + offeredHead + '</span><span>' + offered.length + (hiddenByCampus ? ' · ' + hiddenByCampus + ' hidden by campus filter' : '') + '</span></h4><div class="pick-list">' +
-        (offered.length ? offered.map(function (i) { return row(i); }).join('') : '<div class="pick-empty">' + (best && best.src === 'pool' ? 'No other matches' : 'No matching subjects') + ' offered in ' + s.session + '.</div>') + '</div></div>';
+        (offered.length ? offered.map(function (i) { return row(i); }).join('') : '<div class="pick-empty">' + (best && best.src === 'pool' ? 'No other matches' : 'No matching subjects') + ' offered in ' + s.session + '.' + CLEAR_PICK + '</div>') + '</div></div>';
     } else {
       html += '<p class="pick-hint">No ' + (best && best.src === 'pool' ? 'other ' : '') + 'LLB Alternates offered in ' + s.session + ' match “' + esc(p.q.trim()) + '”.</p>';
     }
@@ -1716,7 +2282,7 @@
       return head + pool.length.toLocaleString('en-AU') + ' subjects</span></h4><p class="pick-hint">Type a subject code (for example ACCT2004) or words from its name above to search ' + pool.length.toLocaleString('en-AU') + ' more WSU subjects' + (p.ugOnly ? ' at undergraduate levels 1–4' : '') + '. The list gives codes and titles only, so check sessions and prerequisites in the 2027 Handbook.</p></div>';
     }
     return head + hits.length.toLocaleString('en-AU') + (hits.length === 1 ? ' match' : ' matches') + '</span></h4><div class="pick-list">' +
-      (hits.length ? hits.slice(0, PICK_LIMIT).map(function (e) { return listRow(e); }).join('') : '<div class="pick-empty">No ' + (bestFromList ? 'other ' : '') + 'subjects in the WSU subject list match “' + esc(p.q.trim()) + '”' + (p.ugOnly ? ' at levels 1–4. Turn off “Undergraduate levels 1–4” to search every level' : '') + '.</div>') + '</div>' +
+      (hits.length ? hits.slice(0, PICK_LIMIT).map(function (e) { return listRow(e); }).join('') : '<div class="pick-empty">No ' + (bestFromList ? 'other ' : '') + 'subjects in the WSU subject list match “' + esc(p.q.trim()) + '”' + (p.ugOnly ? ' at levels 1–4. Turn off “Undergraduate levels 1–4” to search every level' : '') + '.' + CLEAR_PICK + '</div>') + '</div>' +
       (hits.length > PICK_LIMIT ? '<p class="pick-hint">Showing the ' + PICK_LIMIT + ' most relevant of ' + hits.length.toLocaleString('en-AU') + '. Add more of the code or name to narrow the list.</p>' : '') + '</div>';
   }
   function choosePick(code, src) {
@@ -1780,13 +2346,13 @@
       '<div class="field"><label for="cu-title">Title</label><input class="input" id="cu-title" placeholder="Subject title" maxlength="120" value="' + esc(s.custom ? s.title : '') + '"></div>' +
       '<div class="field"><label for="cu-cp">Credit</label><div class="select-wrap"><select id="cu-cp">' + [0, 10, 20, 30, 40].map(function (c) { return '<option value="' + c + '"' + (c === typedCP ? ' selected' : '') + '>' + c + ' CP</option>'; }).join('') + '</select></div></div>' +
       '<button type="submit" class="btn btn-primary">Use subject</button></form><p class="small muted" style="margin:4px 8px 0">A code from the 2027 guides or the WSU subject list fills in its real title and credit points.</p></div>';
-    $('#modal-root').innerHTML = '<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="picker-h">' +
+    showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="picker-h">' +
       '<div class="modal-head"><div><h2 id="picker-h">' + (s.pending ? 'Choose a subject' : 'Change or move this subject') + '</h2><p>' + where(s) + ' · ' + s.cp + ' CP · ' + esc(ctx.deg.title) + (s.replaced ? ' · template subject: ' + esc(s.replaced.code + ' ' + s.replaced.title) : '') + '</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
-      '<div class="modal-tools">' + tools + '</div>' +
+      '<div class="modal-tools">' + tools + KEY_HINT + '</div>' +
       '<div class="modal-body"><div id="pick-results"></div>' + custom + '</div>' +
       '<div class="modal-foot"><div class="move-row"><label for="cp-move">Move to</label><div class="select-wrap"><select id="cp-move">' + moveOpts + '</select></div></div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' + (s.pending ? '' : '<button type="button" class="btn" data-action="pick-clear">Clear subject</button>') +
-      '<button type="button" class="btn" data-action="cremove" data-slot="' + s.id + '">Remove slot</button><button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button></div></div></div></div>';
+      '<button type="button" class="btn" data-action="cremove" data-slot="' + s.id + '">Remove slot</button><button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button></div></div></div></div>');
     document.body.style.overflow = 'hidden';
     renderCustomPickerResults();
     if (first) { const q = $('#pick-q'); if (q && window.matchMedia('(pointer:fine)').matches) q.focus(); }
@@ -1857,7 +2423,7 @@
                 '<span class="p-code">' + hlCode(x.code, q) + '</span><span class="p-title">' + hl(x.title, q) + '</span>' +
                 '<span class="p-side"><span class="status status-non">' + where(x) + '</span></span>' +
                 '<span class="p-meta"><span>Moves here from ' + where(x) + '</span><span>' + x.cp + ' CP</span></span></button>';
-            }).join('') : '<div class="pick-empty">No later subjects in your plan match “' + esc(p.q.trim()) + '”.</div>') + '</div></div>';
+            }).join('') : '<div class="pick-empty">No later subjects in your plan match “' + esc(p.q.trim()) + '”.' + CLEAR_PICK + '</div>') + '</div></div>';
         }
       }
     }
@@ -1869,7 +2435,7 @@
     if (sugg.length && (suggItems.filter(notBest).length || !q)) {
       const list = suggItems.filter(notBest);
       html += '<div class="pick-section"><h4><span>' + esc(suggestionsHead(s)) + '</span><span>' + list.length + '</span></h4><div class="pick-list">' +
-        (list.length ? list.map(function (i) { return crow(i); }).join('') : '<div class="pick-empty">No ' + (best ? 'other ' : '') + 'template options match.</div>') + '</div></div>';
+        (list.length ? list.map(function (i) { return crow(i); }).join('') : '<div class="pick-empty">No ' + (best ? 'other ' : '') + 'template options match.' + CLEAR_PICK + '</div>') + '</div></div>';
     }
     const head = '<div class="pick-section"><h4><span>Any WSU subject · 2027 guides and subject list</span><span>';
     if (q.length >= 2 && best && !anyItems.filter(notBest).length) {
@@ -1879,7 +2445,7 @@
     } else {
       const list = anyItems.filter(notBest);
       html += head + list.length.toLocaleString('en-AU') + (list.length === 1 ? ' match' : ' matches') + '</span></h4><div class="pick-list">' +
-        (list.length ? list.slice(0, PICK_LIMIT).map(function (i) { return crow(i); }).join('') : '<div class="pick-empty">No ' + (best ? 'other ' : '') + 'subjects match “' + esc(p.q.trim()) + '”' + (p.ugOnly ? ' at levels 1–4' : '') + '.</div>') + '</div>' +
+        (list.length ? list.slice(0, PICK_LIMIT).map(function (i) { return crow(i); }).join('') : '<div class="pick-empty">No ' + (best ? 'other ' : '') + 'subjects match “' + esc(p.q.trim()) + '”' + (p.ugOnly ? ' at levels 1–4' : '') + '.' + CLEAR_PICK + '</div>') + '</div>' +
         (list.length > PICK_LIMIT ? '<p class="pick-hint">Showing the ' + PICK_LIMIT + ' most relevant of ' + list.length.toLocaleString('en-AU') + '. Add more of the code or name to narrow the list.</p>' : '') + '</div>';
     }
     if (hiddenOff) html += '<p class="pick-hint">' + plural(hiddenOff, 'matching subject') + ' ' + (hiddenOff === 1 ? 'runs' : 'run') + ' only in ' + other + '. <button type="button" class="linkish" data-action="pick-off">Show ' + (hiddenOff === 1 ? 'it' : 'them') + '</button></p>';
@@ -1971,7 +2537,7 @@
     };
     ui.modal = 'setup';
     ui.setupSummer = opts.summerYear || 0;
-    $('#modal-root').innerHTML = '<div class="modal-backdrop" data-action="backdrop"><div class="modal modal-setup" role="dialog" aria-modal="true" aria-labelledby="setup-h">' +
+    showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal modal-setup" role="dialog" aria-modal="true" aria-labelledby="setup-h">' +
       '<div class="modal-head"><div><h2 id="setup-h">' + (ui.setupSummer ? 'Add a Summer session' : plan ? 'Edit your custom degree' : 'Build your own degree') + '</h2><p>Set the credit points your degree requires, name it, then start from empty slots or from a 2027 WSLSA pathway you can edit subject by subject.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
       '<form class="setup-body" id="setup-form" novalidate>' +
       (ui.setupSummer ? '<p class="cs-summer"><b>Summer is planned in your own copy of a pathway.</b> Create it below and Year ' + ui.setupSummer + ' Summer is added after Spring, ready for you to choose a subject or bring one forward from later in your plan. The WSLSA pathway itself stays as it is.</p>' : '') +
@@ -1996,7 +2562,7 @@
       '<label class="check-row"><input type="checkbox" id="cs-tpl-mine" checked><span>Bring across my choices and completed ticks for that pathway from the Explorer</span></label></div>' +
       '<p class="cs-warn" id="cs-warn"' + (filled && start !== 'keep' ? '' : ' hidden') + ' data-filled="' + filled + '">Starting again replaces the ' + plural(filled, 'subject') + ' in your current custom plan.</p>' +
       '</fieldset></form>' +
-      '<div class="modal-foot"><span class="small muted">Saved in this browser and in your share link.</span><div style="display:flex;gap:8px"><button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="submit" form="setup-form" class="btn btn-primary">' + (plan ? 'Update plan →' : 'Create plan →') + '</button></div></div></div></div>';
+      '<div class="modal-foot"><span class="small muted">Saved in this browser and in your share link.</span><div style="display:flex;gap:8px"><button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="submit" form="setup-form" class="btn btn-primary">' + (plan ? 'Update plan →' : 'Create plan →') + '</button></div></div></div></div>');
     document.body.style.overflow = 'hidden';
     const n = $('#cs-name');
     if (n && window.matchMedia('(pointer:fine)').matches) n.focus();
@@ -2051,10 +2617,10 @@
     const years = plan.slots.reduce(function (m, x) { return Math.max(m, x.y); }, 0);
     toast(start === 'keep' ? 'Custom plan updated: ' + plan.cp + ' CP required.' : 'Custom plan ready: ' + plural(plan.slots.length, 'slot') + ' across ' + plural(years, 'year') + '.');
     const head = $('.section-head');
-    if (head) head.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (head) head.scrollIntoView({ behavior: scrollMode(), block: 'start' });
   }
   function openCustom() {
-    if (state.custom) { state.mode = 'custom'; render(); toast('Showing your custom plan.'); }
+    if (state.custom) { state.mode = 'custom'; renderEntering(); toast('Showing your custom plan.'); }
     else openSetup({ start: 'blank' });
   }
 
@@ -2070,7 +2636,7 @@
   }
   function showShare(url) {
     ui.modal = 'share';
-    $('#modal-root').innerHTML = '<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="share-h"><div class="modal-head"><div><h2 id="share-h">Plan link</h2><p>Copy this link to reopen or share this exact plan.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div><div class="modal-body" style="padding:16px 20px"><textarea class="input" id="share-url" rows="4" readonly style="font:12px var(--mono);resize:vertical">' + esc(url) + '</textarea></div><div class="modal-foot"><span></span><button type="button" class="btn btn-ghost" data-action="modal-close">Close</button></div></div></div>';
+    showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="share-h"><div class="modal-head"><div><h2 id="share-h">Plan link</h2><p>Copy this link to reopen or share this exact plan.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div><div class="modal-body" style="padding:16px 20px"><textarea class="input" id="share-url" rows="4" readonly style="font:12px var(--mono);resize:vertical">' + esc(url) + '</textarea></div><div class="modal-foot"><span></span><button type="button" class="btn btn-ghost" data-action="modal-close">Close</button></div></div></div>');
     const ta = $('#share-url');
     ta.focus();
     ta.select();
@@ -2532,7 +3098,7 @@
   function openProgress() {
     ui.modal = 'progress';
     ui.progress = null;
-    $('#modal-root').innerHTML = '<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="progress-h">' +
+    showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="progress-h">' +
       '<div class="modal-head"><div><h2 id="progress-h">Import my progress</h2><p>Add your Degree Works audit or Subject Results page as a PDF and your plan is rebuilt from it: the subjects you have completed or are studying go in the sessions you took them, and what you still need is laid out from your next session, ready for you to change. Grades and marks are never shown or kept, and your file stays in this browser.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
       '<div class="modal-body import-body">' +
       '<div class="import-drop" id="progress-drop"><input type="file" id="progress-file" accept="application/pdf,.pdf" hidden>' +
@@ -2541,7 +3107,7 @@
       '<p class="import-status" id="progress-status" role="status" hidden></p>' +
       '<div id="progress-results"></div></div>' +
       '<div class="modal-foot"><span class="small muted">Import again whenever you have new results.</span><div style="display:flex;gap:8px">' +
-      '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="button" class="btn btn-primary" data-action="progress-apply" id="progress-apply" disabled>Build my plan</button></div></div></div></div>';
+      '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="button" class="btn btn-primary" data-action="progress-apply" id="progress-apply" disabled>Build my plan</button></div></div></div></div>');
     document.body.style.overflow = 'hidden';
   }
   function showProgress(info) {
@@ -2596,11 +3162,11 @@
     if (p.tdeg) { state.degree = p.tdeg.code; state.majorFor[p.tdeg.code] = p.tpl; }
     const done = p.history.filter(function (f) { return f.status === 'done'; }).length;
     const now = p.history.length - done;
-    closeModal();
-    render();
+    closeModal(true);
+    renderEntering();
     toast('Plan rebuilt from your ' + p.info.kind + ': ' + done + ' completed' + (now ? ', ' + now + ' under way' : '') + ' and ' + p.rest.length + ' still to plan.');
     const head = $('.section-head');
-    if (head) head.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (head) head.scrollIntoView({ behavior: scrollMode(), block: 'start' });
   }
 
   // ======================================================================== tick off from results
@@ -2661,13 +3227,13 @@
   function openImport() {
     ui.modal = 'import';
     ui.importFound = [];
-    $('#modal-root').innerHTML = '<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="import-h">' +
+    showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="import-h">' +
       '<div class="modal-head"><div><h2 id="import-h">Tick off from my results</h2><p>Paste your academic record, results or a list of subjects you have passed. Every subject code in the text is matched to your plan, and nothing you paste leaves this browser. To rebuild your plan from a PDF instead, use Import my progress.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
       '<div class="modal-body import-body"><label class="field-label" for="import-text">Your results</label>' +
       '<textarea class="input" id="import-text" rows="6" placeholder="For example:&#10;LAWS 1003  Fundamentals of Australian Law  HD&#10;LAWS1010  Legal Methods  D"></textarea>' +
       '<div id="import-results"></div></div>' +
       '<div class="modal-foot"><span class="small muted" id="import-summary">Subjects you pass later can be ticked here again.</span><div style="display:flex;gap:8px">' +
-      '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="button" class="btn btn-primary" data-action="import-apply" id="import-apply" disabled>Tick subjects</button></div></div></div></div>';
+      '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="button" class="btn btn-primary" data-action="import-apply" id="import-apply" disabled>Tick subjects</button></div></div></div></div>');
     document.body.style.overflow = 'hidden';
     const t = $('#import-text');
     if (t && window.matchMedia('(pointer:fine)').matches) t.focus();
@@ -2952,7 +3518,7 @@
     const radio = function (name, val, title, desc) {
       return '<label class="opt-card"><input type="radio" name="' + name + '" value="' + val + '"' + (e[name.replace('exp-', '')] === val ? ' checked' : '') + '><b>' + title + '</b><span>' + desc + '</span></label>';
     };
-    $('#modal-root').innerHTML = '<div class="modal-backdrop" data-action="backdrop"><div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="export-h">' +
+    showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="export-h">' +
       '<div class="modal-head"><div><h2 id="export-h">PDF guide options</h2><p>Vector-sharp A4 output through your browser\'s print engine. Choose <b>Save as PDF</b> as the destination.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
       '<div class="export-layout"><div class="export-settings">' +
       '<fieldset><legend>Guide type</legend>' +
@@ -2970,7 +3536,7 @@
       '<label class="check-row"><input type="checkbox" name="exp-llbTbc"' + (e.llbTbc ? ' checked' : '') + '><span>Include subjects with session TBC</span></label></fieldset>' +
       '<p class="export-help"><b>Tips.</b> Paper size A4, scale 100%, margins default. Background tints are forced on with <code>print-color-adjust</code>; if a browser still drops them, tick <b>Background graphics</b> in its print dialog.</p>' +
       '<button type="button" class="btn btn-primary" data-action="export-print" style="min-height:46px">Print / Save PDF →</button>' +
-      '</div><div class="export-preview" id="export-preview"><div class="preview-meta"><span id="preview-pages">Preview</span><span>A4 · 10 mm margins</span></div><div class="preview-stage" id="preview-stage"></div></div></div></div></div>';
+      '</div><div class="export-preview" id="export-preview"><div class="preview-meta"><span id="preview-pages">Preview</span><span>A4 · 10 mm margins</span></div><div class="preview-stage" id="preview-stage"></div></div></div></div></div>');
     document.body.style.overflow = 'hidden';
     renderExportPreview();
   }
@@ -3030,7 +3596,7 @@
     const a = el.dataset.action;
     const ctx = lastCtx;
     switch (a) {
-      case 'top': ev.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); break;
+      case 'top': ev.preventDefault(); window.scrollTo({ top: 0, behavior: scrollMode() }); break;
       case 'backdrop': if (ev.target === el) closeModal(); break;
       case 'modal-close': closeModal(); break;
       case 'share': share(); break;
@@ -3056,12 +3622,12 @@
       case 'open-advisory': {
         ui.advisoryOpen = true;
         const box = $('#advisory-box');
-        if (box) { box.open = true; box.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+        if (box) { box.open = true; box.scrollIntoView({ behavior: scrollMode(), block: 'start' }); }
         break;
       }
       case 'export-print': doPrint(); break;
       case 'exp-orient': state.exp.orient = el.dataset.v; el.parentElement.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b === el)); }); saveState(); renderExportPreview(); break;
-      case 'load': state.load = el.dataset.load; render(); break;
+      case 'load': state.load = el.dataset.load; renderMoving(); break;
       case 'campus-pill': {
         const c = el.dataset.campus;
         state.campus = state.campus === c ? '' : c;
@@ -3070,7 +3636,16 @@
         break;
       }
       case 'campus-clear': state.campus = ''; render(); break;
-      case 'tab': ui.tab = el.dataset.tab; renderDetails(ctx); $('#tab-' + ui.tab).focus(); break;
+      case 'tab': {
+        const tab = el.dataset.tab;
+        transition(function () {
+          ui.tab = tab;
+          renderDetails(ctx);
+          if (motionOK()) $('.tab-panel').classList.add('panel-in');
+          $('#tab-' + tab).focus();
+        });
+        break;
+      }
       case 'jump': ev.preventDefault(); flashSlot(el.dataset.slot); break;
       case 'picker-open': openPicker(el.dataset.slot); break;
       case 'inline': {
@@ -3081,43 +3656,68 @@
           const o = s.raw.options.find(function (x) { return x.code === code; });
           setPick(s.id, { code: o.code, title: o.title });
         }
-        render();
+        renderMoving(function () {
+          const opts = motionOK() ? $('#slot-' + s.id + ' .inline-opts') : null;
+          if (opts) opts.classList.add('opts-in');
+        });
         break;
       }
       case 'clear':
         if (ctx.custom) clearCustomSlot(ctx.byId[el.dataset.slot].idx); else setPick(el.dataset.slot, null);
-        render();
+        renderMoving();
         break;
       case 'session-done': {
         const ids = el.dataset.ids.split(',');
-        if (ctx.custom) {
-          const all = ids.every(function (id) { return ctx.byId[id].done; });
-          ids.forEach(function (id) { state.custom.slots[ctx.byId[id].idx].done = !all; });
-          render();
-          break;
-        }
-        const key = currentKey();
-        state.done[key] = state.done[key] || {};
-        const all = ids.every(function (id) { return state.done[key][id]; });
-        ids.forEach(function (id) { if (all) delete state.done[key][id]; else state.done[key][id] = 1; });
-        render();
+        const all = ids.every(function (id) { return ctx.byId[id].done; });
+        ids.forEach(function (id) { setDone(id, !all); });
+        refreshDone(ids);
         break;
       }
+      case 'xray': {
+        const id = el.dataset.slot;
+        ui.xrayPin = ui.xrayPin === id ? '' : id;
+        ui.xrayHover = '';
+        if (ui.xrayPin) xrayShow(id); else xrayClear();
+        break;
+      }
+      case 'suggest': autoSuggest(); break;
+      case 'suggest-undo': undoSuggest(); break;
+      case 'mini-top': {
+        $('#dock-wrap').scrollIntoView({ behavior: scrollMode(), block: 'start' });
+        const first = $('#sel-degree');
+        if (first) first.focus({ preventScroll: true });
+        break;
+      }
+      case 'mini-toggle': {
+        const small = $('#mini-bar').classList.toggle('is-min');
+        el.setAttribute('aria-expanded', String(!small));
+        el.setAttribute('aria-label', small ? 'Expand progress bar' : 'Collapse progress bar');
+        break;
+      }
+      case 'pick-reset':
+        Object.assign(ui.picker, { q: '', level: '', showOff: false, campusOnly: false });
+        renderPicker(false);
+        $('#pick-q').focus();
+        break;
+      case 'cat-reset':
+        ui.cat = { q: '', comp: '', session: '', inPlan: false };
+        renderDetails(ctx);
+        $('#cat-q').focus();
+        break;
       case 'pick': choosePick(el.dataset.code, el.dataset.src); break;
       case 'cpick': chooseCustom(el.dataset.code); break;
       case 'cremove': {
         const s = ctx.byId[el.dataset.slot];
         state.custom.slots.splice(s.idx, 1);
-        if (ui.modal) closeModal();
-        render();
+        if (ui.modal) closeModal(true);
+        renderMoving();
         toast('Removed the ' + where(s) + ' slot' + (s.pending ? '' : ' (' + s.code + ')') + '.');
         break;
       }
       case 'cadd': {
         const id = addCustomSlot(+el.dataset.y, el.dataset.s);
         if (!id) break;
-        render();
-        flashSlot(id);
+        renderMoving(function () { flashSlot(id); });
         break;
       }
       case 'copy-codes': copyText(el.dataset.codes, 'Copied ' + el.dataset.codes + ' for enrolment.'); break;
@@ -3131,8 +3731,7 @@
         if (!ctx.custom) { openSetup({ start: 'template', tpl: currentKey(), summerYear: y }); break; }
         const id = addCustomSlot(y, 'Summer');
         if (!id) break;
-        render();
-        flashSlot(id);
+        renderMoving(function () { flashSlot(id); });
         toast('Year ' + y + ' Summer added. Choose a subject or bring one forward.');
         break;
       }
@@ -3146,10 +3745,9 @@
         moved.s = target.session;
         slots.splice(target.idx, 1);
         const id = 'c' + slots.indexOf(moved);
-        closeModal();
-        render();
+        closeModal(true);
+        renderMoving(function () { flashSlot(id); });
         toast(from.code + ' brought forward from ' + where(from) + ' to ' + where(target) + '.');
-        flashSlot(id);
         break;
       }
       case 'cyear': {
@@ -3157,14 +3755,14 @@
         if (!y) break;
         render();
         const yr = document.getElementById('year-' + y);
-        if (yr) yr.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (yr) yr.scrollIntoView({ behavior: scrollMode(), block: 'start' });
         toast('Added Year ' + y + ' with eight open slots.');
         break;
       }
       case 'custom-setup': openSetup(); break;
       case 'custom-from-current': openSetup({ start: 'template', tpl: currentKey() }); break;
       case 'custom-open': openCustom(); break;
-      case 'custom-exit': state.mode = 'guide'; render(); toast('Back to the WSLSA pathways. Your custom plan is kept under Degree → Your own.'); break;
+      case 'custom-exit': state.mode = 'guide'; renderEntering(); toast('Back to the WSLSA pathways. Your custom plan is kept under Degree → Your own.'); break;
       case 'cs-cp': $('#cs-cp').value = el.dataset.v; setupSync('cp'); break;
       case 'pick-ug': ui.picker.ugOnly = !ui.picker.ugOnly; el.setAttribute('aria-pressed', ui.picker.ugOnly); renderPickerResults(); break;
       case 'pick-clear': {
@@ -3223,18 +3821,17 @@
     const t = ev.target;
     if (t.id === 'sel-degree') {
       if (t.value === CUSTOM) {
-        if (state.custom) { state.mode = 'custom'; render(); }
+        if (state.custom) { state.mode = 'custom'; renderEntering(); }
         else { t.value = state.degree; openSetup({ start: 'blank' }); }
-      } else { state.mode = 'guide'; state.degree = t.value; render(); }
+      } else { state.mode = 'guide'; state.degree = t.value; renderEntering(); }
     } else if (t.id === 'custom-name') { render(); }
     else if (t.id === 'cp-move') {
       const v = t.value.split('|');
       const s = lastCtx.byId[ui.picker.slotId];
       const id = moveCustomSlot(s.idx, +v[0], v[1]);
-      closeModal();
-      render();
+      closeModal(true);
+      renderMoving(function () { flashSlot(id); });
       toast((s.pending ? 'Open slot' : s.code) + ' moved to Year ' + v[0] + ' ' + v[1] + '.');
-      flashSlot(id);
     } else if (t.name === 'import-pick') { updateImportCount(); }
     else if (t.id === 'progress-file') {
       if (t.files[0]) readPdf(t.files[0]);
@@ -3242,16 +3839,11 @@
     }
     else if (t.name === 'cs-start') { setupSync('start'); }
     else if (t.id === 'cs-tpl-deg') { $('#cs-tpl-major').innerHTML = tplMajorOptions(t.value, DEG[t.value].options[0]); setupSync('tpl'); }
-    else if (t.id === 'sel-major') { setMajor(t.value); render(); }
+    else if (t.id === 'sel-major') { setMajor(t.value); renderEntering(); }
     else if (t.id === 'sel-campus') { state.campus = t.value; render(); }
-    else if (t.dataset && t.dataset.action === 'done' && isCustom()) {
-      state.custom.slots[lastCtx.byId[t.dataset.slot].idx].done = t.checked;
-      render();
-    } else if (t.dataset && t.dataset.action === 'done') {
-      const key = currentKey();
-      state.done[key] = state.done[key] || {};
-      if (t.checked) state.done[key][t.dataset.slot] = 1; else delete state.done[key][t.dataset.slot];
-      render();
+    else if (t.dataset && t.dataset.action === 'done') {
+      setDone(t.dataset.slot, t.checked);
+      refreshDone([t.dataset.slot]);
     } else if (t.id === 'cat-comp') { ui.cat.comp = t.value; renderCatalogueRows(lastCtx); }
     else if (t.id === 'cat-session') { ui.cat.session = t.value; renderCatalogueRows(lastCtx); }
     else if (t.id === 'cat-inplan') { ui.cat.inPlan = t.checked; renderCatalogueRows(lastCtx); }
@@ -3286,8 +3878,26 @@
   });
 
   document.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Escape' && ui.modal) { closeModal(); return; }
     const el = ev.target;
+    if (ev.key === 'Escape') {
+      if (ui.modal) { closeModal(); return; }
+      if (ui.xrayPin) { ui.xrayPin = ''; ui.xrayHover = ''; xrayClear(); return; }
+      if (el.id === 'cat-q' && el.value) { el.value = ''; ui.cat.q = ''; renderCatalogueRows(lastCtx); return; }
+      xrayClear();
+      return;
+    }
+    if (ev.key === 'Tab' && ui.modal) { trapTab(ev); return; }
+    if (ev.key === '/' && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && !el.isContentEditable) {
+      if (ui.modal === 'picker') { ev.preventDefault(); $('#pick-q').focus(); }
+      else if (!ui.modal) {
+        ev.preventDefault();
+        if (ui.tab !== 'catalogue') { ui.tab = 'catalogue'; renderDetails(lastCtx); }
+        const q = $('#cat-q');
+        q.scrollIntoView({ behavior: scrollMode(), block: 'center' });
+        q.focus({ preventScroll: true });
+      }
+      return;
+    }
     if ((ev.key === 'Enter' || ev.key === ' ') && el.getAttribute && el.getAttribute('role') === 'button' && el.dataset.action) {
       ev.preventDefault();
       el.click();
@@ -3323,6 +3933,13 @@
     toast('Plan opened from the link.');
   });
 
+  // ======================================================================== phone progress bar
+  if (window.IntersectionObserver) {
+    new IntersectionObserver(function (entries) {
+      $('#mini-bar').classList.toggle('is-on', !entries[0].isIntersecting && entries[0].boundingClientRect.top < 0);
+    }).observe($('#dock-wrap'));
+  }
+
   // ======================================================================== boot
   const opened = applyHash();
   renderNotice();
@@ -3345,5 +3962,7 @@
     // lines as a PDF's pages would give them, for checks that run without loading the PDF reader, and
     // the date to treat as today, so which sessions have begun does not depend on when the checks run
     importPdfLines: function (lines, now) { ui.now = now || null; showProgress(pdfProgress(lines)); },
+    // the session commute check, given the campus lists of a session's subjects
+    commute: function (lists) { return commutePill(lists.map(function (codes) { return { done: false, pending: false, offer: { codes: codes } }; })); },
   };
 })();

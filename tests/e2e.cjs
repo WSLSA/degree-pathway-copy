@@ -29,7 +29,8 @@ function check(cond, msg) {
 }
 
 async function newPage(browser, opts) {
-  const page = await browser.newPage(Object.assign({ viewport: { width: 1360, height: 900 } }, opts || {}));
+  // reduced motion by default: updates are then instant, so checks can read the page straight after a click
+  const page = await browser.newPage(Object.assign({ viewport: { width: 1360, height: 900 }, reducedMotion: 'reduce' }, opts || {}));
   page.errors = [];
   page.on('pageerror', e => page.errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') page.errors.push(m.text()); });
@@ -578,10 +579,216 @@ async function renderPdf(page, key, mode, orient, file) {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 
+  // ---------------------------------------------------------------- ticking in place
+  {
+  const ux = await newPage(browser);
+  await ux.goto(APP);
+  await ux.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
+  const slotOf = (pg, code) => pg.evaluate(c => { const s = WSLSA.context().slots.find(x => x.code === c); return s ? s.id : null; }, code);
+  const first = await slotOf(ux, 'LAWS 1003');
+  await ux.evaluate(id => { document.getElementById('slot-' + id).dataset.mark = 'kept'; }, first);
+  await ux.click(`#slot-${first} .tick`);
+  const ticked = await ux.evaluate(id => {
+    const el = document.getElementById('slot-' + id);
+    return { kept: el.dataset.mark, done: el.classList.contains('is-done'), flag: /Completed/.test(el.textContent), saved: !!WSLSA.state().done['2785|BASE'][id], year: document.querySelector('#year-1 .year-cp .done').textContent, mini: document.getElementById('mini-num').textContent, meta: document.getElementById('progress-meta').textContent, aria: document.querySelector('#dock .bar').getAttribute('aria-valuenow') };
+  }, first);
+  check(ticked.kept === 'kept' && ticked.done && ticked.flag && ticked.saved, `ticking should change the card in place and save it, got ${JSON.stringify(ticked)}`);
+  check(/^10 \/ 400/.test((await ux.textContent('#progress-num')).trim()) && ticked.mini === '10 / 400 CP' && ticked.aria === '10' && ticked.year === '10 / 80 CP completed' && /390 CP to go/.test(ticked.meta), `ticking should update every counter, got ${JSON.stringify(ticked)}`);
+  await ux.click(`#slot-${first} .tick`);
+  check(!(await ux.$(`#slot-${first}.is-done`)) && /^0 \/ 400/.test((await ux.textContent('#progress-num')).trim()), 'unticking should reverse it in place');
+  await ux.click('#year-1 .session[data-s="Autumn"] [data-action="session-done"]');
+  check(/^40 \/ 400/.test((await ux.textContent('#progress-num')).trim()) && await ux.textContent('#year-1 .session[data-s="Autumn"] [data-action="session-done"]') === 'Unmark all' && /Spring 2027/.test(await ux.textContent('#next')), 'marking a session should update its button, the counters and Next to enrol in place');
+  await ux.click('#year-1 .session[data-s="Autumn"] [data-action="session-done"]');
+
+  // ---------------------------------------------------------------- prerequisite chain: sourced rules, and a labelled general order
+  const property = await slotOf(ux, 'LAWS 3082');
+  const contracts = await slotOf(ux, 'LAWS 2003');
+  const torts = await slotOf(ux, 'LAWS 2013');
+  const consult = await slotOf(ux, 'ACCT 1005');
+  await ux.hover(`#slot-${property} .subj-title`);
+  await ux.waitForTimeout(220);
+  const up = await ux.evaluate(([a, b, c]) => [a, b, c].map(i => document.getElementById('slot-' + i).getAttribute('data-xray')), [first, contracts, consult]);
+  check(up[0] === 'Prerequisite' && up[1] === 'Prerequisite' && up[2] === null, `hovering LAWS 3082 should mark LAWS 1003 and LAWS 2003 as prerequisites and leave others, got ${JSON.stringify(up)}`);
+  check(/2027 Handbook/.test(await ux.textContent('#xray-note')) && await ux.$eval(`#slot-${consult}`, e => getComputedStyle(e).opacity) === '0.34', 'the chain should name its source and dim unrelated cards');
+  await ux.hover(`#slot-${first} .subj-title`);
+  await ux.waitForTimeout(220);
+  const down = await ux.evaluate(([a, b]) => [a, b].map(i => document.getElementById('slot-' + i).getAttribute('data-xray')), [property, torts]);
+  check(down[0] === 'Unlocks' && down[1] === 'Usually after', `hovering LAWS 1003 should show Unlocks for a rule and Usually after for the general order, got ${JSON.stringify(down)}`);
+  check(/not a Handbook rule/.test(await ux.textContent('#xray-note')), 'the general order should say it is not a Handbook rule');
+  await ux.hover('#hero-title');
+  await ux.waitForTimeout(160);
+  check(!(await ux.$('#grid.is-xray')) && await ux.isHidden('#xray-note'), 'moving away should clear the chain');
+  check(!(await ux.$(`#slot-${consult} .chain-btn`)) && !!(await ux.$(`#slot-${torts} .chain-btn`)), 'only subjects with a chain should offer the Chain button');
+  await ux.click(`#slot-${torts} .chain-btn`);
+  await ux.hover('#hero-title');
+  await ux.waitForTimeout(160);
+  check(await ux.$eval(`#slot-${first}`, e => e.getAttribute('data-xray')) === 'Usually first' && await ux.$eval(`#slot-${torts} .chain-btn`, e => e.getAttribute('aria-pressed')) === 'true', 'a Chain button should pin the view through pointer moves');
+  await ux.keyboard.press('Escape');
+  check(!(await ux.$('#grid.is-xray')) && await ux.$eval(`#slot-${torts} .chain-btn`, e => e.getAttribute('aria-pressed')) === 'false', 'Esc should clear a pinned chain');
+
+  // ---------------------------------------------------------------- commute check
+  const commute = lists => ux.evaluate(l => WSLSA.commute(l).replace(/<[^>]+>/g, ''), lists);
+  check(await commute([['CA'], ['PS']]) === '2 Campuses: CA + PS' || await commute([['CA'], ['PS']]) === '2 Campuses: PS + CA', `two far campuses should be flagged, got "${await commute([['CA'], ['PS']])}"`);
+  check(await commute([['PS'], ['PC']]) === '', 'the Parramatta campuses count as one place');
+  check(await commute([['PS', 'CA'], ['CA']]) === '', 'subjects that can share a campus should not be flagged');
+  check(await commute([['ON', 'CA'], ['PS']]) === '', 'a subject with an online offering should not force a trip');
+  check(/^3 Campuses/.test(await commute([['HA'], ['CA'], ['PS']])), 'three far campuses should say three');
+
+  // ---------------------------------------------------------------- auto-suggest open slots, with one-click undo
+  await ux.evaluate(() => { localStorage.clear(); WSLSA.select('2848|BASE'); });
+  await ux.selectOption('#sel-campus', 'PS');
+  const openNow = () => ux.evaluate(() => WSLSA.context().slots.filter(s => s.pending).length);
+  const openBefore = await openNow();
+  await ux.click('[data-action="suggest"]');
+  const sug = await ux.evaluate(() => {
+    const c = WSLSA.context();
+    const chosen = c.slots.filter(s => s.chosen && s.offer);
+    const codes = c.slots.filter(s => !s.pending).map(s => s.code);
+    return { n: chosen.length, bad: chosen.filter(s => s.offer.tbc || s.offer.none || (s.offer.codes.indexOf('PS') < 0 && s.offer.codes.indexOf('ON') < 0)).map(s => s.code), dupes: codes.length - new Set(codes).size };
+  });
+  check(await openNow() < openBefore && sug.n > 0 && !sug.bad.length && sug.dupes === 0, `suggestions should run in that session at the campus or online, with no repeats, got ${JSON.stringify(sug)}`);
+  check(/Suggested/.test(await ux.textContent('#toast')) && !!(await ux.$('#section-tools [data-action="suggest-undo"]')), 'suggesting should offer an undo');
+  await ux.click('#section-tools [data-action="suggest-undo"]');
+  check(await openNow() === openBefore && !(await ux.$('#section-tools [data-action="suggest-undo"]')), 'undo should restore the open slots');
+  await ux.selectOption('#sel-campus', '');
+
+  // ---------------------------------------------------------------- drag between sessions in a custom plan
+  await ux.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
+  check((await ux.$$('.subj[draggable="true"]')).length === 0, 'a WSLSA pathway should not be draggable');
+  await ux.click('[data-action="custom-from-current"]');
+  await ux.click('button[type=submit][form=setup-form]');
+  const dragged = await slotOf(ux, 'LAWS 1003');
+  const from = await (await ux.$(`#slot-${dragged} .subj-title`)).boundingBox();
+  await ux.mouse.move(from.x + 10, from.y + 5);
+  await ux.mouse.down();
+  await ux.mouse.move(from.x + 40, from.y + 30, { steps: 4 });
+  await ux.waitForTimeout(120);
+  const target = await (await ux.$('#year-1 .session[data-s="Spring"] .session-head')).boundingBox();
+  await ux.mouse.move(target.x + 30, target.y + 8, { steps: 6 });
+  await ux.mouse.move(target.x + 34, target.y + 9); // the browser sends dragover on the move after entering
+  await ux.waitForTimeout(80);
+  const zones = await ux.evaluate(() => ({ warn: document.querySelector('#year-1 .session[data-s="Spring"]').className, badge: (document.querySelector('#year-1 .session[data-s="Spring"] .drop-badge') || {}).textContent, home: !!document.querySelector('#year-1 .session[data-s="Autumn"].drop-home') }));
+  check(/drop-warn/.test(zones.warn) && /drop-over/.test(zones.warn) && /over the 40 CP load/.test(zones.badge || '') && zones.home, `dragging onto a full session should warn about the load, got ${JSON.stringify(zones)}`);
+  await ux.mouse.up();
+  const moved = await ux.evaluate(() => { const c = WSLSA.custom().slots.find(x => x.code === 'LAWS 1003'); return c.y + c.s; });
+  check(moved === '1Spring' && /moved to Year 1 Spring/.test(await ux.textContent('#toast')) && !(await ux.$('.drop-badge, .drop-warn, .drop-ok')), `dropping should move the subject and clear the highlights, got ${moved}`);
+  await ux.click('[data-action="load"][data-load="PT"]');
+  check((await ux.$$('.subj[draggable="true"]')).length === 0, 'the part-time view should not be draggable');
+  await ux.click('[data-action="load"][data-load="FT"]');
+
+  // ---------------------------------------------------------------- windows: focus trap, inert page, focus returns, Esc
+  await ux.evaluate(() => { localStorage.clear(); WSLSA.select('2848|BASE'); });
+  const opener = await ux.$('[data-action="picker-open"]');
+  await opener.focus();
+  await ux.keyboard.press('Enter');
+  check(await ux.evaluate(() => document.getElementById('app').inert) && await ux.evaluate(() => !!document.activeElement.closest('.modal')), 'a window should make the page inert and take focus');
+  let escaped = false;
+  for (let i = 0; i < 90; i++) {
+    await ux.keyboard.press('Tab');
+    if (!(await ux.evaluate(() => !!document.activeElement.closest('.modal')))) escaped = true;
+  }
+  check(!escaped, 'Tab should stay inside a window');
+  await ux.fill('#pick-q', 'zzzzqqqq');
+  check(!!(await ux.$('.pick-empty [data-action="pick-reset"]')), 'an empty picker search should offer Clear filters');
+  await ux.click('.pick-empty [data-action="pick-reset"]');
+  check(await ux.inputValue('#pick-q') === '' && (await ux.$$('.pick')).length > 0, 'Clear filters should bring the subjects back');
+  check(/Esc/.test(await ux.textContent('.modal-tools')), 'the picker should show its keyboard hints');
+  await ux.keyboard.press('Escape');
+  await ux.waitForTimeout(40);
+  check(!(await ux.$('.modal')) && await ux.evaluate(() => !document.getElementById('app').inert) && await ux.evaluate(() => document.activeElement.dataset.action === 'picker-open'), 'Esc should close the window and return focus to what opened it');
+
+  // ---------------------------------------------------------------- catalogue search states
+  await ux.evaluate(() => { document.activeElement.blur(); });
+  await ux.keyboard.press('/');
+  check(await ux.evaluate(() => document.activeElement.id === 'cat-q'), '/ should go to the catalogue search');
+  await ux.fill('#cat-q', 'zzzzqqqq');
+  check(!!(await ux.$('#cat-results .pick-empty [data-action="cat-reset"]')), 'an empty catalogue search should offer Clear filters');
+  await ux.click('[data-action="cat-reset"]');
+  check((await ux.$$('#cat-results tbody tr')).length > 0 && await ux.inputValue('#cat-q') === '', 'Clear filters should bring the catalogue back');
+  await ux.fill('#cat-q', 'torts');
+  await ux.keyboard.press('Escape');
+  check(await ux.inputValue('#cat-q') === '', 'Esc should clear the catalogue search');
+  check(ux.errors.length === 0, 'mapping and accessibility console errors: ' + ux.errors.join('; '));
+  await ux.close();
+
+  // ---------------------------------------------------------------- with animations on
+  const mo = await newPage(browser, { reducedMotion: 'no-preference' });
+  await mo.goto(APP);
+  await mo.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
+  await mo.click('[data-action="load"][data-load="PT"]');
+  check(await mo.evaluate(() => document.documentElement.classList.contains('vt-cards')), 'changing the load should run a view transition with gliding cards');
+  await mo.waitForFunction(() => /part-time/.test(document.querySelector('.year-bar h2 small').textContent));
+  await mo.waitForTimeout(500);
+  await mo.click('[data-action="load"][data-load="FT"]');
+  await mo.waitForFunction(() => !/part-time/.test(document.querySelector('.year-bar h2 small').textContent));
+  await mo.waitForFunction(() => !document.documentElement.classList.contains('vt-cards'));
+  await mo.selectOption('#sel-degree', '2848');
+  check(!!(await mo.$('#grid.is-entering')), 'choosing a degree should settle the cards in');
+  await mo.waitForTimeout(1100);
+  check(!(await mo.$('#grid.is-entering')), 'the entrance should tidy up after itself');
+  // the advisory glides open rather than snapping
+  const glides = await mo.evaluate(async () => {
+    const box = document.getElementById('advisory-box');
+    const closed = box.offsetHeight;
+    box.open = true;
+    await new Promise(r => setTimeout(r, 90));
+    const during = box.offsetHeight;
+    await new Promise(r => setTimeout(r, 450));
+    const open = box.offsetHeight;
+    box.open = false;
+    return { closed, during, open };
+  });
+  check(glides.during > glides.closed && glides.during < glides.open, `the advisory should pass through a height between closed and open, got ${JSON.stringify(glides)}`);
+  await mo.waitForTimeout(400);
+  // a full year completed: the counter lands on the true number and the bars glow
+  for (const s of ['Autumn', 'Spring']) await mo.click(`#year-1 .session[data-s="${s}"] [data-action="session-done"]`);
+  check(!!(await mo.$('#year-1 .year-bar.year-glow')) && !!(await mo.$('#dock .bar.glow')), 'completing a year should pulse its bar and the progress bar');
+  await mo.waitForFunction(() => /^80 \/ 320/.test(document.getElementById('progress-num').textContent.trim()));
+  check(await mo.evaluate(() => document.querySelector('#dock .bar > span').style.width) === '25%', 'the progress bar should land on the true width');
+  // a window fades out before it leaves the page, and reopening during that keeps the new one
+  await mo.click('[data-action="import-open"]');
+  await mo.keyboard.press('Escape');
+  check(!!(await mo.$('#modal-root.closing .modal')), 'a closing window should stay for its fade');
+  await mo.waitForFunction(() => !document.querySelector('#modal-root .modal'));
+  check(!(await mo.$('#modal-root.closing')), 'the fade should tidy up');
+  await mo.click('[data-action="import-open"]');
+  await mo.keyboard.press('Escape');
+  await mo.click('[data-action="progress-open"]', { force: true }).catch(() => {});
+  await mo.waitForTimeout(220);
+  check(!(await mo.$('#modal-root.closing')), 'opening straight after closing should not leave the old fade running');
+  await mo.evaluate(() => { const b = document.querySelector('.modal-x'); if (b) b.click(); });
+  await mo.waitForTimeout(220);
+  // a subject glides to its new session in a custom plan
+  await mo.click('[data-action="custom-from-current"]');
+  await mo.click('button[type=submit][form=setup-form]');
+  await mo.waitForTimeout(1100);
+  const glide = await mo.evaluate(() => { const c = WSLSA.context().slots.find(s => !s.pending); return c.id; });
+  await mo.click(`#slot-${glide} [data-action="clear"]`);
+  await mo.waitForFunction(() => !document.documentElement.classList.contains('vt-cards'));
+  check(await mo.evaluate(id => !!document.querySelector('#slot-' + id + '.is-pending'), glide), 'a change inside a view transition should still land');
+  check(mo.errors.length === 0, 'animation console errors: ' + mo.errors.join('; '));
+  await mo.close();
+  }
+
   // ---------------------------------------------------------------- mobile layout
   const m = await newPage(browser, { viewport: { width: 390, height: 844 } });
   await m.goto(APP);
   check(await m.evaluate(() => document.documentElement.scrollWidth <= 390), 'no horizontal scroll at 390px');
+  // the dock scrolls away on a phone, so a small bar stands in for it
+  await m.evaluate(() => { localStorage.clear(); WSLSA.select('2848|BASE'); });
+  check(await m.isHidden('#mini-bar') || !(await m.$('#mini-bar.is-on')), 'the phone bar should wait until the dock has scrolled away');
+  await m.evaluate(() => window.scrollTo(0, document.getElementById('grid').offsetTop));
+  await m.waitForTimeout(200);
+  check(!!(await m.$('#mini-bar.is-on')) && await m.isVisible('#mini-track') && /^0 \/ 320 CP$/.test(await m.textContent('#mini-num')), 'the phone bar should show progress once the dock has gone');
+  await m.click('#grid .subj .tick');
+  check(/^10 \/ 320 CP$/.test(await m.textContent('#mini-num')), 'ticking should update the phone bar');
+  await m.click('[data-action="mini-toggle"]');
+  check(!!(await m.$('#mini-bar.is-min')) && await m.isHidden('#mini-track') && await m.getAttribute('[data-action="mini-toggle"]', 'aria-expanded') === 'false', 'the phone bar should collapse');
+  await m.click('[data-action="mini-toggle"]');
+  await m.click('[data-action="mini-top"]');
+  await m.waitForTimeout(250);
+  check(await m.evaluate(() => document.activeElement.id === 'sel-degree' && document.getElementById('dock-wrap').getBoundingClientRect().top < 40) && !(await m.$('#mini-bar.is-on')), 'Controls should jump back to the dock');
+  check(await m.evaluate(() => document.documentElement.scrollWidth <= 390), 'the phone bar should not cause sideways scrolling');
   check(m.errors.length === 0, 'mobile console errors: ' + m.errors.join('; '));
   await m.close();
 

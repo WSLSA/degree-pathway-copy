@@ -16,6 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data" / "wslsa-2027.json"
+PREREQS = ROOT / "data" / "prerequisites.json"
 SRC = ROOT / "src"
 OUT = ROOT / "dist" / "wslsa-pathway-explorer.html"
 
@@ -53,6 +54,7 @@ def payload(d):
         "options": [{k: o[k] for k in OPTION_FIELDS} for o in d["options"]],
         "pathways": pathways,
         "extra": [[x["code"], x["title"]] for x in d.get("additionalSubjects", [])],
+        "prereqs": {k: v for k, v in json.loads(PREREQS.read_text(encoding="utf-8")).items() if k != "about"},
     }
 
 

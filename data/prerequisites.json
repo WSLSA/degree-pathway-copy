@@ -1,0 +1,9 @@
+{
+  "about": "What the Chain view can show. Add a subject under 'subjects' only after reading its page in the 2027 Handbook: 'requires' is a list of groups, every group must be met, and any one subject in a group meets it. 'sequences' are general orders that are not Handbook rules, shown as Usually first and Usually after. Advisor notes in the workbook are added to these automatically.",
+  "subjects": {
+    "LAWS 3082": { "requires": [["LAWS 1003"], ["LAWS 2003"]], "source": "2027 Handbook" }
+  },
+  "sequences": [
+    { "first": ["LAWS 1003", "LAWS 1010"], "then": { "area": "LAWS", "levels": [2, 3] } }
+  ]
+}

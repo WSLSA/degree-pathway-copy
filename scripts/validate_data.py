@@ -175,6 +175,20 @@ def main():
     if extra and d["meta"]["counts"].get("additionalSubjects") != len(extra):
         err("additional subject count in meta does not match the list")
 
+    # ---- prerequisites shown by the Chain view: every code must be a real subject
+    prereqs = json.loads((Path(__file__).resolve().parent.parent / "data" / "prerequisites.json").read_text(encoding="utf-8"))
+    known = workbook_codes | set(codes)
+    for code, entry in prereqs["subjects"].items():
+        if not entry.get("source"):
+            err(f"prerequisites: {code} has no source")
+        for c in [code] + [p for group in entry["requires"] for p in group]:
+            if c not in known:
+                err(f"prerequisites: {c} is not a known subject")
+    for seq in prereqs["sequences"]:
+        for c in seq["first"]:
+            if c not in known:
+                err(f"prerequisites: sequence subject {c} is not a known subject")
+
     for w in warnings:
         print("WARN ", w)
     for e in errors:

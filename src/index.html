@@ -85,10 +85,18 @@
   </main>
 
   <footer class="site-footer" id="site-foot"></footer>
+
+  <div class="mini-bar" id="mini-bar" role="group" aria-label="Your credit point progress">
+    <button type="button" class="mini-toggle" data-action="mini-toggle" aria-expanded="true" aria-controls="mini-track" aria-label="Collapse progress bar"></button>
+    <span class="mini-num" id="mini-num"></span>
+    <span class="bar" id="mini-track" role="progressbar" aria-valuemin="0" aria-label="Credit points completed"><span id="mini-fill"></span></span>
+    <button type="button" class="mini-top" data-action="mini-top">Controls ↑</button>
+  </div>
 </div>
 
 <div id="modal-root"></div>
 <div id="toast" role="status" aria-live="polite"></div>
+<div id="xray-note" role="status" aria-live="polite" hidden></div>
 <div id="print-root" aria-hidden="true"></div>
 
 <script type="application/json" id="wslsa-data">@@DATA@@</script>
