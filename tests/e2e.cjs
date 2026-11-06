@@ -605,13 +605,15 @@ async function renderPdf(page, key, mode, orient, file) {
   const contracts = await slotOf(ux, 'LAWS 2003');
   const torts = await slotOf(ux, 'LAWS 2013');
   const consult = await slotOf(ux, 'ACCT 1005');
-  await ux.hover(`#slot-${property} .subj-title`);
-  await ux.waitForTimeout(220);
+  // a hover that scrolls the page first counts only once the pointer moves again, as it would for a person
+  const rest = async sel => { await ux.$eval(sel, e => e.scrollIntoView({ block: 'center' })); await ux.waitForTimeout(280); await ux.hover(sel); };
+  await rest(`#slot-${property} .subj-title`);
+  await ux.waitForTimeout(320);
   const up = await ux.evaluate(([a, b, c]) => [a, b, c].map(i => document.getElementById('slot-' + i).getAttribute('data-xray')), [first, contracts, consult]);
   check(up[0] === 'Prerequisite' && up[1] === 'Prerequisite' && up[2] === null, `hovering LAWS 3082 should mark LAWS 1003 and LAWS 2003 as prerequisites and leave others, got ${JSON.stringify(up)}`);
   check(/2027 Handbook/.test(await ux.textContent('#xray-note')) && await ux.$eval(`#slot-${consult}`, e => getComputedStyle(e).opacity) === '0.34', 'the chain should name its source and dim unrelated cards');
-  await ux.hover(`#slot-${first} .subj-title`);
-  await ux.waitForTimeout(220);
+  await rest(`#slot-${first} .subj-title`);
+  await ux.waitForTimeout(320);
   const down = await ux.evaluate(([a, b]) => [a, b].map(i => document.getElementById('slot-' + i).getAttribute('data-xray')), [property, torts]);
   check(down[0] === 'Unlocks' && down[1] === 'Usually after', `hovering LAWS 1003 should show Unlocks for a rule and Usually after for the general order, got ${JSON.stringify(down)}`);
   check(/not a Handbook rule/.test(await ux.textContent('#xray-note')), 'the general order should say it is not a Handbook rule');
@@ -768,6 +770,182 @@ async function renderPdf(page, key, mode, orient, file) {
   check(await mo.evaluate(id => !!document.querySelector('#slot-' + id + '.is-pending'), glide), 'a change inside a view transition should still land');
   check(mo.errors.length === 0, 'animation console errors: ' + mo.errors.join('; '));
   await mo.close();
+  }
+
+  // ---------------------------------------------------------------- planning tools: tick sync, hover intent, areas, load, defer, compare, calendar
+  {
+    const pt = await newPage(browser);
+    await pt.goto(APP);
+    const idOf = (code) => pt.evaluate(c => { const s = WSLSA.context().slots.find(x => x.code === c); return s ? s.id : null; }, code);
+    await pt.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
+
+    // ticking keeps the details panel in sync without rebuilding it
+    const a1 = await idOf('LAWS 1003');
+    await pt.evaluate(() => { document.querySelector('#details .tab-panel').dataset.mark = 'kept'; });
+    check((await pt.textContent('#details [data-done-row] .cpv')).trim() === '0 / 400 CP', 'the details panel should show completed credit points');
+    await pt.click(`#slot-${a1} .tick`);
+    check((await pt.textContent('#details [data-done-row] .cpv')).trim() === '10 / 400 CP' && await pt.$eval('#details [data-done-row] .sbar span', e => e.style.width) === '3%' && await pt.$eval('#details .tab-panel', e => e.dataset.mark) === 'kept', 'ticking should update the details bar in place');
+    await pt.click(`#slot-${a1} .tick`);
+
+    // hover intent: nothing dims until the pointer has rested, and the Chain button responds at once
+    const prop = await idOf('LAWS 3082');
+    const stray = await idOf('ACCT 1005');
+    await pt.evaluate(i => document.getElementById('slot-' + i).scrollIntoView({ block: 'center' }), prop);
+    await pt.waitForTimeout(300);
+    await pt.hover(`#slot-${prop} .subj-title`);
+    await pt.waitForTimeout(90);
+    check(!(await pt.$('#grid.is-xray')), 'passing over a card should not dim anything');
+    await pt.waitForTimeout(240);
+    check(!!(await pt.$('#grid.is-xray')), 'resting on a card should show its chain');
+    await pt.hover('#hero-title', { force: true }).catch(() => {});
+    await pt.mouse.move(2, 2);
+    await pt.waitForTimeout(120);
+    check(!(await pt.$('#grid.is-xray')), 'leaving should clear the chain');
+    await pt.hover(`#slot-${prop} .subj-title`);
+    await pt.mouse.wheel(0, 300);
+    await pt.waitForTimeout(340);
+    check(!(await pt.$('#grid.is-xray')), 'scrolling should cancel a pending chain');
+    const under = await pt.evaluate(() => { const c = document.querySelector('#grid .chain-btn').closest('.subj'); c.scrollIntoView({ block: 'center' }); return c.dataset.slot; });
+    await pt.waitForTimeout(300);
+    const ub = await (await pt.$(`#slot-${under} .subj-title`)).boundingBox();
+    await pt.mouse.move(ub.x + 5, ub.y + 5);
+    await pt.mouse.move(ub.x + 12, ub.y + 7);
+    await pt.waitForTimeout(320);
+    check(!!(await pt.$('#grid.is-xray')), 'moving the pointer on a card after scrolling should bring up its chain');
+    await pt.mouse.move(2, 2);
+    await pt.waitForTimeout(120);
+    await pt.evaluate(i => document.getElementById('slot-' + i).scrollIntoView({ block: 'center' }), prop);
+    await pt.waitForTimeout(300);
+    await pt.hover(`#slot-${prop} .chain-btn`);
+    await pt.waitForTimeout(70);
+    check(!!(await pt.$('#grid.is-xray')), 'the Chain button should respond at once');
+    await pt.mouse.move(2, 2);
+    await pt.waitForTimeout(120);
+
+    // practice areas in the catalogue and picker
+    const areas = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'practice-areas.json'), 'utf8'));
+    const store = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'wslsa-2027.json'), 'utf8'));
+    const llb = new Set();
+    store.degrees.forEach(d => d.catalogue.filter(c => c.component.startsWith('LLB Alternate')).forEach(c => llb.add(c.code)));
+    const untagged = [...llb].filter(c => !areas.subjects[c]);
+    check(llb.size === 60 && JSON.stringify(untagged) === JSON.stringify(['LAWS 4016']), `every LLB Alternate should have an area except LAWS 4016, got ${JSON.stringify(untagged)}`);
+    await pt.evaluate(() => { WSLSA.select('2848|BASE'); });
+    await pt.click('[data-action="tab"][data-tab="catalogue"]');
+    check((await pt.$$('[data-action="cat-area"]')).length === 7 && /WSLSA groupings/.test(await pt.textContent('#details .tab-panel')), 'the catalogue should offer All Areas and six areas, and say what they are');
+    await pt.click('[data-action="cat-area"][data-area="clinics"]');
+    const clinicRows = await pt.$$eval('#cat-results tbody td.c-code', t => t.map(x => x.textContent).sort());
+    check(JSON.stringify(clinicRows) === JSON.stringify(['LAWS 3053', 'LAWS 3074', 'LAWS 3077', 'LAWS 4012', 'LAWS 4017']), `Clinics & Internships should list the five subjects, got ${JSON.stringify(clinicRows)}`);
+    check((await pt.$$('#cat-results .area-tag')).length >= 5, 'matching rows should show their area');
+    await pt.click('[data-action="cat-area"][data-area=""]');
+    check((await pt.$$('#cat-results tbody tr')).length > 60, 'All Areas should bring everything back');
+    await pt.click('[data-action="tab"][data-tab="structure"]');
+    const llbSlot = await pt.evaluate(() => WSLSA.context().slots.find(s => s.kind === 'llb' && s.session === 'Autumn').id);
+    await pt.click(`#slot-${llbSlot} [data-action="picker-open"]`);
+    await pt.click('[data-action="pick-area"][data-area="tech"]');
+    const techRows = await pt.$$eval('#pick-results .pick', r => r.map(x => x.querySelector('.p-code').textContent));
+    check(techRows.length > 0 && techRows.every(c => (areas.subjects[c] || []).includes('tech')) && (await pt.$$('#pick-results .area-tag')).length >= techRows.length, `an area chip should filter the picker and tag its rows, got ${JSON.stringify(techRows)}`);
+    await pt.keyboard.press('Escape');
+
+    // heavy load pill, with the mix in its tooltip, and none once a session is finished
+    await pt.evaluate(() => { WSLSA.select('2785|BASE'); });
+    const pills = await pt.$$eval('.load-pill', p => p.map(x => ({ t: x.textContent, tip: x.title, s: x.closest('.session').dataset.y + x.closest('.session').dataset.s })));
+    const heavyByHand = await pt.evaluate(() => {
+      const by = {};
+      WSLSA.context().slots.forEach(s => { if (!s.pending) { const k = s.year + s.session; by[k] = (by[k] || 0) + (/^LAWS [34]/.test(s.code) ? 1 : 0); } });
+      return Object.keys(by).filter(k => by[k] >= 3).sort();
+    });
+    check(JSON.stringify(pills.map(p => p.s).sort()) === JSON.stringify(heavyByHand) && pills.length > 0 && pills[0].t === 'Heavy L3/4 Load' && /Mix: \d+ Law, \d+ non-Law; Level 1: \d/.test(pills[0].tip), `load pills should mark sessions with three or more Level 3 or 4 Law subjects, got ${JSON.stringify(pills)} vs ${JSON.stringify(heavyByHand)}`);
+    const hy = pills[0].s.match(/^(\d+)(\w+)$/);
+    const heavySection = `#year-${hy[1]} .session[data-s="${hy[2]}"]`;
+    await pt.click(`${heavySection} [data-action="session-done"]`);
+    check(!(await pt.$(`${heavySection} .load-pill`)), 'a finished session should lose its pill');
+    await pt.click(`${heavySection} [data-action="session-done"]`);
+
+    // defer from a WSLSA pathway makes the student's own copy, and undo restores all of it
+    await pt.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
+    const place = code => pt.evaluate(c => { const s = WSLSA.context().slots.find(x => x.code === c); return { y: s.year, s: s.session, i: (s.year - 1) * 3 + ['Autumn', 'Spring', 'Summer'].indexOf(s.session), none: !!(s.offer && s.offer.none) }; }, code);
+    const prereq = await place('ACCT 2001');
+    const dependent = await place('ACCT 3011');
+    check(prereq.i < dependent.i, 'the 2785 pathway should place ACCT 2001 before ACCT 3011');
+    await pt.click(`#slot-${await idOf('ACCT 2001')} [data-action="defer"]`);
+    const afterPre = await place('ACCT 2001');
+    const afterDep = await place('ACCT 3011');
+    check(await pt.evaluate(() => WSLSA.context().custom && WSLSA.custom().tpl === '2785|BASE'), 'deferring from a pathway should make an editable copy');
+    check(afterPre.i > prereq.i && !afterPre.none && afterDep.i > afterPre.i && !afterDep.none, `deferring should move the subject to an offered session and cascade what needs it, got ${JSON.stringify({ afterPre, afterDep })}`);
+    check(/Deferred ACCT 2001 to .*moved ACCT 3011/.test(await pt.textContent('#toast')) && !!(await pt.$('#toast [data-action="defer-undo"]')), `the toast should sum up the moves and offer Undo, got "${await pt.textContent('#toast')}"`);
+    await pt.click('#toast [data-action="defer-undo"]');
+    check(await pt.evaluate(() => !WSLSA.context().custom && WSLSA.custom() === null) && (await place('ACCT 2001')).i === prereq.i, 'Undo should go back to the pathway as it was');
+    // a subject with unpublished sessions still moves, and says to check; a passed one and the part-time view have no button
+    await pt.click(`#slot-${await idOf('LAWS 3099')} [data-action="defer"]`);
+    check(/unpublished/.test(await pt.textContent('#toast')), 'deferring a subject with unpublished sessions should say so');
+    const c1 = await idOf('LAWS 1003');
+    await pt.click(`#slot-${c1} .tick`);
+    check(!(await pt.$(`#slot-${c1} [data-action="defer"]`)), 'a passed subject should not offer Defer');
+    await pt.click('[data-action="load"][data-load="PT"]');
+    check(!(await pt.$('[data-action="defer"]')), 'the part-time view should not offer Defer');
+    await pt.click('[data-action="load"][data-load="FT"]');
+    // the Move window offers it too
+    const c2 = await idOf('ACCT 1005');
+    const before2 = await place('ACCT 1005');
+    await pt.click(`#slot-${c2} [data-action="picker-open"]`);
+    await pt.click('.modal [data-action="defer"]');
+    check(!(await pt.$('.modal')) && (await place('ACCT 1005')).i > before2.i, 'the Move window should defer and close');
+    // replacing an existing custom plan asks first, and declining changes nothing
+    await pt.evaluate(() => { WSLSA.select('2848|BASE'); });
+    const planBefore = await pt.evaluate(() => JSON.stringify(WSLSA.custom()));
+    pt.once('dialog', d => d.dismiss());
+    await pt.click(`#slot-${await idOf('LAWS 1003')} [data-action="defer"]`);
+    check(await pt.evaluate(() => JSON.stringify(WSLSA.custom())) === planBefore && await pt.evaluate(() => !WSLSA.context().custom), 'declining should keep the custom plan and stay on the pathway');
+
+    // pin a snapshot, change things, compare; it survives a reload
+    await pt.evaluate(() => { localStorage.clear(); WSLSA.select('2788|T046'); });
+    check(!(await pt.$('[data-action="compare"]')), 'there should be nothing to compare before pinning');
+    await pt.click('#section-tools [data-action="pin"]');
+    check(!!(await pt.$('[data-action="compare"]')) && /Snapshot pinned/.test(await pt.textContent('#toast')), 'pinning should offer Compare');
+    await pt.click('[data-action="load"][data-load="PT"]');
+    await pt.click('[data-action="compare"]');
+    const rowsPT = await pt.$$eval('.compare-table tbody tr', r => r.map(x => [x.querySelector('th').textContent, x.classList.contains('is-diff')]));
+    const labels = rowsPT.map(r => r[0]);
+    check(['Final completion session', 'Total sessions', 'Summer sessions used', 'Multi-campus commute sessions', 'Heavy L3/4 load sessions'].every(l => labels.includes(l)) && rowsPT.find(r => r[0] === 'Final completion session')[1], `the comparison should show its measures and mark a changed finish, got ${JSON.stringify(rowsPT)}`);
+    await pt.click('.modal-foot [data-action="modal-close"]');
+    await pt.click('[data-action="load"][data-load="FT"]');
+    await pt.selectOption('#sel-major', '2788|T039');
+    await pt.click('[data-action="compare"]');
+    const diff = await pt.$$eval('.modal .pick-section', s => s.map(x => [x.querySelector('h4 span').textContent, x.querySelectorAll('.chipbtn').length]));
+    check(diff.find(d => d[0] === 'Subjects added')[1] > 0 && diff.find(d => d[0] === 'Subjects removed')[1] > 0, `changing major should list subjects added and removed, got ${JSON.stringify(diff)}`);
+    check((await pt.$$eval('.compare-table tr.is-diff th', t => t.map(x => x.textContent))).includes('Plan'), 'the comparison should show the plan changed');
+    await pt.click('.modal-foot [data-action="modal-close"]');
+    await pt.reload();
+    check(!!(await pt.$('[data-action="compare"]')), 'a pinned snapshot should survive a reload');
+    await pt.click('[data-action="compare"]');
+    await pt.click('[data-action="pin-clear"]');
+    check(!(await pt.$('[data-action="compare"]')) && await pt.evaluate(k => localStorage.getItem(k), 'wslsa-2027-pathway-explorer:v1:pin') === null, 'Remove pin should clear the snapshot');
+
+    // Copy Codes holds codes and titles; Export .ics saves a valid calendar file
+    await pt.evaluate(() => { localStorage.clear(); WSLSA.select('2848|BASE'); });
+    const copyText = await pt.$eval('[data-action="copy-codes"]', b => b.dataset.copy);
+    check(copyText.split('\n').length === await pt.evaluate(() => WSLSA.context().slots.filter(s => s.year === 1 && s.session === 'Autumn' && !s.pending).length) && copyText.startsWith('LAWS 1003 Fundamentals of Australian Law') && await pt.textContent('[data-action="copy-codes"]') === 'Copy Codes', `Copy Codes should hold each code and title, got ${JSON.stringify(copyText)}`);
+    const [dl] = await Promise.all([pt.waitForEvent('download'), pt.click('[data-action="ics"]')]);
+    const ics = fs.readFileSync(await dl.path(), 'utf8');
+    const unfolded = ics.replace(/\r\n /g, '');
+    check(dl.suggestedFilename() === 'wslsa-autumn-2027.ics' && /^BEGIN:VCALENDAR\r\n/.test(ics) && /END:VCALENDAR\r\n$/.test(ics), `the calendar file should be well formed, got ${dl.suggestedFilename()}`);
+    check(/DTSTART;VALUE=DATE:20270301\r\n/.test(ics) && /DTEND;VALUE=DATE:20270302\r\n/.test(ics) && /TRIGGER:-P14D/.test(ics) && unfolded.includes('LAWS 1003 Fundamentals of Australian Law (') && unfolded.includes('estimate'), 'the calendar file should hold the session, subjects, campuses and say the date is an estimate');
+    check(ics.split('\r\n').every(l => Buffer.byteLength(l) <= 75) && !/[^\r]\n/.test(ics), 'calendar lines should be folded and end in CRLF');
+    check(pt.errors.length === 0, 'planning tools console errors: ' + pt.errors.join('; '));
+    await pt.close();
+
+    // with animations on, Next to enrol only animates when its session changes
+    const an = await newPage(browser, { reducedMotion: 'no-preference' });
+    await an.goto(APP);
+    await an.evaluate(() => { localStorage.clear(); WSLSA.select('2848|BASE'); });
+    await an.waitForTimeout(100);
+    const ids = await an.evaluate(() => WSLSA.context().slots.filter(s => s.year === 1 && s.session === 'Autumn').map(s => s.id));
+    await an.click(`#slot-${ids[0]} .tick`);
+    check(!(await an.$('#next.is-changed')) && !/LAWS 1003/.test(await an.textContent('#next .chiplist')), 'ticking within the same session should update Next to enrol without animating it');
+    for (const i of ids.slice(1)) await an.click(`#slot-${i} .tick`);
+    check(!!(await an.$('#next.is-changed')) && /Spring 2027/.test(await an.textContent('#next')), 'finishing the session should animate Next to enrol to the new one');
+    check(an.errors.length === 0, 'next to enrol animation console errors: ' + an.errors.join('; '));
+    await an.close();
   }
 
   // ---------------------------------------------------------------- mobile layout

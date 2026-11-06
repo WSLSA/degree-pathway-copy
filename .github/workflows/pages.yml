@@ -79,12 +79,11 @@ jobs:
         id: configure
         if: steps.pages.outputs.enabled == 'true'
 
-      # The page's link-preview tags take the address this deploy publishes to, so moving the
-      # repository to another account or organisation needs no code change.
+      # The page's link-preview tags point at the main site's address, not this copy's.
       - name: Assemble site
         if: steps.pages.outputs.enabled == 'true'
         env:
-          SITE_URL: ${{ steps.configure.outputs.base_url }}
+          SITE_URL: https://wslsa.github.io/degree-pathway
         run: |
           mkdir -p _site/samples
           sed "s|@@SITE_URL@@|${SITE_URL%/}|g" dist/wslsa-pathway-explorer.html > _site/index.html

@@ -9,6 +9,7 @@
   const RAW = JSON.parse($('#wslsa-data').textContent);
   const META = RAW.meta;
   const PREREQS = RAW.prereqs || { subjects: {}, sequences: [] };
+  const PRACTICE = RAW.practice || { areas: [], subjects: {} };
   const CAMPUS_NAMES = Object.assign({}, META.campuses, { TBC: 'Session not yet published for 2027' });
   const PRIMARY_CAMPUSES = ['PS', 'CA', 'PC', 'HA', 'BC', 'PE', 'LC'];
   const SESSIONS = ['Autumn', 'Spring'];
@@ -237,7 +238,7 @@
   const STORE_KEY = 'wslsa-2027-pathway-explorer:v1';
   const DEFAULT_EXPORT = { mode: 'A', orient: 'portrait', ticks: true, llbSession: 'all', llbCampus: false, llbTbc: true };
   let state = sanitise(readStore());
-  const ui = { tab: 'structure', cat: { q: '', comp: '', session: '', inPlan: false }, modal: null, picker: null, whyOpen: false, advisoryOpen: false };
+  const ui = { tab: 'structure', cat: { q: '', comp: '', session: '', inPlan: false, area: '' }, modal: null, picker: null, whyOpen: false, advisoryOpen: false };
 
   function readStore() {
     try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; }
@@ -1196,7 +1197,9 @@
   function renderNext(ctx) {
     const next = nextSession(ctx);
     const actions = function (codes) {
-      return '<div class="next-actions">' + (codes.length ? '<button type="button" class="tbtn tbtn-primary" data-action="copy-codes" data-codes="' + esc(codes.join(', ')) + '">Copy subject codes</button>' : '') +
+      const lines = next ? next.slots.filter(function (s) { return !s.done && !s.pending; }).map(function (s) { return s.code + ' ' + s.title; }).join('\n') : '';
+      return '<div class="next-actions">' + (codes.length ? '<button type="button" class="tbtn tbtn-primary" data-action="copy-codes" data-codes="' + esc(codes.join(', ')) + '" data-copy="' + esc(lines) + '" title="Copy the codes and titles, ready for WSU MySR or Allocate+">Copy Codes</button>' : '') +
+        (next ? '<button type="button" class="tbtn tbtn-outline" data-action="ics" title="Save a calendar reminder for this session with your planned subjects and campuses">Export .ics</button>' : '') +
         '<button type="button" class="tbtn tbtn-outline" data-action="progress-open" title="Already studying? Rebuild your plan from your Degree Works audit or Subject Results PDF, with your past years in it">Import my progress</button>' +
         '<button type="button" class="tbtn tbtn-outline" data-action="import-open" title="Paste your academic record or results to tick off the subjects you have passed">Tick off from my results</button></div>';
     };
@@ -1255,6 +1258,7 @@
     if (ctx.risks.advisor.some(function (a) { return a.flagSlot === s; })) flags.push('<button type="button" class="flag flag-warn" data-action="open-advisory">Check prerequisite</button>');
     if (live && s.offer.none && !s.pending) flags.push('<span class="flag flag-warn">Not offered this session</span>');
     if (!s.pending && s.code && hasChain(s.code, ctx)) flags.push('<button type="button" class="chain-btn" data-action="xray" data-slot="' + s.id + '" aria-pressed="' + (ui.xrayPin === s.id) + '" title="Show what this subject depends on and unlocks">Chain</button>');
+    if (!s.pending && !s.done && s.code && state.load !== 'PT') flags.push('<button type="button" class="defer-btn" data-action="defer" data-slot="' + s.id + '" aria-label="Defer ' + esc(s.code) + ' to its next offered session" title="Move to the next session it runs in, and move any subject that needs it' + (ctx.custom ? '' : ', in your own copy of this pathway') + '">Defer ↷</button>');
     return flags.join('');
   }
   function slotOffer(s) {
@@ -1346,7 +1350,7 @@
         const list = lists[sess];
         const allDone = list.length && list.every(function (s) { return s.done; });
         const over = ctx.custom && !pt && sumCP(list) > LOAD_CP.FT;
-        html += '<section class="session' + (sess === 'Summer' ? ' session-summer' : '') + '" aria-label="' + sess + ' session" data-y="' + y.year + '" data-s="' + sess + '"><div class="session-head"><h3>' + sess + '<span>Session</span></h3><div class="session-tools"><span class="commute-slot">' + commutePill(list) + '</span>' +
+        html += '<section class="session' + (sess === 'Summer' ? ' session-summer' : '') + '" aria-label="' + sess + ' session" data-y="' + y.year + '" data-s="' + sess + '"><div class="session-head"><h3>' + sess + '<span>Session</span></h3><div class="session-tools"><span class="commute-slot">' + commutePill(list) + '</span><span class="load-slot">' + loadPill(list) + '</span>' +
           (edit ? '<button type="button" class="mark-all add-slot" data-action="cadd" data-y="' + y.year + '" data-s="' + sess + '">+ Add slot</button>' : '') +
           (list.length ? '<button type="button" class="mark-all" data-action="session-done" data-ids="' + list.map(function (s) { return s.id; }).join(',') + '">' + (allDone ? 'Unmark all' : 'Mark all done') + '</button>' : '') +
           '<span class="session-cp' + (over ? ' over' : '') + '"' + (over ? ' title="More than the 40 CP full-time load"' : '') + '>' + sumCP(list) + ' CP</span></div></div><div class="slots">' +
@@ -1390,11 +1394,13 @@
     const rows = Object.keys(areas).sort(function (a, b) { return areas[b] - areas[a] || (a < b ? -1 : 1); });
     const max = Math.max.apply(null, [1, openCP].concat(rows.map(function (k) { return areas[k]; })));
     const row = function (label, cp, cls) { return '<div class="structure-row' + (cls ? ' ' + cls : '') + '"><span>' + esc(label) + '</span><span class="cpv">' + cp + ' CP</span><span class="sbar"><span style="width:' + (cp / max * 100) + '%"></span></span></div>'; };
+    const progress = areaCP(ctx);
+    const areaRow = function (k) { return '<div class="structure-row" data-area="' + esc(k) + '"><span>' + esc(k) + '</span><span class="cpv">' + progress[k].done + ' / ' + progress[k].cp + ' CP</span><span class="sbar"><span style="width:' + (progress[k].cp / max * 100) + '%"><i style="width:' + (progress[k].done / progress[k].cp * 100) + '%"></i></span></span></div>'; };
     const t = ctx.tdeg;
     return '<div class="two-col"><div><h3 class="panel-h">Credit breakdown by subject area</h3>' +
-      (rows.length ? rows.map(function (k) { return row(k, areas[k]); }).join('') : '<p class="muted small">No subjects placed yet.</p>') +
+      (rows.length ? rows.map(areaRow).join('') : '<p class="muted small">No subjects placed yet.</p>') +
       (openCP ? row('Open slots', openCP, 'row-open') : '') +
-      '<div class="structure-row structure-total"><span>Placed of ' + ctx.plan.cp + ' CP required</span><span class="cpv">' + ctx.placedCP + ' CP</span></div>' +
+      '<div class="structure-row structure-total"><span>Placed of ' + ctx.plan.cp + ' CP required</span><span class="cpv">' + ctx.placedCP + ' CP</span></div>' + doneRow(ctx) +
       '<dl class="kv" style="margin-top:18px"><dt>Duration</dt><dd>' + fmt(ctx.deg.ftYears) + ' years full-time · ' + fmt(ctx.deg.ptYears) + ' years part-time (40 or 20 CP a session)</dd></dl>' +
       '<dl class="kv"><dt>Starting point</dt><dd>' + (t ? esc(tplLabel(ctx.plan.tpl)) + (ctx.risks.replaced.length ? ' · ' + plural(ctx.risks.replaced.length, 'template subject') + ' changed' : ' · no template subjects changed') : 'Blank plan built from scratch') + '</dd></dl>' +
       '<button type="button" class="tbtn tbtn-outline" data-action="custom-setup">Edit name, credit points or template →</button></div>' +
@@ -1421,7 +1427,7 @@
         d.structure.map(function (c) {
           return '<div class="structure-row"><span>' + esc(c.component) + '</span><span class="cpv">' + c.cp + ' CP</span><span class="sbar"><span style="width:' + (c.cp / max * 100) + '%"></span></span></div>';
         }).join('') +
-        '<div class="structure-row structure-total"><span>Total credit points</span><span class="cpv">' + d.structureTotal + ' CP</span></div>' +
+        '<div class="structure-row structure-total"><span>Total credit points</span><span class="cpv">' + d.structureTotal + ' CP</span></div>' + doneRow(ctx) +
         '<dl class="kv" style="margin-top:18px"><dt>Major / minor choices</dt><dd>' + esc(d.majorChoices) + ' · ' + plural(d.pathwayGroups, 'pathway group') + '</dd></dl>' +
         '<dl class="kv"><dt>Duration</dt><dd>' + fmt(d.ftYears) + ' years full-time · ' + fmt(d.ptYears) + ' years part-time</dd></dl></div>' +
         '<div><h3 class="panel-h">How the pathway is built</h3><p class="small muted" style="margin-top:0">' + esc(d.sheetIntro) + '</p>' +
@@ -1449,7 +1455,7 @@
           (EXTRA.length ? '<option value="__extra__"' + (ui.cat.comp === '__extra__' ? ' selected' : '') + '>WSU subject list (' + EXTRA.length.toLocaleString('en-AU') + ' more subjects)</option>' : '') + '</select></div></div>' +
         '<div class="field"><label for="cat-session">Session</label><div class="select-wrap"><select id="cat-session"><option value="">Autumn or Spring</option><option value="Autumn"' + (ui.cat.session === 'Autumn' ? ' selected' : '') + '>Offered in Autumn</option><option value="Spring"' + (ui.cat.session === 'Spring' ? ' selected' : '') + '>Offered in Spring</option><option value="TBC"' + (ui.cat.session === 'TBC' ? ' selected' : '') + '>Session TBC</option></select></div></div>' +
         '<label class="check-row" style="padding-bottom:10px"><input type="checkbox" id="cat-inplan"' + (ui.cat.inPlan ? ' checked' : '') + '>In my plan</label>' +
-        '</div><p class="kbd-hint"><kbd>/</kbd> search the catalogue · <kbd>Esc</kbd> close a window or clear a highlight</p><div id="cat-results"></div>';
+        '</div>' + (d.llbComponent ? areaTools('cat-area', ui.cat.area) : '') + '<p class="kbd-hint kbd-only"><kbd>/</kbd> search the catalogue · <kbd>Esc</kbd> close a window or clear a highlight</p><div id="cat-results"></div>';
     }
     html += '</div>';
     $('#details').innerHTML = html;
@@ -1462,25 +1468,26 @@
     const onlyExtra = ui.cat.comp === '__extra__';
     const rows = onlyExtra ? [] : rankByQuery(d.catalogue, q).filter(function (c) {
       if (ui.cat.comp && c.component !== ui.cat.comp) return false;
+      if (!inArea(c.code, ui.cat.area)) return false;
       if (ui.cat.inPlan && !ctx.used[c.code]) return false;
       if (ui.cat.session === 'TBC') return c.autumn === 'TBC' || c.spring === 'TBC';
       if (ui.cat.session) { const v = sessionValue(c, ui.cat.session); return v && v !== '—' && v !== 'TBC'; }
       return true;
     });
     // subject-list rows: shown when that component is chosen, or as extra matches for a search
-    const wantExtra = EXTRA.length && !ui.cat.session && (onlyExtra || (!ui.cat.comp && q.length >= 2));
+    const wantExtra = EXTRA.length && !ui.cat.session && !ui.cat.area && (onlyExtra || (!ui.cat.comp && q.length >= 2));
     const extraHits = wantExtra ? rankByQuery(EXTRA, q).filter(function (e) { return !ui.cat.inPlan || ctx.used[e.code]; }) : [];
     const extraLimit = onlyExtra ? 300 : 100;
     function cell(v) { const o = parseOffered(v); return o.none ? '<span class="muted">—</span>' : '<span class="pills" style="justify-content:flex-start">' + pillsFor(o) + '</span>'; }
     let note = '';
     if (EXTRA.length && ui.cat.session && (onlyExtra || !ui.cat.comp)) note = ' · subjects from the WSU subject list have no session data, so the session filter hides them';
     else if (extraHits.length > extraLimit) note = ' · showing the first ' + extraLimit + ' WSU subject list matches; refine the search to narrow them';
-    else if (!wantExtra && EXTRA.length && !ui.cat.comp) note = ' · search to include ' + EXTRA.length.toLocaleString('en-AU') + ' more subjects from the WSU subject list';
+    else if (!wantExtra && EXTRA.length && !ui.cat.comp && !ui.cat.area) note =' · search to include ' + EXTRA.length.toLocaleString('en-AU') + ' more subjects from the WSU subject list';
     $('#cat-results').innerHTML = '<p class="cat-count">' + (onlyExtra ? extraHits.length.toLocaleString('en-AU') + ' of ' + EXTRA.length.toLocaleString('en-AU') + ' WSU subject list subjects' : rows.length + ' of ' + d.catalogue.length + ' degree subjects' + (extraHits.length ? ' + ' + extraHits.length.toLocaleString('en-AU') + ' from the WSU subject list' : '')) + note + '</p>' +
       '<div class="table-scroll"><table class="cat"><thead><tr><th>Code</th><th>Title</th><th>Component</th><th>Level</th><th>Autumn</th><th>Spring</th><th>CP</th><th>Data source</th></tr></thead><tbody>' +
       rows.map(function (c) {
         const inPlan = !!ctx.used[c.code];
-        return '<tr class="' + (inPlan ? 'in-plan' : '') + '"><td class="c-code">' + hlCode(c.code, q) + '</td><td>' + hl(c.title, q) + (inPlan ? ' <span class="status status-major">In plan</span>' : '') + '</td><td class="c-comp">' + esc(c.component) + '</td><td class="small">' + esc(c.level) + '</td><td>' + cell(c.autumn) + '</td><td>' + cell(c.spring) + '</td><td class="small mono">' + c.cp + '</td><td class="small muted">' + esc(c.source) + '</td></tr>';
+        return '<tr class="' + (inPlan ? 'in-plan' : '') + '"><td class="c-code">' + hlCode(c.code, q) + '</td><td>' + hl(c.title, q) + (inPlan ? ' <span class="status status-major">In plan</span>' : '') + areaTags(c.code) + '</td><td class="c-comp">' + esc(c.component) + '</td><td class="small">' + esc(c.level) + '</td><td>' + cell(c.autumn) + '</td><td>' + cell(c.spring) + '</td><td class="small mono">' + c.cp + '</td><td class="small muted">' + esc(c.source) + '</td></tr>';
       }).join('') +
       extraHits.slice(0, extraLimit).map(function (e) {
         const inPlan = !!ctx.used[e.code];
@@ -1532,7 +1539,7 @@
 
   function renderSectionHead(ctx) {
     $('#section-kicker').innerHTML = (ctx.custom ? 'Custom pathway' : 'Recommended pathway') + ' <i>·</i> 2027';
-    $('#section-tools').innerHTML = suggestButtons(ctx) + (ctx.custom
+    $('#section-tools').innerHTML = suggestButtons(ctx) + pinButtons() + (ctx.custom
       ? '<button type="button" class="tbtn tbtn-outline" data-action="custom-setup" title="Change the degree name, credit points or starting template">Edit setup</button>' +
         '<button type="button" class="tbtn" data-action="custom-exit" title="Your custom plan is kept; switch back any time from the Degree menu">← WSLSA pathways</button>'
       : '<button type="button" class="tbtn tbtn-outline" data-action="custom-from-current" title="Copy this pathway into your own editable plan">Customise this pathway →</button>' +
@@ -1650,6 +1657,7 @@
   }
   function refreshDone(ids) {
     const before = yearsDone(lastCtx);
+    const nextWas = nextSession(lastCtx);
     const ctx = buildContext();
     lastCtx = ctx;
     ids.forEach(function (id) {
@@ -1675,6 +1683,7 @@
         const button = section.querySelector('[data-action="session-done"]');
         if (button) button.textContent = y[sess].length && y[sess].every(function (s) { return s.done; }) ? 'Unmark all' : 'Mark all done';
         section.querySelector('.commute-slot').innerHTML = commutePill(y[sess]);
+        section.querySelector('.load-slot').innerHTML = loadPill(y[sess]);
       });
       if (after[y.year] && !before[y.year] && motionOK()) {
         const bar = box.querySelector('.year-bar');
@@ -1687,14 +1696,16 @@
     $('#progress-meta').textContent = progressMeta(ctx);
     renderAdvisory(ctx);
     const next = $('#next');
-    const was = next._html;
     renderNext(ctx);
-    if (next._html !== was && motionOK()) {
+    const nextNow = nextSession(ctx);
+    const moved = (nextWas ? nextWas.year + nextWas.session : '') !== (nextNow ? nextNow.year + nextNow.session : '');
+    if (moved && motionOK()) {
       next.classList.remove('is-changed');
       void next.offsetWidth;
       next.classList.add('is-changed');
     }
     showCounters(ctx);
+    syncStructure(ctx);
     saveState();
   }
 
@@ -2059,29 +2070,344 @@
     else if (ev.shiftKey && at === first) { ev.preventDefault(); last.focus(); }
     else if (!ev.shiftKey && at === last) { ev.preventDefault(); first.focus(); }
   }
-  const KEY_HINT = '<p class="kbd-hint"><kbd>/</kbd> search · <kbd>Esc</kbd> close</p>';
+  const KEY_HINT = '<p class="kbd-hint kbd-only"><kbd>/</kbd> search · <kbd>Esc</kbd> close</p>';
   const CLEAR_PICK = ' <button type="button" class="linkish" data-action="pick-reset">Clear filters</button>';
 
-  // the chain view follows the pointer, or the keyboard, unless a Chain button has pinned it
+  // The chain view follows a settled pointer or the keyboard, unless a Chain button has pinned it. A pointer
+  // has to rest on a card for XRAY_INTENT before anything dims, so passing over cards or scrolling
+  // never flickers; the Chain button itself responds at once.
+  const XRAY_INTENT = 220;
   let xrayTimer = 0;
-  function xrayFollow(id) {
+  let scrolledAt = 0;
+  function xrayFollow(id, delay) {
     if (ui.xrayPin || ui.drag || ui.modal || id === ui.xrayHover) return;
     ui.xrayHover = id;
     clearTimeout(xrayTimer);
-    xrayTimer = setTimeout(function () { if (id) xrayShow(id); else xrayClear(); }, id ? 140 : 80);
+    xrayTimer = setTimeout(function () { if (id) xrayShow(id); else xrayClear(); }, delay);
   }
-  document.addEventListener('mouseover', function (ev) {
-    if (!window.matchMedia('(hover: hover)').matches) return;
-    const card = ev.target.closest ? ev.target.closest('#grid .subj') : null;
-    xrayFollow(card ? card.dataset.slot : '');
-  });
+  // moving counts as well as entering, so a card under a pointer that has scrolled to it still responds, once the pointer moves
+  function xrayPointer(ev) {
+    if (ev.pointerType !== 'mouse' || Date.now() - scrolledAt < 250 || !ev.target.closest) return;
+    const chain = ev.target.closest('#grid .chain-btn');
+    const card = ev.target.closest('#grid .subj');
+    if (chain) xrayFollow(chain.dataset.slot, 0);
+    else if (card) xrayFollow(card.dataset.slot, XRAY_INTENT);
+    else xrayFollow('', 60);
+  }
+  document.addEventListener('pointerover', xrayPointer);
+  document.addEventListener('pointermove', xrayPointer, { passive: true });
+  window.addEventListener('scroll', function () {
+    scrolledAt = Date.now();
+    if (ui.xrayPin || ui.xrayFocus || !ui.xrayHover) return;
+    clearTimeout(xrayTimer);
+    ui.xrayHover = '';
+    xrayClear();
+  }, { passive: true });
   document.addEventListener('focusin', function (ev) {
     const card = ev.target.closest ? ev.target.closest('#grid .subj') : null;
-    if (card && ev.target.matches(':focus-visible')) xrayFollow(card.dataset.slot);
+    if (!card || !ev.target.matches(':focus-visible')) return;
+    ui.xrayFocus = true;
+    xrayFollow(card.dataset.slot, 0);
   });
   document.addEventListener('focusout', function (ev) {
-    if (ev.target.closest && ev.target.closest('#grid .subj') && !(ev.relatedTarget && ev.relatedTarget.closest && ev.relatedTarget.closest('#grid .subj'))) xrayFollow('');
+    if (!ev.target.closest || !ev.target.closest('#grid .subj') || (ev.relatedTarget && ev.relatedTarget.closest && ev.relatedTarget.closest('#grid .subj'))) return;
+    ui.xrayFocus = false;
+    xrayFollow('', 60);
   });
+
+  // ======================================================================== practice areas
+  // WSLSA groupings of the LLB Alternates, made from subject titles (data/practice-areas.json)
+  const AREA_LABEL = {};
+  PRACTICE.areas.forEach(function (a) { AREA_LABEL[a.id] = a.label; });
+  function inArea(code, area) { return !area || (PRACTICE.subjects[code] || []).indexOf(area) >= 0; }
+  function areaTags(code) {
+    return (PRACTICE.subjects[code] || []).map(function (a) { return '<span class="area-tag">' + esc(AREA_LABEL[a]) + '</span>'; }).join('');
+  }
+  function areaTools(action, current) {
+    return '<div class="tool-row area-chips" role="group" aria-label="Filter by practice area">' +
+      [{ id: '', label: 'All Areas' }].concat(PRACTICE.areas).map(function (a) {
+        return '<button type="button" class="chip" data-action="' + action + '" data-area="' + a.id + '" aria-pressed="' + ((current || '') === a.id) + '">' + esc(a.label) + '</button>';
+      }).join('') + '</div><p class="area-note">Areas are WSLSA groupings by subject title, not Handbook categories.</p>';
+  }
+  function pressArea(action, area) {
+    document.querySelectorAll('[data-action="' + action + '"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.area === area)); });
+  }
+
+  // ======================================================================== session load
+  // A session with three or more Level 3 or 4 Law subjects, or a full load made up only of Level 3 and 4
+  // subjects, gets a pill. The level is the first digit of the subject number. A finished session has none.
+  function loadPill(list) {
+    const subjects = list.filter(function (s) { return !s.pending && /^[A-Z]{4} \d{4}$/.test(s.code || ''); });
+    if (!subjects.length || subjects.every(function (s) { return s.done; })) return '';
+    const level = function (s) { return +s.code.charAt(5); };
+    const law = function (s) { return s.code.indexOf('LAWS ') === 0; };
+    const upper = subjects.filter(function (s) { return level(s) === 3 || level(s) === 4; });
+    const upperLaw = upper.filter(law);
+    const allUpper = upper.length === subjects.length && subjects.length === list.length && sumCP(list) >= LOAD_CP.FT;
+    if (upperLaw.length < 3 && !allUpper) return '';
+    const lawCount = subjects.filter(law).length;
+    const levels = [1, 2, 3, 4].map(function (n) { return 'Level ' + n + ': ' + subjects.filter(function (s) { return level(s) === n; }).length; }).join(', ');
+    return '<span class="load-pill" title="' + plural(upperLaw.length, 'Level 3 or 4 Law subject') + ' this session. Mix: ' + lawCount + ' Law, ' + (subjects.length - lawCount) + ' non-Law; ' + levels + '.">Heavy L3/4 Load</span>';
+  }
+
+  // ======================================================================== structure progress
+  // The plan's completed credit points, drawn in the details panel. A WSLSA pathway shows one overall bar, as
+  // its structure components do not map cleanly to subjects in every degree; a custom plan groups by
+  // subject area, which comes from the plan itself, so each area can show its own.
+  function areaKey(s) { return s.custom ? 'Typed in by hand' : s.code.slice(0, 4) + ' subjects'; }
+  function areaCP(ctx) {
+    const out = {};
+    ctx.slots.forEach(function (s) {
+      if (s.pending) return;
+      const k = areaKey(s);
+      out[k] = out[k] || { cp: 0, done: 0 };
+      out[k].cp += s.cp;
+      if (s.done) out[k].done += s.cp;
+    });
+    return out;
+  }
+  function doneRow(ctx) {
+    return '<div class="structure-row structure-done" data-done-row="1"><span>Completed so far</span><span class="cpv">' + ctx.doneCP + ' / ' + ctx.deg.cp + ' CP</span><span class="sbar"><span style="width:' + progressPct(ctx) + '%"></span></span></div>';
+  }
+  function syncStructure(ctx) {
+    const row = $('#details [data-done-row]');
+    if (!row) return;
+    row.querySelector('.cpv').textContent = ctx.doneCP + ' / ' + ctx.deg.cp + ' CP';
+    row.querySelector('.sbar span').style.width = progressPct(ctx) + '%';
+    const areas = areaCP(ctx);
+    document.querySelectorAll('#details [data-area]').forEach(function (r) {
+      const a = areas[r.dataset.area];
+      if (!a) return;
+      r.querySelector('.cpv').textContent = a.done + ' / ' + a.cp + ' CP';
+      r.querySelector('.sbar i').style.width = (a.cp ? a.done / a.cp * 100 : 0) + '%';
+    });
+  }
+
+  // ======================================================================== defer and cascade
+  // Moves a subject to the next Autumn or Spring it runs in, and moves on any subject in the plan that needs it
+  // and now sits at or before it. Only rules with a source cascade, not the general Usually order.
+  function nextOffered(deg, code, after, floor) {
+    const runs = SESSIONS.filter(function (sess) {
+      const o = offerFor(deg, code, sess);
+      return o && !o.none && !o.tbc;
+    });
+    for (let k = Math.max(after + 1, floor); k < MAX_YEARS * 3; k++) {
+      const sess = PLAN_SESSIONS[k % 3];
+      if (sess === 'Summer' || (runs.length && runs.indexOf(sess) < 0)) continue;
+      return { y: Math.floor(k / 3) + 1, s: sess, k: k, unsure: !runs.length };
+    }
+    return null;
+  }
+  function deferSubject(id) {
+    const undo = { mode: state.mode, custom: state.custom ? JSON.stringify(state.custom) : null };
+    let copied = false;
+    if (!isCustom()) {
+      const filled = state.custom ? state.custom.slots.filter(function (x) { return x.code; }).length : 0;
+      if (filled && !window.confirm('Deferring works in your own copy of this pathway. This replaces your custom plan and its ' + plural(filled, 'subject') + '. Continue?')) return;
+      const key = currentKey();
+      const deg = DEG[state.degree];
+      state.custom = { name: deg.title, code: deg.code, cp: deg.cp, tpl: key, start: 0, slots: templateSlots(key, true) };
+      state.mode = 'custom';
+      copied = true;
+      const at = state.custom.slots.map(function (x) { return x.o; }).indexOf(id);
+      id = 'c' + at;
+      lastCtx = buildContext();
+    }
+    const ctx = lastCtx;
+    const s = ctx.byId[id];
+    const floor = ctx.plan.start ? firstOpenIdx(ctx.plan.start) : 0;
+    const moved = [];
+    let unsure = false;
+    const shift = function (slot, after) {
+      const x = state.custom.slots[slot.idx];
+      const t = nextOffered(ctx.deg, slot.code, after, floor);
+      if (!t) return null;
+      x.y = t.y;
+      x.s = t.s;
+      if (t.unsure) unsure = true;
+      moved.push(slot.code + ' to ' + sessionLabel(t.y, t.s));
+      return t.k;
+    };
+    const first = shift(s, orderIdx(s.year, s.session));
+    if (first == null) {
+      if (copied) { state.mode = undo.mode; state.custom = undo.custom ? JSON.parse(undo.custom) : null; lastCtx = buildContext(); }
+      toast(s.code + ' has no later session within the ' + MAX_YEARS + ' years a plan can hold.');
+      return;
+    }
+    // a subject stays where it is if another subject still meets the requirement earlier in the plan
+    const placedAt = function (code) {
+      const found = state.custom.slots.filter(function (x) { return x.code === code; });
+      if (!found.length) return null;
+      return found.some(function (x) { return x.done; }) ? -1 : Math.min.apply(null, found.map(function (x) { return orderIdx(x.y, x.s); }));
+    };
+    const stillMet = function (code, idx) {
+      return (REQ_GROUPS[code] || []).every(function (group) {
+        return group.some(function (p) { const at = placedAt(p); return at != null && at < idx; });
+      });
+    };
+    const queue = [{ code: s.code, at: first }];
+    while (queue.length) {
+      const q = queue.shift();
+      (REQUIRED_BY[q.code] || []).forEach(function (e) {
+        ctx.slots.filter(function (o) { return !o.pending && !o.done && o.code === e.code; }).forEach(function (o) {
+          const idx = orderIdx(state.custom.slots[o.idx].y, state.custom.slots[o.idx].s);
+          if (idx > q.at || stillMet(o.code, idx)) return;
+          const to = shift(o, q.at);
+          if (to != null) queue.push({ code: o.code, at: to });
+        });
+      });
+    }
+    ui.deferUndo = undo;
+    if (ui.modal) closeModal(true);
+    const target = id;
+    renderMoving(function () { flashSlot(target); });
+    const over = lastCtx.risks.overload.filter(function (l) { const x = state.custom.slots[s.idx]; return l.year === x.y && l.session === x.s; })[0];
+    toast((moved.length > 1 ? 'Deferred ' + moved[0] + ', and moved ' + moved.slice(1).join(', ') : 'Deferred ' + moved[0]) + '.' + (copied ? ' This is now your own copy of the pathway.' : '') +
+      (over ? ' That session is now ' + over.cp + ' CP.' : '') + (unsure ? ' Its sessions are unpublished, so check the Handbook.' : ''), { action: 'defer-undo', label: 'Undo' });
+  }
+  function undoDefer() {
+    const u = ui.deferUndo;
+    if (!u) return;
+    state.mode = u.mode;
+    state.custom = u.custom ? JSON.parse(u.custom) : null;
+    ui.deferUndo = null;
+    $('#toast').classList.remove('show');
+    renderMoving();
+    toast('Back to how your plan was.');
+  }
+
+  // ======================================================================== snapshot and compare
+  const PIN_KEY = STORE_KEY + ':pin';
+  ui.pin = (function () {
+    try {
+      const p = JSON.parse(localStorage.getItem(PIN_KEY) || 'null');
+      return p && Array.isArray(p.subjects) && typeof p.finish === 'string' ? p : null;
+    } catch (e) { return null; }
+  }());
+  function writePin() {
+    try {
+      if (ui.pin) localStorage.setItem(PIN_KEY, JSON.stringify(ui.pin)); else localStorage.removeItem(PIN_KEY);
+    } catch (e) { /* private mode: the snapshot still lasts until this page is closed */ }
+  }
+  function planSummary(ctx) {
+    const sessions = sessionsInOrder(ctx);
+    const end = sessions[sessions.length - 1];
+    const subjects = [];
+    let open = 0;
+    let placed = 0;
+    sessions.forEach(function (x) {
+      x.slots.forEach(function (s) {
+        if (s.pending) { open++; return; }
+        placed += s.cp;
+        subjects.push({ c: s.code, t: s.title, w: sessionLabel(x.year, x.session) });
+      });
+    });
+    return {
+      label: (ctx.custom ? (ctx.plan.code ? ctx.plan.code + ' ' : '') + customName(ctx.plan, ctx.tdeg) : ctx.deg.code + ' ' + ctx.deg.title) + (ctx.opt.majorCode !== 'BASE' ? ' · ' + ctx.opt.majorLabel : ''),
+      load: state.load === 'PT' ? 'Part-time' : 'Full-time',
+      finish: end ? sessionLabel(end.year, end.session) : 'No subjects yet',
+      sessions: sessions.length,
+      summers: sessions.filter(function (x) { return x.session === 'Summer'; }).length,
+      commute: sessions.filter(function (x) { return commutePill(x.slots); }).length,
+      heavy: sessions.filter(function (x) { return loadPill(x.slots); }).length,
+      placed: placed,
+      open: open,
+      subjects: subjects,
+      pinned: today(),
+    };
+  }
+  function pinButtons() {
+    return '<button type="button" class="tbtn" data-action="pin" title="Save this plan as a baseline, then change things and compare">' + (ui.pin ? 'Re-pin Snapshot' : 'Pin Snapshot') + '</button>' +
+      (ui.pin ? '<button type="button" class="tbtn tbtn-outline" data-action="compare">Compare with Pinned</button>' : '');
+  }
+  function pinPlan() {
+    ui.pin = planSummary(lastCtx);
+    writePin();
+    if (ui.modal) closeModal(true);
+    renderSectionHead(lastCtx);
+    toast('Snapshot pinned: ' + ui.pin.label + ', finishing ' + ui.pin.finish + '. Make your changes, then compare.');
+  }
+  function openCompare() {
+    const a = ui.pin;
+    const b = planSummary(lastCtx);
+    const row = function (label, x, y) {
+      return '<tr' + (String(x) === String(y) ? '' : ' class="is-diff"') + '><th scope="row">' + esc(label) + '</th><td>' + esc(String(x)) + '</td><td>' + esc(String(y)) + '</td></tr>';
+    };
+    const byCode = function (s) { const m = {}; s.subjects.forEach(function (x) { if (!m[x.c]) m[x.c] = x; }); return m; };
+    const was = byCode(a);
+    const now = byCode(b);
+    const added = Object.keys(now).filter(function (c) { return !was[c]; });
+    const removed = Object.keys(was).filter(function (c) { return !now[c]; });
+    const moved = Object.keys(now).filter(function (c) { return was[c] && was[c].w !== now[c].w; });
+    const chip = function (x, extra) { return '<span class="chipbtn"><code>' + esc(x.c) + '</code>' + esc(x.t) + (extra ? ' <span>' + esc(extra) + '</span>' : '') + '</span>'; };
+    const list = function (title, codes, draw) {
+      return '<div class="pick-section"><h4><span>' + title + '</span><span>' + codes.length + '</span></h4>' +
+        (codes.length ? '<div class="chiplist">' + codes.map(draw).join('') + '</div>' : '<p class="pick-hint">None.</p>') + '</div>';
+    };
+    ui.modal = 'compare';
+    showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="compare-h">' +
+      '<div class="modal-head"><div><h2 id="compare-h">Compare with pinned</h2><p>Your snapshot from ' + esc(a.pinned) + ' against your plan as it is now.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
+      '<div class="modal-body import-body"><div class="table-scroll"><table class="compare-table"><thead><tr><th scope="col"></th><th scope="col">Pinned</th><th scope="col">Now</th></tr></thead><tbody>' +
+      row('Plan', a.label, b.label) + row('Load', a.load, b.load) + row('Final completion session', a.finish, b.finish) +
+      row('Total sessions', a.sessions, b.sessions) + row('Summer sessions used', a.summers, b.summers) +
+      row('Multi-campus commute sessions', a.commute, b.commute) + row('Heavy L3/4 load sessions', a.heavy, b.heavy) +
+      row('Credit points placed', a.placed + ' CP', b.placed + ' CP') + row('Open slots', a.open, b.open) +
+      '</tbody></table></div>' +
+      list('Subjects added', added, function (c) { return chip(now[c]); }) +
+      list('Subjects removed', removed, function (c) { return chip(was[c]); }) +
+      list('Subjects moved', moved, function (c) { return chip(now[c], was[c].w + ' → ' + now[c].w); }) +
+      '</div><div class="modal-foot"><button type="button" class="btn btn-ghost" data-action="pin-clear">Remove pin</button><div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<button type="button" class="btn" data-action="pin">Pin this plan instead</button><button type="button" class="btn btn-primary" data-action="modal-close">Close</button></div></div></div></div>');
+  }
+
+  // ======================================================================== calendar reminder
+  // The session start is an estimate (SESSION_BEGINS), and both the file and the toast say so.
+  function icsText(s) { return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
+  function icsFold(line) {
+    const parts = [];
+    let cur = '';
+    let size = 0;
+    Array.from(line).forEach(function (ch) {
+      const n = new TextEncoder().encode(ch).length;
+      if (size + n > 73) { parts.push(cur); cur = ' '; size = 1; }
+      cur += ch;
+      size += n;
+    });
+    parts.push(cur);
+    return parts.join('\r\n');
+  }
+  function exportIcs() {
+    const ctx = lastCtx;
+    const next = nextSession(ctx);
+    if (!next) return;
+    const label = sessionLabel(next.year, next.session);
+    const begins = SESSION_BEGINS[next.session];
+    const day = function (d) { return d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0'); };
+    const start = new Date(calYear(next.year), begins[0], begins[1]);
+    const after = new Date(calYear(next.year), begins[0], begins[1] + 1);
+    const planned = next.slots.filter(function (s) { return !s.done; }).map(function (s) {
+      if (s.pending) return 'Still to choose: ' + s.title;
+      const places = s.offer && s.offer.codes.length ? ' (' + s.offer.codes.map(function (c) { return META.campuses[c] || c; }).join(', ') + ')' : '';
+      return s.code + ' ' + s.title + places;
+    });
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//WSLSA//Degree Pathway Explorer//EN', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+      'UID:' + Date.now() + '-' + Math.floor(Math.random() * 1e9) + '@wslsa-pathway',
+      'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z'),
+      'DTSTART;VALUE=DATE:' + day(start), 'DTEND;VALUE=DATE:' + day(after),
+      'SUMMARY:' + icsText(label + ' session (approximate start)'),
+      'DESCRIPTION:' + icsText('Planned subjects:\n' + planned.join('\n') + '\n\nThis date is an estimate. Check the WSU key dates and your enrolment dates. From the WSLSA Degree Pathway Explorer.'),
+      'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsText(label + ' is about two weeks away. Check your enrolment.'), 'TRIGGER:-P14D', 'END:VALARM',
+      'END:VEVENT', 'END:VCALENDAR'];
+    const url = URL.createObjectURL(new Blob([lines.map(icsFold).join('\r\n') + '\r\n'], { type: 'text/calendar;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'wslsa-' + label.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.ics';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    toast('Calendar reminder saved for ' + label + '. The date is an estimate, so check the WSU key dates.');
+  }
 
   // ======================================================================== render: main
   let lastCtx = null;
@@ -2155,7 +2481,7 @@
   // ======================================================================== picker modal
   function openPicker(slotId) {
     ui.modal = 'picker';
-    ui.picker = { slotId: slotId, q: '', campusOnly: !!state.campus, showOff: false, level: '', ugOnly: true, custom: !!(lastCtx && lastCtx.custom) };
+    ui.picker = { slotId: slotId, q: '', area: '', campusOnly: !!state.campus, showOff: false, level: '', ugOnly: true, custom: !!(lastCtx && lastCtx.custom) };
     renderPicker(true);
   }
   function pickerTitle(s) {
@@ -2175,6 +2501,7 @@
     levels.forEach(function (l) { tools += '<button type="button" class="chip" data-action="pick-level" data-level="' + l + '" aria-pressed="' + (p.level === l) + '">' + l + '</button>'; });
     if (s.kind === 'elective' && EXTRA.length) tools += '<button type="button" class="chip" data-action="pick-ug" aria-pressed="' + p.ugOnly + '" title="Hide level 0 and level 5 to 9 subjects from the WSU subject list">Undergraduate levels 1–4</button>';
     tools += '<button type="button" class="chip" data-action="pick-off" aria-pressed="' + p.showOff + '">Show subjects not offered in ' + s.session + '</button></div>';
+    if (s.kind === 'llb' || s.kind === 'elective') tools += areaTools('pick-area', p.area);
 
     const custom = s.kind === 'elective'
       ? '<div class="pick-section"><h4>Not on the list? Enter it yourself</h4><form class="custom-form" id="custom-form"><div class="field"><label for="cu-code">Code</label><input class="input" id="cu-code" placeholder="e.g. HUMN 1052" maxlength="12" value="' + esc(s.custom ? s.code : '') + '"></div><div class="field"><label for="cu-title">Title</label><input class="input" id="cu-title" placeholder="Subject title" maxlength="120" value="' + esc(s.custom ? s.title : '') + '"></div><button type="submit" class="btn btn-primary">Use subject</button></form><p class="small muted" style="margin:4px 8px 0">Check prerequisites and session availability in the 2027 Handbook.</p></div>'
@@ -2201,6 +2528,7 @@
     let hiddenByCampus = 0;
     rankByQuery(poolEntries(ctx, s.raw), q).forEach(function (e) {
       if (p.level && e.level !== p.level) return;
+      if (!inArea(e.code, p.area)) return;
       const off = offerFor(ctx.deg, e.code, s.session);
       if (off.tbc) groups.tbc.push({ e: e, off: off });
       else if (off.none) groups.off.push({ e: e, off: off });
@@ -2213,7 +2541,7 @@
     const listOn = s.kind === 'elective' && EXTRA.length > 0;
     const shownCodes = {};
     if (listOn) poolEntries(ctx, s.raw).forEach(function (e) { shownCodes[e.code] = 1; });
-    const listPool = listOn ? ANY_SUBJECTS.filter(function (e) { return !shownCodes[e.code] && (!p.ugOnly || (e.lv >= 1 && e.lv <= 4)) && (!p.level || e.level === p.level); }) : [];
+    const listPool = listOn ? ANY_SUBJECTS.filter(function (e) { return !shownCodes[e.code] && (!p.ugOnly || (e.lv >= 1 && e.lv <= 4)) && (!p.level || e.level === p.level) && inArea(e.code, p.area); }) : [];
     const listHits = listOn && q.length >= 2 ? rankByQuery(listPool, q) : [];
     // the single most relevant subject across every list is pinned to the top
     // labelled only when it is an exact code or title match, or clearly ahead of the next result
@@ -2241,7 +2569,7 @@
       return '<button type="button" class="pick" data-action="pick" data-code="' + esc(e.code) + '"' + (st.clash || disabledReason ? ' disabled' : '') + (st.current ? ' aria-current="true"' : '') + '>' +
         '<span class="p-code">' + hlCode(e.code, q) + '</span><span class="p-title">' + hl(e.title, q) + '</span>' +
         '<span class="p-side"><span class="pills">' + pillsFor(item.off) + '</span>' + st.html + '</span>' +
-        '<span class="p-meta"><span>' + esc(e.level || '') + '</span><span>' + esc(e.source || '') + '</span>' + (other && other !== '—' ? '<span>' + (s.session === 'Autumn' ? 'Spring' : 'Autumn') + ': ' + esc(other) + '</span>' : '') + (s.kind !== 'llb' && s.kind !== 'elective' ? '<span>' + esc(e.component.replace(/^.*?: /, '')) + '</span>' : '') + (s.kind === 'elective' ? '<span>LLB Alternate</span>' : '') + '</span></button>';
+        '<span class="p-meta"><span>' + esc(e.level || '') + '</span>' + areaTags(e.code) + '<span>' + esc(e.source || '') + '</span>' + (other && other !== '—' ? '<span>' + (s.session === 'Autumn' ? 'Spring' : 'Autumn') + ': ' + esc(other) + '</span>' : '') + (s.kind !== 'llb' && s.kind !== 'elective' ? '<span>' + esc(e.component.replace(/^.*?: /, '')) + '</span>' : '') + (s.kind === 'elective' ? '<span>LLB Alternate</span>' : '') + '</span></button>';
     }
     function listRow(e, badge) {
       const st = statusFor(e, badge);
@@ -2335,6 +2663,7 @@
     tools += '<button type="button" class="chip" data-action="pick-ug" aria-pressed="' + p.ugOnly + '" title="Hide level 0 and level 5 to 9 subjects">Undergraduate levels 1–4</button>';
     if (!summer) tools += '<button type="button" class="chip" data-action="pick-off" aria-pressed="' + p.showOff + '">Show subjects not offered in ' + s.session + '</button>';
     tools += '</div>';
+    if (s.orig && (s.orig.kind === 'llb' || s.orig.kind === 'elective')) tools += areaTools('pick-area', p.area);
     const maxY = Math.min(MAX_YEARS, ctx.slots.reduce(function (m, x) { return Math.max(m, x.year); }, 1) + 1);
     let moveOpts = '';
     for (let y = 1; y <= maxY; y++) {
@@ -2351,7 +2680,7 @@
       '<div class="modal-tools">' + tools + KEY_HINT + '</div>' +
       '<div class="modal-body"><div id="pick-results"></div>' + custom + '</div>' +
       '<div class="modal-foot"><div class="move-row"><label for="cp-move">Move to</label><div class="select-wrap"><select id="cp-move">' + moveOpts + '</select></div></div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap">' + (s.pending ? '' : '<button type="button" class="btn" data-action="pick-clear">Clear subject</button>') +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' + (s.pending || s.done ? '' : '<button type="button" class="btn" data-action="defer" data-slot="' + s.id + '">Defer to next offered session</button>') + (s.pending ? '' : '<button type="button" class="btn" data-action="pick-clear">Clear subject</button>') +
       '<button type="button" class="btn" data-action="cremove" data-slot="' + s.id + '">Remove slot</button><button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button></div></div></div></div>');
     document.body.style.overflow = 'hidden';
     renderCustomPickerResults();
@@ -2377,9 +2706,9 @@
     const sugg = suggestionsFor(ctx, s);
     const suggCodes = {};
     sugg.forEach(function (e) { suggCodes[e.code] = 1; });
-    const suggItems = rankByQuery(sugg.filter(function (e) { return !p.level || e.level === p.level; }), q)
+    const suggItems = rankByQuery(sugg.filter(function (e) { return (!p.level || e.level === p.level) && inArea(e.code, p.area); }), q)
       .map(function (e) { return { e: e, off: offOf(e) }; }).filter(shown);
-    const pool = ANY_SUBJECTS.filter(function (e) { return !suggCodes[e.code] && (!p.ugOnly || (e.lv >= 1 && e.lv <= 4)) && (!p.level || e.level === p.level); });
+    const pool = ANY_SUBJECTS.filter(function (e) { return !suggCodes[e.code] && (!p.ugOnly || (e.lv >= 1 && e.lv <= 4)) && (!p.level || e.level === p.level) && inArea(e.code, p.area); });
     const anyItems = q.length >= 2 ? rankByQuery(pool, q).map(function (e) { return { e: e, off: offOf(e) }; }).filter(shown) : [];
     // the most relevant subject is pinned; an exact code is surfaced even when a filter hides it
     let best = null;
@@ -2404,7 +2733,7 @@
         '<span class="p-code">' + hlCode(e.code, q) + '</span><span class="p-title">' + hl(e.title, q) + '</span>' +
         '<span class="p-side">' + (i.off ? '<span class="pills">' + pillsFor(i.off) + '</span>' : '<span class="muted small">Check Handbook</span>') +
         (badge ? '<span class="status status-best">' + badge + '</span>' : '') + (current ? '<span class="status status-essential">Selected</span>' : clash ? '<span class="status status-non">In plan</span>' : '') + '</span>' +
-        '<span class="p-meta"><span>' + esc(e.level || 'Level ' + e.code.charAt(5)) + '</span><span>' + (g ? '2027 Handbook data' : 'WSU subject list') + '</span>' +
+        '<span class="p-meta"><span>' + esc(e.level || 'Level ' + e.code.charAt(5)) + '</span>' + areaTags(e.code) + '<span>' + (g ? '2027 Handbook data' : 'WSU subject list') + '</span>' +
         (g && g.cp !== 10 ? '<span>' + g.cp + ' CP</span>' : '') + otherVals +
         (i.off && i.off.none ? '<span>Not offered in ' + s.session + '</span>' : '') + '</span></button>';
     }
@@ -3681,6 +4010,28 @@
         break;
       }
       case 'suggest': autoSuggest(); break;
+      case 'defer': deferSubject(el.dataset.slot); break;
+      case 'defer-undo': undoDefer(); break;
+      case 'pin': pinPlan(); break;
+      case 'pin-clear':
+        ui.pin = null;
+        writePin();
+        closeModal();
+        renderSectionHead(lastCtx);
+        toast('Snapshot removed.');
+        break;
+      case 'compare': openCompare(); break;
+      case 'ics': exportIcs(); break;
+      case 'pick-area':
+        ui.picker.area = el.dataset.area;
+        pressArea('pick-area', ui.picker.area);
+        renderPickerResults();
+        break;
+      case 'cat-area':
+        ui.cat.area = el.dataset.area;
+        pressArea('cat-area', ui.cat.area);
+        renderCatalogueRows(ctx);
+        break;
       case 'suggest-undo': undoSuggest(); break;
       case 'mini-top': {
         $('#dock-wrap').scrollIntoView({ behavior: scrollMode(), block: 'start' });
@@ -3695,12 +4046,12 @@
         break;
       }
       case 'pick-reset':
-        Object.assign(ui.picker, { q: '', level: '', showOff: false, campusOnly: false });
+        Object.assign(ui.picker, { q: '', area: '', level: '', showOff: false, campusOnly: false });
         renderPicker(false);
         $('#pick-q').focus();
         break;
       case 'cat-reset':
-        ui.cat = { q: '', comp: '', session: '', inPlan: false };
+        ui.cat = { q: '', comp: '', session: '', inPlan: false, area: '' };
         renderDetails(ctx);
         $('#cat-q').focus();
         break;
@@ -3720,7 +4071,7 @@
         renderMoving(function () { flashSlot(id); });
         break;
       }
-      case 'copy-codes': copyText(el.dataset.codes, 'Copied ' + el.dataset.codes + ' for enrolment.'); break;
+      case 'copy-codes': copyText(el.dataset.copy || el.dataset.codes, 'Copied ' + el.dataset.codes + ' for enrolment.'); break;
       case 'import-open': openImport(); break;
       case 'import-apply': applyImport(); break;
       case 'progress-open': openProgress(); break;

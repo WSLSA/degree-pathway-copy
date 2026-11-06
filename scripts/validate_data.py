@@ -189,6 +189,15 @@ def main():
             if c not in known:
                 err(f"prerequisites: sequence subject {c} is not a known subject")
 
+    # ---- practice areas: real subjects, real areas, and every LLB Alternate looked at
+    practice = json.loads((Path(__file__).resolve().parent.parent / "data" / "practice-areas.json").read_text(encoding="utf-8"))
+    area_ids = {a["id"] for a in practice["areas"]}
+    for code, tags in practice["subjects"].items():
+        if code not in known:
+            err(f"practice areas: {code} is not a known subject")
+        if not tags or set(tags) - area_ids:
+            err(f"practice areas: {code} has unknown or no areas: {tags}")
+
     for w in warnings:
         print("WARN ", w)
     for e in errors:

@@ -379,7 +379,7 @@ body.has-campus .pill.online { background: var(--ok-tint); border-color: #b6e2c4
 .tab-panel { padding: 22px 22px 26px; }
 .two-col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; }
 .panel-h { margin: 0 0 10px; font: 600 25px/1.15 var(--serif); color: var(--ink); }
-.structure-row { display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 5px 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--hairline); font-size: 14px; }
+.structure-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--hairline); font-size: 14px; }
 .structure-row .sbar { grid-column: 1 / -1; height: 4px; background: var(--surface-2); overflow: hidden; }
 .structure-row .sbar span { display: block; height: 100%; background: linear-gradient(90deg, var(--crimson), var(--gold)); }
 .structure-row .cpv { text-align: right; font: 700 13px var(--mono); }
@@ -783,6 +783,36 @@ kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid 
   #xray-note { bottom: 62px; }
   #toast.show ~ #xray-note { bottom: 124px; }
   .chain-btn { min-height: 26px; }
+}
+
+/* ---------- practice areas, session load, defer, compare */
+.area-chips { margin-top: 2px; }
+.area-note { margin: 6px 0 10px; font-size: 12px; color: var(--muted); }
+.modal-tools .area-note { margin: 0; }
+.area-tag { display: inline-block; margin: 0 4px; padding: 0 7px; border: 1px solid #ecd9a4; border-radius: 999px; background: var(--gold-tint); color: var(--amber-ink); font: 700 10px/1.6 var(--sans); letter-spacing: 0; text-transform: none; white-space: nowrap; }
+.load-slot:empty { display: none; }
+.load-pill { padding: 1px 8px; border: 1px solid #f1d6a8; border-radius: 999px; background: var(--amber-tint); color: var(--amber-ink); font: 700 10px/1.5 var(--mono); white-space: nowrap; cursor: help; }
+.defer-btn { padding: 1px 7px; border: 1px solid var(--hairline-2); border-radius: 999px; background: var(--surface); color: var(--muted); font: 700 9.5px/1.5 var(--sans); letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
+.defer-btn:hover { border-color: var(--crimson); color: var(--crimson); }
+.structure-done { border-bottom: 0; }
+.structure-done .sbar span, .structure-row[data-area] .sbar i { transition: width .35s ease; }
+.structure-row[data-area] .sbar > span { background: var(--hairline-2); }
+.structure-row[data-area] .sbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--crimson), var(--gold)); }
+.compare-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.compare-table thead th { padding: 10px; background: var(--ink); color: #fff; text-align: left; font: 700 9.5px var(--sans); letter-spacing: .18em; text-transform: uppercase; }
+.compare-table tbody th { width: 34%; padding: 8px 10px; border-bottom: 1px solid var(--hairline); color: var(--muted); text-align: left; font: 600 13px var(--sans); }
+.compare-table td { padding: 8px 10px; border-bottom: 1px solid var(--hairline); color: var(--text); }
+.compare-table tr.is-diff td { background: var(--gold-tint); font-weight: 700; color: var(--ink); }
+@media (max-width: 900px) {
+  .defer-btn { min-height: 26px; }
+}
+/* on a phone the area chips scroll sideways, so the subject list stays in view */
+@media (max-width: 760px) {
+  .modal-tools .area-chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+  .modal-tools .area-chips .chip { flex: none; }
+}
+@media (hover: none) {
+  .kbd-only { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .advisory::details-content, .notice-more::details-content { transition: none; }
