@@ -20,6 +20,8 @@ Want something different from the recommended pathway? Choose **Customise this p
 
 Mapping your degree? Hover a subject or press its **Chain** button to see what it depends on and unlocks. **Prerequisite** and **Unlocks** come from the Handbook and advisor notes, while **Usually first** and **Usually after** are a general order rather than a rule, so always confirm prerequisites in the Handbook. When choosing LLB Alternates, filter by practice area, such as Tech, IP & Data (WSLSA groupings by subject title, not Handbook categories). A session with three or more Level 3 or 4 Law subjects shows **Heavy L3/4 Load**, a session whose subjects cannot all be taken in one place shows a small pill such as `2 Campuses: PS + CA`, and **Auto-suggest open slots** fills your open choices as a starting point, with one click to undo. Press `/` to search the catalogue and `Esc` to close a window or clear a highlight.
 
+Finding your way around? The degree map above your plan shows every session at a glance, with a square for each subject, and pressing a session takes you straight to it. Years you have finished fold away the next time you open your plan, and the arrow on any year bar opens or closes that year.
+
 Planning to study over Summer? Press **+ Add Summer** on any year. You can choose a new subject for that Summer or bring one forward from later in your plan. The 2027 guides only cover Autumn and Spring, so check in the Handbook that each Summer subject runs and where.
 
 ## Good to know

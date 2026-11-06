@@ -426,7 +426,7 @@ async function renderPdf(page, key, mode, orient, file) {
   await pp.click('[data-action="copy-codes"]');
   await pp.waitForTimeout(100);
   check(/Copied LAWS 1003/.test(await pp.textContent('#toast')), 'copying codes should confirm what was copied');
-  await pp.click('#year-1 section[aria-label="Autumn session"] [data-action="session-done"]');
+  await pp.click('#year-1 section[aria-label="Year 1 Autumn session"] [data-action="session-done"]');
   check(/Next to enrol/.test(await pp.textContent('#next')) && /Spring 2027/.test(await pp.textContent('#next')), 'ticking Year 1 Autumn should move Next to enrol to Spring 2027');
   // tick off from results: codes in any format, fails left unticked, other text ignored
   await pp.click('[data-action="import-open"]');
@@ -503,6 +503,8 @@ async function renderPdf(page, key, mode, orient, file) {
   check(JSON.stringify(await ip.$$eval('.year-bar h2 small', s => s.slice(0, 3).map(x => x.textContent))) === JSON.stringify(['2025', '2026', '2027']) && /started 2025/i.test(await ip.textContent('#facts')), 'year bars and facts should show the real calendar years');
   check(/Next to enrol/.test(await ip.textContent('#next')) && /Autumn 2027/.test(await ip.textContent('#next')), `Next to enrol should pass over sessions that have begun, got ${(await ip.textContent('#next')).slice(0, 80)}`);
   check(!/TBC|2026 data|Summer/.test(await ip.textContent('#advisory summary')), 'completed subjects should raise no session or Summer warnings');
+  const finishedFolded = await ip.$$eval('#grid .year', ys => ys.filter(y => { const c = y.querySelectorAll('.subj'); return c.length && Array.from(c).every(x => x.classList.contains('is-done')); }).map(y => y.classList.contains('is-folded')));
+  check(finishedFolded.length > 0 && finishedFolded.every(Boolean) && !!(await ip.$('#dmap .dm-s.is-next[data-y="3"][data-s="Autumn"]')), `an imported plan should open with finished years folded and the map on the next session, got ${JSON.stringify(finishedFolded)}`);
   await ip.click('[data-action="load"][data-load="PT"]');
   const ptYears = await ip.$$eval('.year', ys => ys.map(y => y.querySelector('h2 small').textContent.slice(0, 4) + ':' + y.querySelectorAll('.subj').length));
   check(ptYears[0] === '2025:5' && ptYears[1] === '2026:1' && ptYears.length > 4, `part-time should keep sessions that have begun and spread the rest, got ${ptYears.join(' ')}`);
@@ -764,10 +766,15 @@ async function renderPdf(page, key, mode, orient, file) {
   await mo.click('[data-action="custom-from-current"]');
   await mo.click('button[type=submit][form=setup-form]');
   await mo.waitForTimeout(1100);
-  const glide = await mo.evaluate(() => { const c = WSLSA.context().slots.find(s => !s.pending); return c.id; });
+  const glide = await mo.evaluate(() => { const c = WSLSA.context().slots.find(s => !s.pending && !s.done); return c.id; });
   await mo.click(`#slot-${glide} [data-action="clear"]`);
   await mo.waitForFunction(() => !document.documentElement.classList.contains('vt-cards'));
   check(await mo.evaluate(id => !!document.querySelector('#slot-' + id + '.is-pending'), glide), 'a change inside a view transition should still land');
+  await mo.click('#year-2 [data-action="year-toggle"]');
+  await mo.waitForFunction(() => !document.documentElement.classList.contains('vt-cards') && document.getElementById('year-2').classList.contains('is-folded'));
+  check(await mo.isHidden('#year-2-body'), 'folding a year inside a view transition should still land');
+  await mo.click('#year-2 [data-action="year-toggle"]');
+  await mo.waitForFunction(() => !document.documentElement.classList.contains('vt-cards') && !document.getElementById('year-2').classList.contains('is-folded'));
   check(mo.errors.length === 0, 'animation console errors: ' + mo.errors.join('; '));
   await mo.close();
   }
@@ -911,7 +918,7 @@ async function renderPdf(page, key, mode, orient, file) {
     await pt.click('[data-action="load"][data-load="FT"]');
     await pt.selectOption('#sel-major', '2788|T039');
     await pt.click('[data-action="compare"]');
-    const diff = await pt.$$eval('.modal .pick-section', s => s.map(x => [x.querySelector('h4 span').textContent, x.querySelectorAll('.chipbtn').length]));
+    const diff = await pt.$$eval('.modal .pick-section', s => s.map(x => [x.querySelector('h3 span').textContent, x.querySelectorAll('.chipbtn').length]));
     check(diff.find(d => d[0] === 'Subjects added')[1] > 0 && diff.find(d => d[0] === 'Subjects removed')[1] > 0, `changing major should list subjects added and removed, got ${JSON.stringify(diff)}`);
     check((await pt.$$eval('.compare-table tr.is-diff th', t => t.map(x => x.textContent))).includes('Plan'), 'the comparison should show the plan changed');
     await pt.click('.modal-foot [data-action="modal-close"]');
@@ -948,6 +955,183 @@ async function renderPdf(page, key, mode, orient, file) {
     await an.close();
   }
 
+  // ---------------------------------------------------------------- layout, degree map and folding years
+  const pageTop = (p, s) => p.evaluate(x => Math.round(document.querySelector(x).getBoundingClientRect().top + window.scrollY), s);
+  const headingSkips = (p, root) => p.evaluate(r => {
+    const out = [];
+    let prev = 0;
+    document.querySelectorAll(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].map(h => r + ' ' + h).join(',')).forEach(h => {
+      if (!h.getClientRects().length || h.closest('#preview-stage')) return;
+      const level = +h.tagName[1];
+      if (prev && level > prev + 1) out.push(h.tagName + ' ' + h.textContent.trim().slice(0, 40));
+      prev = level;
+    });
+    return out;
+  }, root);
+  // 24 px is the WCAG 2.2 minimum; links inside a sentence are exempt, and a checkbox's target is its label
+  const smallTargets = p => p.evaluate(() => {
+    const out = new Set();
+    document.querySelectorAll('#app a[href], #app button, #app select, #app summary, #app label.tick, #app [role="button"], #modal-root a[href], #modal-root button, #modal-root select').forEach(el => {
+      if (!el.getClientRects().length || el.matches('p a, li a') || el.closest('#preview-stage')) return;
+      const r = el.getBoundingClientRect();
+      if (r.width < 24 || r.height < 24) out.add((el.className || el.tagName) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height));
+    });
+    return Array.from(out);
+  });
+  const lay = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  lay.on('dialog', d => d.accept());
+  await lay.goto(APP);
+  await lay.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
+  await lay.evaluate(() => document.fonts.ready);
+  check(await pageTop(lay, '#dmap') < 850 && await pageTop(lay, '#grid .year') < 900 && await pageTop(lay, '#grid .subj') < 1000, `the plan should start on a laptop's first screen, map at ${await pageTop(lay, '#dmap')}, first subject at ${await pageTop(lay, '#grid .subj')}`);
+  check((await headingSkips(lay, '#app')).length === 0, 'headings should not skip a level: ' + (await headingSkips(lay, '#app')).join('; '));
+  check((await smallTargets(lay)).length === 0, 'controls should be at least 24 px: ' + (await smallTargets(lay)).join('; '));
+  const landmarks = await lay.$$eval('#grid section[aria-label]', s => s.map(x => x.getAttribute('aria-label')));
+  check(landmarks.length === 10 && new Set(landmarks).size === 10, 'each session landmark should have its own name');
+  check(await lay.evaluate(() => { const b = document.createElement('button'); b.className = 'btn'; b.disabled = true; document.body.appendChild(b); const o = getComputedStyle(b).opacity; b.remove(); return o; }) === '0.5', 'a disabled button should look disabled');
+  // the skip link
+  await lay.evaluate(() => { document.activeElement.blur(); window.scrollTo(0, 0); });
+  await lay.keyboard.press('Tab');
+  check(await lay.evaluate(() => document.activeElement.classList.contains('skip-link') && document.activeElement.getBoundingClientRect().top >= 0), 'the first Tab should show the skip link');
+  await lay.keyboard.press('Enter');
+  check(await lay.evaluate(() => document.activeElement.id === 'plan-heading' && !location.hash), 'the skip link should move focus to the plan, without changing the address');
+  await lay.evaluate(() => window.scrollTo(0, 0));
+  // the School of Law advice stays in view, and its detail opens from it
+  check(/2026 Handbook/.test(await lay.textContent('.notice-lead')) && await lay.isVisible('.notice-lead') && await lay.isHidden('#notice .phase-grid'), 'the notice should show its advice with the detail closed');
+  await lay.click('.notice-sum');
+  check(await lay.isVisible('#notice .phase-grid') && await lay.isVisible('.notice-mail'), 'opening the notice should show the phase-out subjects and contact');
+  await lay.click('.notice-sum');
+  // the legend keeps its colours in view, and stays open across a re-render once opened
+  check(await lay.isHidden('#legend .lg-body') && await lay.isVisible('#legend .lg-sw'), 'the legend should start closed with its colours showing');
+  await lay.click('#legend-box > summary');
+  await lay.evaluate(() => WSLSA.select('2785|BASE'));
+  check(await lay.isVisible('#legend .lg-body'), 'an open legend should stay open across a re-render');
+  await lay.click('#legend-box > summary');
+  // the catalogue table no longer inherits a subject label's tracked capitals
+  await lay.click('[data-action="tab"][data-tab="catalogue"]');
+  check(await lay.$eval('#cat-results tbody td:nth-child(2)', td => getComputedStyle(td).textTransform) === 'none', 'catalogue rows should read in ordinary case');
+  check(await lay.$eval('#cat-results .table-scroll', t => t.tabIndex === 0 && t.getAttribute('role') === 'region' && !!t.getAttribute('aria-label')), 'the catalogue table should scroll from the keyboard');
+  check((await smallTargets(lay)).length === 0, 'catalogue controls should be at least 24 px: ' + (await smallTargets(lay)).join('; '));
+  await lay.click('[data-action="tab"][data-tab="structure"]');
+  // windows keep their headings in order too
+  const windowSlot = await lay.evaluate(() => WSLSA.context().slots.find(s => s.kind === 'llb').id);
+  await lay.click(`#slot-${windowSlot} [data-action="picker-open"]`);
+  check((await headingSkips(lay, '#modal-root')).length === 0 && !(await lay.$('#modal-root h4')), 'picker headings should not skip a level');
+  check(/WSLSA groupings/.test(await lay.textContent('.modal-tools .area-note')), 'the picker should say what practice areas are');
+  await lay.keyboard.press('Escape');
+  await lay.click('[data-action="export-open"]');
+  check((await headingSkips(lay, '#modal-root')).length === 0 && await lay.$eval('#preview-stage', s => s.inert) && await lay.$eval('#export-preview', b => b.tabIndex === 0), 'the A4 preview should be out of the way of a screen reader, with its box scrollable');
+  await lay.keyboard.press('Escape');
+  // per-card tools wait until the card is in use
+  const quiet = await lay.evaluate(() => { const b = document.querySelector('#grid .defer-btn'); b.closest('.subj').scrollIntoView({ block: 'center' }); return b.dataset.slot; });
+  const toolOpacity = () => lay.$eval(`#slot-${quiet} .defer-btn`, b => getComputedStyle(b).opacity);
+  await lay.mouse.move(0, 0);
+  check(await toolOpacity() === '0', 'a card at rest should not show its tools');
+  await lay.hover(`#slot-${quiet} .subj-title`);
+  check(await toolOpacity() === '1', 'hovering a card should show its tools');
+  await lay.mouse.move(0, 0);
+  await lay.focus(`#slot-${quiet} .defer-btn`);
+  check(await toolOpacity() === '1', 'keyboard focus should show a card\'s tools');
+  await lay.evaluate(() => { document.activeElement.blur(); window.scrollTo(0, 0); });
+  // the degree map
+  const segments = (y, s) => lay.$$eval(`#dmap .dm-s[data-y="${y}"][data-s="${s}"] .dm-seg i`, is => is.map(i => i.className || 'todo').join(' '));
+  check((await lay.$$('#dmap .dm-year')).length === 5 && (await lay.$$('#dmap .dm-s')).length === 10, 'the map should show every year and session');
+  check(await segments(1, 'Autumn') === 'todo todo todo todo' && /open/.test(await segments(1, 'Spring')), `the map should show a square per subject, open choices marked, got ${await segments(1, 'Spring')}`);
+  check(!!(await lay.$('#dmap .dm-s.is-next[data-y="1"][data-s="Autumn"]')), 'the map should mark the next session');
+  await lay.click(`#slot-${await lay.evaluate(() => WSLSA.context().slots.find(s => s.year === 1 && s.session === 'Autumn').id)} .tick`);
+  check((await segments(1, 'Autumn')).split(' ').filter(c => c === 'on').length === 1, 'ticking should fill a square on the map');
+  check(/1 of 4 subjects done/.test(await lay.getAttribute('#dmap .dm-s[data-y="1"][data-s="Autumn"]', 'aria-label')), 'the map should say how far a session has got');
+  await lay.click('#year-1 .session[data-s="Autumn"] [data-action="session-done"]');
+  check(!!(await lay.$('#dmap .dm-s.is-next[data-y="1"][data-s="Spring"]')) && !(await lay.$('#dmap .dm-s.is-next[data-y="1"][data-s="Autumn"]')), 'the next session on the map should move on');
+  await lay.click('#dmap .dm-s[data-y="3"][data-s="Spring"]');
+  const landed = await lay.evaluate(() => {
+    const s = document.querySelector('#year-3 .session[data-s="Spring"]');
+    const map = document.getElementById('dmap').getBoundingClientRect();
+    return { focused: document.activeElement === s, top: Math.round(s.getBoundingClientRect().top), mapTop: Math.round(map.top), mapBottom: Math.round(map.bottom), dockBottom: Math.round(document.getElementById('dock-wrap').getBoundingClientRect().bottom) };
+  });
+  check(landed.focused && landed.top >= landed.mapBottom && landed.top < landed.mapBottom + 40 && Math.abs(landed.mapTop - landed.dockBottom) <= 2, `a session on the map should land just under the sticky dock and map, got ${JSON.stringify(landed)}`);
+  await lay.waitForFunction(() => !!document.querySelector('#dmap .dm-year.is-here[data-y="3"]'));
+  check(await lay.getAttribute('#dmap .dm-y[data-y="3"]', 'aria-current') === 'true' && (await lay.$$('#dmap .is-here')).length === 1, 'the map should mark the year on screen');
+  await lay.evaluate(() => window.scrollTo(0, 0));
+  await lay.waitForFunction(() => !document.querySelector('#dmap .is-here'));
+  // a part-time plan has ten years, and they still fit
+  await lay.click('[data-action="load"][data-load="PT"]');
+  check(await lay.$eval('#dmap', b => b.scrollWidth <= b.clientWidth) && !!(await lay.$('#dmap .dm-many')) && (await lay.$$('#dmap .dm-year')).length === 10, 'ten years should fit on the map at laptop width');
+  await lay.click('[data-action="load"][data-load="FT"]');
+  // folding years
+  await lay.click('#year-2 [data-action="year-toggle"]');
+  check(await lay.isHidden('#year-2-body') && await lay.getAttribute('#year-2 [data-action="year-toggle"]', 'aria-expanded') === 'false' && await lay.getAttribute('#year-2 [data-action="year-toggle"]', 'aria-label') === 'Show Year 2 subjects', 'a year should fold, and say so');
+  await lay.evaluate(() => WSLSA.select('2785|BASE'));
+  check(await lay.isHidden('#year-2-body'), 'a folded year should stay folded across a re-render');
+  await lay.click('#dmap .dm-y[data-y="2"]');
+  check(await lay.isVisible('#year-2-body') && await lay.getAttribute('#year-2 [data-action="year-toggle"]', 'aria-expanded') === 'true', 'jumping from the map should open a folded year');
+  await lay.click('#year-1 [data-action="year-toggle"]');
+  await lay.click('#next .chipbtn');
+  check(await lay.isVisible('#year-1-body'), 'jumping to a subject should open its folded year');
+  await lay.evaluate(() => window.scrollTo(0, 0));
+  await lay.click('#year-1 .session[data-s="Spring"] [data-action="session-done"]');
+  check(!(await lay.$('#year-1.is-folded')), 'finishing a year should not fold it under the student');
+  const doneCard = await lay.$eval('#year-1 .subj.is-done', c => ({ opacity: getComputedStyle(c).opacity, tick: getComputedStyle(c.querySelector('.tick-box')).backgroundColor, title: getComputedStyle(c.querySelector('.subj-title')).color }));
+  check(doneCard.opacity === '1' && doneCard.tick === 'rgb(21, 128, 61)' && doneCard.title === 'rgb(98, 93, 96)', `a done card should stay readable with a coloured tick, got ${JSON.stringify(doneCard)}`);
+  await lay.reload();
+  await lay.evaluate(() => document.fonts.ready);
+  check(!!(await lay.$('#year-1.is-folded')) && await lay.isHidden('#year-1-body') && !!(await lay.$('#dmap .dm-year.is-done[data-y="1"]')) && !(await lay.$('#year-2.is-folded')), 'a finished year should start folded the next time the plan opens');
+  check((await lay.$$('#year-1 .subj')).length === 8 && /^80 \/ 400/.test((await lay.textContent('#progress-num')).trim()), 'folding should not change the plan or its progress');
+  await lay.click('#dmap .dm-s[data-y="1"][data-s="Spring"]');
+  check(await lay.isVisible('#year-1-body'), 'a session on the map should open its folded year');
+  await lay.click('#year-1 [data-action="year-toggle"]');
+  await lay.evaluate(() => window.scrollTo(0, 0));
+  await lay.click('[data-action="reset"]');
+  check(!(await lay.$('#grid .is-folded')) && await lay.isVisible('#year-1-body'), 'resetting a plan should open its years');
+  check(lay.errors.length === 0, 'layout console errors: ' + lay.errors.join('; '));
+  await lay.close();
+
+  // real scrollbars, as on Windows: opening a window must not move the page
+  const barBrowser = await chromium.launch({ ignoreDefaultArgs: ['--hide-scrollbars'] });
+  const bar = await newPage(barBrowser);
+  await bar.goto(APP);
+  await bar.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
+  const cardBox = () => bar.$eval('.dock-card', c => { const r = c.getBoundingClientRect(); return r.left + ':' + r.width; });
+  const beforeWindow = await cardBox();
+  await bar.click('[data-action="export-open"]');
+  const duringWindow = await cardBox();
+  await bar.keyboard.press('Escape');
+  check(beforeWindow === duringWindow && beforeWindow === await cardBox(), `opening a window should not move the page, got ${beforeWindow} then ${duringWindow}`);
+  check(await bar.evaluate(() => !document.getElementById('app').style.paddingRight && !document.body.style.overflow), 'closing a window should leave no scroll lock behind');
+  await barBrowser.close();
+
+  // the phone's first screens
+  const ph = await newPage(browser, { viewport: { width: 390, height: 844 } });
+  await ph.goto(APP);
+  await ph.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
+  await ph.evaluate(() => document.fonts.ready);
+  check(await pageTop(ph, '#grid .subj') < 1500, `the plan should start within two phone screens, first subject at ${await pageTop(ph, '#grid .subj')}`);
+  check(await pageTop(ph, '#facts') > await pageTop(ph, '#grid') && await pageTop(ph, '#facts') < await pageTop(ph, '#details'), 'degree facts should follow the plan on a phone');
+  check((await smallTargets(ph)).length === 0, 'phone controls should be at least 24 px: ' + (await smallTargets(ph)).join('; '));
+  check(await ph.isHidden('[data-action="print"]') && await ph.isVisible('[data-action="top-menu"]'), 'the masthead actions should sit in a menu on a phone');
+  await ph.click('[data-action="top-menu"]');
+  check(await ph.isVisible('[data-action="print"]') && await ph.isVisible('.top-actions .top-link') && await ph.getAttribute('[data-action="top-menu"]', 'aria-expanded') === 'true', 'the menu should open');
+  await ph.keyboard.press('Escape');
+  check(await ph.isHidden('[data-action="print"]') && await ph.evaluate(() => document.activeElement.dataset.action === 'top-menu'), 'Esc should close the menu and return to its button');
+  await ph.click('[data-action="top-menu"]');
+  await ph.click('.notice-lead', { force: true });
+  check(await ph.isHidden('[data-action="print"]'), 'pressing elsewhere should close the menu');
+  await ph.evaluate(() => { const b = document.getElementById('notice-box'); b.open = false; });
+  await ph.click('[data-action="top-menu"]');
+  await ph.click('[data-action="export-open"]');
+  check(await ph.isHidden('.top-actions .tbtn-primary') && !!(await ph.$('.modal')), 'a menu item should run and close the menu');
+  await ph.keyboard.press('Escape');
+  check(await ph.evaluate(() => document.activeElement.dataset.action === 'top-menu'), 'closing a window opened from the menu should return to the menu button');
+  await ph.evaluate(() => { document.getElementById('notice-box').open = true; });
+  check(await ph.evaluate(() => document.documentElement.scrollWidth <= 390), 'the open notice should not cause sideways scrolling');
+  await ph.evaluate(() => { document.getElementById('notice-box').open = false; });
+  check(await ph.isHidden('#dmap .dm-s[data-y="1"][data-s="Autumn"]') && await ph.isVisible('#dmap .dm-y[data-y="5"]') && await ph.evaluate(() => { const b = document.getElementById('dmap'); return b.scrollWidth <= b.clientWidth; }), 'the phone map should show each year as one tile, all in view');
+  await ph.click('#dmap .dm-y[data-y="3"]');
+  const phoneJump = await ph.evaluate(() => ({ map: Math.round(document.getElementById('dmap').getBoundingClientRect().top), year: Math.round(document.getElementById('year-3').getBoundingClientRect().top), bottom: Math.round(document.getElementById('dmap').getBoundingClientRect().bottom) }));
+  check(phoneJump.map === 0 && phoneJump.year >= phoneJump.bottom && phoneJump.year < phoneJump.bottom + 40, `a year on the phone map should land under the map stuck to the top, got ${JSON.stringify(phoneJump)}`);
+  check(ph.errors.length === 0, 'phone console errors: ' + ph.errors.join('; '));
+  await ph.close();
+
   // ---------------------------------------------------------------- mobile layout
   const m = await newPage(browser, { viewport: { width: 390, height: 844 } });
   await m.goto(APP);
@@ -955,7 +1139,7 @@ async function renderPdf(page, key, mode, orient, file) {
   // the dock scrolls away on a phone, so a small bar stands in for it
   await m.evaluate(() => { localStorage.clear(); WSLSA.select('2848|BASE'); });
   check(await m.isHidden('#mini-bar') || !(await m.$('#mini-bar.is-on')), 'the phone bar should wait until the dock has scrolled away');
-  await m.evaluate(() => window.scrollTo(0, document.getElementById('grid').offsetTop));
+  await m.evaluate(() => window.scrollTo(0, document.getElementById('grid').getBoundingClientRect().top + window.scrollY));
   await m.waitForTimeout(200);
   check(!!(await m.$('#mini-bar.is-on')) && await m.isVisible('#mini-track') && /^0 \/ 320 CP$/.test(await m.textContent('#mini-num')), 'the phone bar should show progress once the dock has gone');
   await m.click('#grid .subj .tick');

@@ -29,16 +29,18 @@
 </head>
 <body>
 <div class="app" id="app">
+  <a class="skip-link" href="#plan-heading" data-action="skip">Skip to your plan</a>
   <header class="topbar">
     <div class="topbar-inner">
       <a class="crest" href="#" data-action="top" aria-label="Western Sydney Law Students' Association, 2027 Degree Pathway Explorer, back to top">
         <span class="crest-img brand-crest" role="img" aria-label="WSLSA crest"></span>
         <span class="crest-text"><span class="ct-ws">Western Sydney</span><span class="ct-lsa">Law Students' Association</span><small>Est. 1996 · Degree Pathway Explorer</small></span>
       </a>
-      <nav class="top-actions" aria-label="Plan actions">
+      <button type="button" class="tbtn top-menu-btn" data-action="top-menu" aria-expanded="false" aria-controls="top-actions">Menu</button>
+      <nav class="top-actions" id="top-actions" aria-label="Plan actions">
         <a class="tbtn top-link" href="https://wslsa.com.au/" target="_blank" rel="noopener">wslsa.com.au ↗</a>
         <button type="button" class="tbtn" data-action="share" title="Copy a link that restores this exact plan on any device">Copy Share Link</button>
-        <button type="button" class="tbtn" data-action="reset" title="Clear choices and progress for this pathway">Reset Plan</button>
+        <button type="button" class="tbtn top-quiet" data-action="reset" title="Clear choices and progress for this pathway">Reset Plan</button>
         <button type="button" class="tbtn" data-action="export-open" title="Choose guide type, orientation and LLB Alternate filters, with a live A4 preview">PDF Options</button>
         <button type="button" class="tbtn tbtn-primary" data-action="print">Print / Save PDF →</button>
       </nav>
@@ -46,11 +48,12 @@
   </header>
 
   <main id="main">
+    <section class="notice" id="notice" aria-label="School of Law update"></section>
+
     <section class="hero-band" aria-labelledby="hero-title">
       <span class="hero-watermark crest-rev" aria-hidden="true"></span>
       <div class="wrap hero-grid">
         <div class="hero-copy">
-          <p class="kicker">Western Sydney Law Students' Association <i>·</i> Est. 1996 <i>·</i> By students, for students</p>
           <p class="hero-app"><b>2027</b> Degree Pathway Explorer</p>
           <h1 id="hero-title">Degree Pathway Explorer</h1>
           <div class="hero-meta" id="hero-meta"></div>
@@ -68,18 +71,20 @@
 
     <div class="wrap stack">
       <section class="ribbon" id="facts" aria-label="Key facts"></section>
-      <section class="notice" id="notice" aria-label="School of Law update"></section>
       <section id="advisory" aria-label="Pathway advisory"></section>
       <section id="next" aria-label="Next to enrol"></section>
       <div class="section-head">
         <div>
           <p class="kicker" id="section-kicker">Recommended pathway <i>·</i> 2027</p>
-          <h2>Your degree, session by session</h2>
+          <h2 id="plan-heading" tabindex="-1">Your degree, session by session</h2>
         </div>
         <div class="section-tools" id="section-tools"></div>
       </div>
       <section class="micro-legend" id="legend" aria-label="Legend"></section>
-      <section class="grid" id="grid" aria-label="Recommended pathway"></section>
+      <div class="plan-body">
+        <nav class="dmap" id="dmap" aria-label="Jump to a year or session in your plan"></nav>
+        <section class="grid" id="grid" aria-label="Recommended pathway"></section>
+      </div>
       <section class="drawer" id="details" aria-label="Degree details"></section>
     </div>
   </main>

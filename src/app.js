@@ -1188,7 +1188,7 @@
     if (r.pending.length && !ctx.custom) checks.push('<p><b>Still to choose:</b> ' + r.pending.map(function (s) { return '<button type="button" class="linkish" data-action="jump" data-slot="' + s.id + '">' + where(s) + '</button>'; }).join(', ') + '.</p>');
     if (checks.length) secs.push('<section class="adv-sec"><h3><span class="idx">' + idx() + '</span>' + (ctx.custom ? 'Campus &amp; session checks' : 'Campus &amp; choice checks') + '</h3>' + checks.join('') + '</section>');
 
-    setHTML($('#advisory'), '<details class="advisory ' + sev + '" id="advisory-box"' + (ui.advisoryOpen ? ' open' : '') + '>' +
+    setHTML($('#advisory'), '<h2 class="sr-only">Pathway advisory</h2><details class="advisory ' + sev + '" id="advisory-box"' + (ui.advisoryOpen ? ' open' : '') + '>' +
       '<summary>' + ALERT_ICON + '<span class="adv-label">Pathway Advisory</span><span class="adv-counts">' + parts.join(' · ') + '</span><span class="adv-cta">View details</span></summary>' +
       '<div class="adv-body">' + secs.join('') + '</div></details>');
   }
@@ -1196,44 +1196,45 @@
   // The next session with subjects still to do, with its codes ready to copy for enrolment.
   function renderNext(ctx) {
     const next = nextSession(ctx);
-    const actions = function (codes) {
+    const side = function (codes) {
       const lines = next ? next.slots.filter(function (s) { return !s.done && !s.pending; }).map(function (s) { return s.code + ' ' + s.title; }).join('\n') : '';
-      return '<div class="next-actions">' + (codes.length ? '<button type="button" class="tbtn tbtn-primary" data-action="copy-codes" data-codes="' + esc(codes.join(', ')) + '" data-copy="' + esc(lines) + '" title="Copy the codes and titles, ready for WSU MySR or Allocate+">Copy Codes</button>' : '') +
-        (next ? '<button type="button" class="tbtn tbtn-outline" data-action="ics" title="Save a calendar reminder for this session with your planned subjects and campuses">Export .ics</button>' : '') +
-        '<button type="button" class="tbtn tbtn-outline" data-action="progress-open" title="Already studying? Rebuild your plan from your Degree Works audit or Subject Results PDF, with your past years in it">Import my progress</button>' +
-        '<button type="button" class="tbtn tbtn-outline" data-action="import-open" title="Paste your academic record or results to tick off the subjects you have passed">Tick off from my results</button></div>';
+      const main = (codes.length ? '<button type="button" class="tbtn tbtn-primary" data-action="copy-codes" data-codes="' + esc(codes.join(', ')) + '" data-copy="' + esc(lines) + '" title="Copy the codes and titles, ready for WSU MySR or Allocate+">Copy Codes</button>' : '') +
+        (next ? '<button type="button" class="tbtn tbtn-outline" data-action="ics" title="Save a calendar reminder for this session with your planned subjects and campuses">Export .ics</button>' : '');
+      return '<div class="next-side">' + (main ? '<div class="next-actions">' + main + '</div>' : '') +
+        '<div class="next-alt"><span class="next-alt-l">Already studying?</span>' +
+        '<button type="button" class="tbtn tbtn-outline" data-action="progress-open" title="Rebuild your plan from your Degree Works audit or Subject Results PDF, with your past years in it">Import my progress</button>' +
+        '<button type="button" class="text-btn" data-action="import-open" title="Paste your academic record or results to tick off the subjects you have passed">Tick off from my results</button></div></div>';
     };
     if (!next) {
-      setHTML($('#next'), '<div class="next-card"><div class="next-main"><p class="kicker">Next to enrol</p><h3>' + (ctx.slots.length ? 'Every subject in your plan is ticked off' : 'Your plan has no subjects yet') + '</h3></div>' + actions([]) + '</div>');
+      setHTML($('#next'), '<div class="next-card"><div class="next-head"><p class="kicker">Next to enrol</p><h2>' + (ctx.slots.length ? 'Every subject in your plan is ticked off' : 'Your plan has no subjects yet') + '</h2></div>' + side([]) + '</div>');
       return;
     }
     const todo = next.slots.filter(function (s) { return !s.done; });
     const codes = todo.filter(function (s) { return !s.pending; }).map(function (s) { return s.code; });
     const choices = todo.filter(function (s) { return s.pending; }).length;
     const started = ctx.slots.some(function (s) { return s.done; });
-    setHTML($('#next'), '<div class="next-card"><div class="next-main">' +
+    setHTML($('#next'), '<div class="next-card"><div class="next-head">' +
       '<p class="kicker">' + (started ? 'Next to enrol' : 'Your first session') + '</p>' +
-      '<h3>' + sessionLabel(next.year, next.session) + ' <small>Year ' + next.year + (state.load === 'PT' ? ' · part-time' : '') + '</small></h3>' +
-      '<div class="chiplist">' + todo.map(function (s) {
-        return '<button type="button" class="chipbtn' + (s.pending ? ' is-open' : '') + '" data-action="jump" data-slot="' + s.id + '"><code>' + esc(s.pending ? 'Choose' : s.code) + '</code>' + esc(s.title) + ' <span>' + s.cp + ' CP</span></button>';
+      '<h2>' + sessionLabel(next.year, next.session) + ' <small>Year ' + next.year + (state.load === 'PT' ? ' · part-time' : '') + '</small></h2></div>' +
+      side(codes) +
+      '<div class="chiplist next-chips">' + todo.map(function (s) {
+        return '<button type="button" class="chipbtn' + (s.pending ? ' is-open' : '') + '" data-action="jump" data-slot="' + s.id + '" title="' + esc((s.pending ? '' : s.code + ' ') + s.title) + ', ' + s.cp + ' CP" aria-label="' + esc((s.pending ? 'Choose: ' : s.code + ' ') + s.title) + ', ' + s.cp + ' CP"><code>' + esc(s.pending ? 'Choose' : s.code) + '</code><span class="cb-t">' + esc(s.title) + '</span></button>';
       }).join('') + '</div>' +
-      (choices ? '<p class="next-note">' + plural(choices, 'choice') + ' to make before you enrol.</p>' : '') + '</div>' +
-      actions(codes) + '</div>');
+      (choices ? '<p class="next-note">' + plural(choices, 'choice') + ' to make before you enrol.</p>' : '') + '</div>');
   }
 
   function renderLegend(ctx) {
     const types = [['law', 'Law core', '--crimson'], ['nonlaw', 'Non-law core', '--slate'], ['major', 'Major / minor', '--teal']];
-    $('#legend').innerHTML =
-      '<div class="lg-group"><span class="lg-title">Unit type</span>' + types.map(function (t) {
+    setHTML($('#legend'), '<details class="legend-box" id="legend-box"' + (ui.legendOpen ? ' open' : '') + '><summary>' +
+      '<span class="lg-title">Key</span><span class="lg-group">' + types.map(function (t) {
         return '<span class="lg-sw"><i style="--k:var(' + t[2] + ')"></i>' + t[1] + '</span>';
-      }).join('') + '<span class="lg-sw slot"><i></i>' + (ctx.custom ? 'Open slot, your choice or a change' : 'Your choice (LLB Alternate, choice, elective)') + '</span></div>' +
-      '<span class="lg-sep" aria-hidden="true"></span>' +
+      }).join('') + '<span class="lg-sw slot"><i></i>' + (ctx.custom ? 'Open slot, your choice or a change' : 'Your choice<span class="lg-long"> (LLB Alternate, choice, elective)</span>') + '</span></span>' +
+      '<span class="lg-cta">Campus codes and tips</span></summary><div class="lg-body">' +
       '<div class="lg-group"><span class="lg-title">Campus</span>' + Object.keys(META.campuses).map(function (c) {
         return '<span class="lg-camp">' + pill(c, { focus: true }) + esc(META.campuses[c].replace(' (Kingswood)', '')) + '</span>';
       }).join('') + '<span class="lg-camp">' + pill('TBC', { focus: true }) + 'Not yet published</span>' +
       (state.campus ? '<button type="button" class="linkish small" data-action="campus-clear">Clear highlight</button>' : '') + '</div>' +
-      '<span class="lg-sep" aria-hidden="true"></span>' +
-      '<div class="lg-group"><span class="lg-title">Chain</span><span>Hover a subject, or press its Chain button, to see what it depends on and unlocks.</span></div>';
+      '<p class="lg-tip"><span class="lg-title">Chain</span> Hover a subject, or press its Chain button, to see what it depends on and unlocks.</p></div></details>');
   }
 
   function selectLabel(s) {
@@ -1320,11 +1321,93 @@
   }
   function sumCP(list, doneOnly) { return list.reduce(function (a, s) { return a + (!doneOnly || s.done ? s.cp : 0); }, 0); }
 
+  // Years that are already finished when a plan opens start folded, so a current student lands near
+  // where they are now. Ticking never folds a year: the page must not move under a student's hand.
+  function foldedYears(ctx, years) {
+    const key = ctx.key + '|' + state.load;
+    if (!ui.folded || ui.folded.key !== key) {
+      const fold = {};
+      if (ctx.slots.some(function (s) { return !s.done; })) {
+        years.forEach(function (y) {
+          const all = y.Autumn.concat(y.Spring, y.Summer);
+          if (all.length && all.every(function (s) { return s.done; })) fold[y.year] = true;
+        });
+      }
+      ui.folded = { key: key, years: fold };
+    }
+    return ui.folded.years;
+  }
+  function foldLabel(y, fold) { return (fold ? 'Show' : 'Hide') + ' Year ' + y + ' subjects'; }
+  function setYearFold(y, fold) {
+    const box = document.getElementById('year-' + y);
+    if (!box) return;
+    if (ui.folded) { if (fold) ui.folded.years[y] = true; else delete ui.folded.years[y]; }
+    box.classList.toggle('is-folded', fold);
+    box.querySelector('.sessions').hidden = fold;
+    const b = box.querySelector('.year-toggle');
+    b.setAttribute('aria-expanded', String(!fold));
+    b.setAttribute('aria-label', foldLabel(y, fold));
+    b.title = foldLabel(y, fold);
+  }
+
+  // ---- degree map: every session of the plan at a glance, one press from any of them
+  const SESSION_SHORT = { Autumn: 'Aut', Spring: 'Spr', Summer: 'Sum' };
+  function renderMap(ctx) {
+    const box = $('#dmap');
+    const years = timeline(ctx, state.load);
+    box.hidden = !years.length;
+    const next = nextSession(ctx);
+    const doneOf = function (list) { return list.filter(function (s) { return s.done; }).length; };
+    const many = years.length > 6;
+    setHTML(box, '<ol class="dm-list' + (many ? ' dm-many' : '') + '">' + years.map(function (y) {
+      const all = y.Autumn.concat(y.Spring, y.Summer);
+      const total = sumCP(all);
+      const finished = all.length && doneOf(all) === all.length;
+      const sessions = y.Summer.length ? PLAN_SESSIONS : SESSIONS;
+      const yearLabel = 'Year ' + y.year + ', ' + calYear(y.year) + ': ' + doneOf(all) + ' of ' + plural(all.length, 'subject') + ' done';
+      return '<li class="dm-year' + (finished ? ' is-done' : '') + '" data-y="' + y.year + '">' +
+        '<button type="button" class="dm-y" data-action="map-jump" data-y="' + y.year + '" aria-label="' + yearLabel + '" title="' + yearLabel + '"><span class="dm-yl">' + (many ? 'Y' : 'Year ') + y.year + '</span><span class="dm-fill"><span style="width:' + (total ? Math.round(sumCP(all, true) / total * 100) : 0) + '%"></span></span></button>' +
+        sessions.map(function (sess) {
+          const list = sortSlots(y[sess]);
+          const isNext = next && next.year === y.year && next.session === sess;
+          const label = sessionLabel(y.year, sess) + ', Year ' + y.year + ': ' + (list.length ? doneOf(list) + ' of ' + plural(list.length, 'subject') + ' done' : 'no subjects') + (isNext ? ', next to enrol' : '');
+          return '<button type="button" class="dm-s' + (isNext ? ' is-next' : '') + '" data-action="map-jump" data-y="' + y.year + '" data-s="' + sess + '" aria-label="' + label + '" title="' + label + '"><span class="dm-n">' + SESSION_SHORT[sess] + '</span><span class="dm-seg">' +
+            list.map(function (s) { return '<i' + (s.done ? ' class="on"' : s.pending ? ' class="open"' : '') + '></i>'; }).join('') + '</span></button>';
+        }).join('') + '</li>';
+    }).join('') + '</ol>');
+    markHere();
+  }
+  // the year on screen, marked in the map; a map too wide for the screen keeps that year in view
+  function markHere() {
+    const box = $('#dmap');
+    box.querySelectorAll('.dm-year').forEach(function (li) {
+      const on = +li.dataset.y === ui.here;
+      li.classList.toggle('is-here', on);
+      const b = li.querySelector('.dm-y');
+      if (on) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
+      if (on && box.scrollWidth > box.clientWidth) box.scrollTo({ left: li.offsetLeft - (box.clientWidth - li.offsetWidth) / 2, behavior: scrollMode() });
+    });
+  }
+  let yearSpy = null;
+  function updateHere() {
+    const marker = window.innerHeight * 0.3;
+    let here = 0;
+    document.querySelectorAll('#grid .year').forEach(function (y) { if (y.getBoundingClientRect().top <= marker) here = +y.id.replace('year-', ''); });
+    if (here !== ui.here) { ui.here = here; markHere(); }
+  }
+  function watchYears() {
+    if (!window.IntersectionObserver) return;
+    if (yearSpy) yearSpy.disconnect();
+    yearSpy = new IntersectionObserver(updateHere, { rootMargin: '-30% 0px -65% 0px' });
+    document.querySelectorAll('#grid .year').forEach(function (y) { yearSpy.observe(y); });
+  }
+
   function renderGrid(ctx) {
     const years = timeline(ctx, state.load);
     const pt = state.load === 'PT';
     let html = pt ? '<p class="pt-note"><b>Part-time view (indicative).</b> ' + (ctx.custom && ctx.plan.start ? 'Sessions that have begun stay as they are, and the rest is laid out at 20 CP a session, keeping every subject in the session type it is planned for.' : 'Each full-time session is split into two 20 CP sessions, keeping every subject in the session type it is offered in.') + ' This lengthens the pathway to about ' + fmt(ctx.deg.ptYears) + ' years and can shift prerequisite timing, so confirm your sequence with the Academic Program Advisor.' + (ctx.custom ? ' Switch to Full-time to add, remove or move slots.' : '') + '</p>' : '';
     const edit = ctx.custom && !pt;
+    const folded = foldedYears(ctx, years);
     // cards glide by subject, as slot numbers shift when a custom plan changes; names must be unique
     const named = {};
     ctx.slots.forEach(function (s) {
@@ -1341,16 +1424,18 @@
       const addSummer = !pt && !lists.Summer.length
         ? '<button type="button" class="summer-add" data-action="summer-add" data-y="' + y.year + '" title="' + (ctx.custom ? 'Add a Summer session after Spring in Year ' + y.year : 'Add a Summer session to Year ' + y.year + ' in your own editable copy of this pathway') + '">+ Add Summer</button>'
         : '';
-      html += '<article class="year" id="year-' + y.year + '" aria-label="Year ' + y.year + '">' +
+      const fold = !!folded[y.year];
+      html += '<article class="year' + (fold ? ' is-folded' : '') + '" id="year-' + y.year + '" aria-label="Year ' + y.year + '">' +
         '<header class="year-bar" data-roman="' + R + '"><span class="year-seal" aria-hidden="true">' + R + '</span>' +
         '<h2>Year ' + y.year + '<small>' + calYear(y.year) + (pt ? ' · part-time' : '') + '</small></h2>' + addSummer +
-        '<div class="year-cp"><b>' + sumCP(lists.Autumn) + ' CP</b> Autumn · <b>' + sumCP(lists.Spring) + ' CP</b> Spring' + (lists.Summer.length ? ' · <b>' + sumCP(lists.Summer) + ' CP</b> Summer' : '') + '<span class="done">' + sumCP(all, true) + ' / ' + sumCP(all) + ' CP completed</span></div></header>' +
-        '<div class="sessions">';
+        '<div class="year-cp"><b>' + sumCP(lists.Autumn) + ' CP</b> Autumn · <b>' + sumCP(lists.Spring) + ' CP</b> Spring' + (lists.Summer.length ? ' · <b>' + sumCP(lists.Summer) + ' CP</b> Summer' : '') + '<span class="done">' + sumCP(all, true) + ' / ' + sumCP(all) + ' CP completed</span></div>' +
+        '<button type="button" class="year-toggle" data-action="year-toggle" data-y="' + y.year + '" aria-expanded="' + !fold + '" aria-controls="year-' + y.year + '-body" aria-label="' + foldLabel(y.year, fold) + '" title="' + foldLabel(y.year, fold) + '"></button></header>' +
+        '<div class="sessions" id="year-' + y.year + '-body"' + (fold ? ' hidden' : '') + '>';
       sessions.forEach(function (sess) {
         const list = lists[sess];
         const allDone = list.length && list.every(function (s) { return s.done; });
         const over = ctx.custom && !pt && sumCP(list) > LOAD_CP.FT;
-        html += '<section class="session' + (sess === 'Summer' ? ' session-summer' : '') + '" aria-label="' + sess + ' session" data-y="' + y.year + '" data-s="' + sess + '"><div class="session-head"><h3>' + sess + '<span>Session</span></h3><div class="session-tools"><span class="commute-slot">' + commutePill(list) + '</span><span class="load-slot">' + loadPill(list) + '</span>' +
+        html += '<section class="session' + (sess === 'Summer' ? ' session-summer' : '') + '" aria-label="Year ' + y.year + ' ' + sess + ' session" data-y="' + y.year + '" data-s="' + sess + '"><div class="session-head"><h3>' + sess + '<span>Session</span></h3><div class="session-tools"><span class="commute-slot">' + commutePill(list) + '</span><span class="load-slot">' + loadPill(list) + '</span>' +
           (edit ? '<button type="button" class="mark-all add-slot" data-action="cadd" data-y="' + y.year + '" data-s="' + sess + '">+ Add slot</button>' : '') +
           (list.length ? '<button type="button" class="mark-all" data-action="session-done" data-ids="' + list.map(function (s) { return s.id; }).join(',') + '">' + (allDone ? 'Unmark all' : 'Mark all done') + '</button>' : '') +
           '<span class="session-cp' + (over ? ' over' : '') + '"' + (over ? ' title="More than the 40 CP full-time load"' : '') + '>' + sumCP(list) + ' CP</span></div></div><div class="slots">' +
@@ -1455,7 +1540,7 @@
           (EXTRA.length ? '<option value="__extra__"' + (ui.cat.comp === '__extra__' ? ' selected' : '') + '>WSU subject list (' + EXTRA.length.toLocaleString('en-AU') + ' more subjects)</option>' : '') + '</select></div></div>' +
         '<div class="field"><label for="cat-session">Session</label><div class="select-wrap"><select id="cat-session"><option value="">Autumn or Spring</option><option value="Autumn"' + (ui.cat.session === 'Autumn' ? ' selected' : '') + '>Offered in Autumn</option><option value="Spring"' + (ui.cat.session === 'Spring' ? ' selected' : '') + '>Offered in Spring</option><option value="TBC"' + (ui.cat.session === 'TBC' ? ' selected' : '') + '>Session TBC</option></select></div></div>' +
         '<label class="check-row" style="padding-bottom:10px"><input type="checkbox" id="cat-inplan"' + (ui.cat.inPlan ? ' checked' : '') + '>In my plan</label>' +
-        '</div>' + (d.llbComponent ? areaTools('cat-area', ui.cat.area) : '') + '<p class="kbd-hint kbd-only"><kbd>/</kbd> search the catalogue · <kbd>Esc</kbd> close a window or clear a highlight</p><div id="cat-results"></div>';
+        '</div>' + (d.llbComponent ? areaTools('cat-area', ui.cat.area) : '') + toolsNote(d.llbComponent, '<kbd>/</kbd> search the catalogue · <kbd>Esc</kbd> close a window or clear a highlight') + '<div id="cat-results"></div>';
     }
     html += '</div>';
     $('#details').innerHTML = html;
@@ -1484,7 +1569,7 @@
     else if (extraHits.length > extraLimit) note = ' · showing the first ' + extraLimit + ' WSU subject list matches; refine the search to narrow them';
     else if (!wantExtra && EXTRA.length && !ui.cat.comp && !ui.cat.area) note =' · search to include ' + EXTRA.length.toLocaleString('en-AU') + ' more subjects from the WSU subject list';
     $('#cat-results').innerHTML = '<p class="cat-count">' + (onlyExtra ? extraHits.length.toLocaleString('en-AU') + ' of ' + EXTRA.length.toLocaleString('en-AU') + ' WSU subject list subjects' : rows.length + ' of ' + d.catalogue.length + ' degree subjects' + (extraHits.length ? ' + ' + extraHits.length.toLocaleString('en-AU') + ' from the WSU subject list' : '')) + note + '</p>' +
-      '<div class="table-scroll"><table class="cat"><thead><tr><th>Code</th><th>Title</th><th>Component</th><th>Level</th><th>Autumn</th><th>Spring</th><th>CP</th><th>Data source</th></tr></thead><tbody>' +
+      '<div class="table-scroll" tabindex="0" role="region" aria-label="Subject catalogue results"><table class="cat"><thead><tr><th>Code</th><th>Title</th><th>Component</th><th>Level</th><th>Autumn</th><th>Spring</th><th>CP</th><th>Data source</th></tr></thead><tbody>' +
       rows.map(function (c) {
         const inPlan = !!ctx.used[c.code];
         return '<tr class="' + (inPlan ? 'in-plan' : '') + '"><td class="c-code">' + hlCode(c.code, q) + '</td><td>' + hl(c.title, q) + (inPlan ? ' <span class="status status-major">In plan</span>' : '') + areaTags(c.code) + '</td><td class="c-comp">' + esc(c.component) + '</td><td class="small">' + esc(c.level) + '</td><td>' + cell(c.autumn) + '</td><td>' + cell(c.spring) + '</td><td class="small mono">' + c.cp + '</td><td class="small muted">' + esc(c.source) + '</td></tr>';
@@ -1512,18 +1597,20 @@
   ];
   // rendered once at boot: the content never changes, and re-rendering would close the details panel
   function renderNotice() {
-    $('#notice').innerHTML = '<div class="notice-card"><div class="notice-main">' +
-      '<p class="kicker">School of Law update <i>·</i> 26 October 2026</p>' +
-      '<h3>Started your law degree before 2027?</h3>' +
-      '<p>This explorer follows the 2027 Handbook, which reflects the School of Law\'s new curriculum for students starting in 2027. If you are a current student, the School of Law advises choosing the <b>2026 Handbook</b> when you plan and enrol in your 2027 subjects, as it reflects the requirements of your course.</p></div>' +
-      '<div class="notice-contact"><span class="field-label">Need guidance?</span><p>For further guidance on planning your enrolment, contact the Law Enquiry Team.</p>' +
-      '<a class="tbtn tbtn-outline notice-mail" href="mailto:' + LAW_ENQUIRY + '">' + LAW_ENQUIRY + '</a></div>' +
-      '<details class="notice-more"><summary>Subjects being phased out</summary>' +
+    $('#notice').innerHTML = '<h2 class="sr-only">School of Law update</h2><details class="notice-box" id="notice-box">' +
+      '<summary class="wrap notice-sum"><span class="notice-tag">School of Law update <i>·</i> 26 Oct<span class="wide-only">ober</span> 2026</span>' +
+      '<span class="notice-lead"><b>Started your law degree before 2027?</b> The School of Law advises choosing the 2026 Handbook when you plan and enrol.</span>' +
+      '<span class="notice-cta"><span class="wide-only">View </span>details</span></summary>' +
+      '<div class="wrap notice-body"><div class="notice-main">' +
+      '<p>This explorer follows the 2027 Handbook, which reflects the School of Law\'s new curriculum for students starting in 2027. If you are a current student, the School of Law advises choosing the <b>2026 Handbook</b> when you plan and enrol in your 2027 subjects, as it reflects the requirements of your course.</p>' +
+      '<h3>Subjects being phased out</h3>' +
       '<p>If you fail one of these subjects, or have not completed it in the correct order, enrol in its next available offering. Each is listed under the year of its final offering.</p>' +
       '<div class="phase-grid">' + PHASE_OUT.map(function (p) {
         return '<div><b>' + p[0] + '</b>' + p[1].map(function (s) { return '<span><code>' + s[0] + '</code> ' + esc(s[1]) + '</span>'; }).join('') + '</div>';
       }).join('') + '</div>' +
-      '<p>Remedies (LAWS 4014) runs in Autumn and Spring 2027, then once a year from 2028, so its session in a later year of your pathway may change.</p></details></div>';
+      '<p>Remedies (LAWS 4014) runs in Autumn and Spring 2027, then once a year from 2028, so its session in a later year of your pathway may change.</p></div>' +
+      '<div class="notice-contact"><span class="field-label">Need guidance?</span><p>For further guidance on planning your enrolment, contact the Law Enquiry Team.</p>' +
+      '<a class="tbtn tbtn-outline notice-mail" href="mailto:' + LAW_ENQUIRY + '">' + LAW_ENQUIRY + '</a></div></div></details>';
   }
   const CREST = '<span class="crest-img pd-crest" role="img" aria-label="WSLSA crest"></span>';
   const FOOT_LINE = '© 2026 Western Sydney Law Students\' Association Inc. <i>·</i> Building EK, Parramatta South Campus <i>·</i> By students, for students';
@@ -1531,19 +1618,19 @@
   function renderFoot(ctx) {
     $('#site-foot').innerHTML = '<span class="foot-watermark crest-rev" aria-hidden="true"></span><div class="foot-inner">' +
       '<div class="foot-brand"><span class="crest-rev foot-crest" role="img" aria-label="WSLSA crest"></span><div><p class="foot-sub">Western Sydney</p><p class="foot-name">Law Students\' Association</p><p class="foot-tag">Est. 1996 · By students, for students</p></div></div>' +
-      '<div class="foot-col"><h4>Your plan</h4><p>Choices and progress are saved in this browser only and are never uploaded. To continue on another phone or computer, use Copy Share Link and open that link there.</p>' +
+      '<div class="foot-col"><h2>Your plan</h2><p>Choices and progress are saved in this browser only and are never uploaded. To continue on another phone or computer, use Copy Share Link and open that link there.</p>' +
       '<div class="foot-links"><a href="' + esc(ctx.deg.handbook) + '" target="_blank" rel="noopener">Official 2027 Handbook →</a><a href="mailto:' + LAW_ENQUIRY + '">Email the Law Enquiry Team →</a><a href="https://wslsa.com.au/" target="_blank" rel="noopener">wslsa.com.au →</a></div></div>' +
-      '<div class="foot-col"><h4>Official handbook disclaimer</h4><p>' + esc(disclaimerText()) + '</p></div>' +
+      '<div class="foot-col"><h2>Official handbook disclaimer</h2><p>' + esc(disclaimerText()) + '</p></div>' +
       '</div><div class="foot-base">' + FOOT_LINE + '</div>';
   }
 
   function renderSectionHead(ctx) {
     $('#section-kicker').innerHTML = (ctx.custom ? 'Custom pathway' : 'Recommended pathway') + ' <i>·</i> 2027';
-    $('#section-tools').innerHTML = suggestButtons(ctx) + pinButtons() + (ctx.custom
+    $('#section-tools').innerHTML = '<div class="tool-group">' + suggestButtons(ctx) + pinButtons() + '</div><div class="tool-group">' + (ctx.custom
       ? '<button type="button" class="tbtn tbtn-outline" data-action="custom-setup" title="Change the degree name, credit points or starting template">Edit setup</button>' +
         '<button type="button" class="tbtn" data-action="custom-exit" title="Your custom plan is kept; switch back any time from the Degree menu">← WSLSA pathways</button>'
       : '<button type="button" class="tbtn tbtn-outline" data-action="custom-from-current" title="Copy this pathway into your own editable plan">Customise this pathway →</button>' +
-        (state.custom ? '<button type="button" class="tbtn" data-action="custom-open" title="Switch to your saved custom plan">Open my custom plan</button>' : '<button type="button" class="tbtn" data-action="custom-open" title="Set the credit points and build a degree from scratch">Build my own</button>'));
+        (state.custom ? '<button type="button" class="tbtn" data-action="custom-open" title="Switch to your saved custom plan">Open my custom plan</button>' : '<button type="button" class="tbtn" data-action="custom-open" title="Set the credit points and build a degree from scratch">Build my own</button>')) + '</div>';
   }
 
   // ======================================================================== motion
@@ -1633,6 +1720,7 @@
   }
   function afterRender(ctx) {
     showCounters(ctx);
+    watchYears();
     ui.xrayHover = '';
     if (ui.xrayPin && ctx.byId[ui.xrayPin]) xrayShow(ui.xrayPin);
     else { ui.xrayPin = ''; xrayClear(); }
@@ -1694,6 +1782,7 @@
       }
     });
     $('#progress-meta').textContent = progressMeta(ctx);
+    renderMap(ctx);
     renderAdvisory(ctx);
     const next = $('#next');
     renderNext(ctx);
@@ -2006,6 +2095,16 @@
   // ======================================================================== modals: focus and closing
   let modalTimer = 0;
   let focusBack = null;
+  function lockScroll() {
+    if (document.body.style.overflow === 'hidden') return;
+    const bar = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    if (bar > 0) $('#app').style.paddingRight = bar + 'px';
+  }
+  function unlockScroll() {
+    document.body.style.overflow = '';
+    $('#app').style.paddingRight = '';
+  }
   function showModal(html) {
     const root = $('#modal-root');
     const closing = root.classList.contains('closing');
@@ -2018,7 +2117,7 @@
     const opening = !root.firstChild || closing;
     root.innerHTML = html;
     $('#app').inert = true;
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     if (opening) {
       const m = root.querySelector('.modal');
       m.tabIndex = -1;
@@ -2035,7 +2134,7 @@
     const root = $('#modal-root');
     clearTimeout(modalTimer);
     $('#app').inert = false;
-    document.body.style.overflow = '';
+    unlockScroll();
     if (now === true || !root.firstChild || !motionOK()) {
       root.classList.remove('closing');
       root.innerHTML = '';
@@ -2056,6 +2155,7 @@
     let el = f.el && f.el.isConnected ? f.el : f.id ? document.getElementById(f.id) : null;
     if (!el && f.action) el = document.querySelector('[data-action="' + f.action + '"]' + (f.slot ? '[data-slot="' + f.slot + '"]' : ''));
     if (el && el.focus) el.focus({ preventScroll: true });
+    if (el && el.closest('#top-actions') && document.activeElement !== el) $('.top-menu-btn').focus({ preventScroll: true });
   }
   function trapTab(ev) {
     const box = $('#modal-root .modal');
@@ -2070,7 +2170,7 @@
     else if (ev.shiftKey && at === first) { ev.preventDefault(); last.focus(); }
     else if (!ev.shiftKey && at === last) { ev.preventDefault(); first.focus(); }
   }
-  const KEY_HINT = '<p class="kbd-hint kbd-only"><kbd>/</kbd> search · <kbd>Esc</kbd> close</p>';
+  const KEY_HINT = '<kbd>/</kbd> search · <kbd>Esc</kbd> close';
   const CLEAR_PICK = ' <button type="button" class="linkish" data-action="pick-reset">Clear filters</button>';
 
   // The chain view follows a settled pointer or the keyboard, unless a Chain button has pinned it. A pointer
@@ -2127,7 +2227,10 @@
     return '<div class="tool-row area-chips" role="group" aria-label="Filter by practice area">' +
       [{ id: '', label: 'All Areas' }].concat(PRACTICE.areas).map(function (a) {
         return '<button type="button" class="chip" data-action="' + action + '" data-area="' + a.id + '" aria-pressed="' + ((current || '') === a.id) + '">' + esc(a.label) + '</button>';
-      }).join('') + '</div><p class="area-note">Areas are WSLSA groupings by subject title, not Handbook categories.</p>';
+      }).join('') + '</div>';
+  }
+  function toolsNote(areas, keys) {
+    return '<p class="area-note">' + (areas ? 'Areas are WSLSA groupings by subject title, not Handbook categories. ' : '') + '<span class="kbd-only">' + keys + '</span></p>';
   }
   function pressArea(action, area) {
     document.querySelectorAll('[data-action="' + action + '"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.area === area)); });
@@ -2341,13 +2444,13 @@
     const moved = Object.keys(now).filter(function (c) { return was[c] && was[c].w !== now[c].w; });
     const chip = function (x, extra) { return '<span class="chipbtn"><code>' + esc(x.c) + '</code>' + esc(x.t) + (extra ? ' <span>' + esc(extra) + '</span>' : '') + '</span>'; };
     const list = function (title, codes, draw) {
-      return '<div class="pick-section"><h4><span>' + title + '</span><span>' + codes.length + '</span></h4>' +
+      return '<div class="pick-section"><h3><span>' + title + '</span><span>' + codes.length + '</span></h3>' +
         (codes.length ? '<div class="chiplist">' + codes.map(draw).join('') + '</div>' : '<p class="pick-hint">None.</p>') + '</div>';
     };
     ui.modal = 'compare';
     showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="compare-h">' +
       '<div class="modal-head"><div><h2 id="compare-h">Compare with pinned</h2><p>Your snapshot from ' + esc(a.pinned) + ' against your plan as it is now.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
-      '<div class="modal-body import-body"><div class="table-scroll"><table class="compare-table"><thead><tr><th scope="col"></th><th scope="col">Pinned</th><th scope="col">Now</th></tr></thead><tbody>' +
+      '<div class="modal-body import-body"><div class="table-scroll" tabindex="0" role="region" aria-label="Comparison of your plans"><table class="compare-table"><thead><tr><th scope="col"></th><th scope="col">Pinned</th><th scope="col">Now</th></tr></thead><tbody>' +
       row('Plan', a.label, b.label) + row('Load', a.load, b.load) + row('Final completion session', a.finish, b.finish) +
       row('Total sessions', a.sessions, b.sessions) + row('Summer sessions used', a.summers, b.summers) +
       row('Multi-campus commute sessions', a.commute, b.commute) + row('Heavy L3/4 load sessions', a.heavy, b.heavy) +
@@ -2423,6 +2526,7 @@
     renderNext(ctx);
     renderSectionHead(ctx);
     renderLegend(ctx);
+    renderMap(ctx);
     renderGrid(ctx);
     renderDetails(ctx);
     renderFoot(ctx);
@@ -2455,6 +2559,8 @@
   function flashSlot(id, stay) {
     const el = document.getElementById('slot-' + id);
     if (!el) return;
+    const home = el.closest('.year');
+    if (home && home.classList.contains('is-folded')) setYearFold(+home.id.replace('year-', ''), false);
     if (!stay) el.scrollIntoView({ behavior: scrollMode(), block: 'center' });
     el.classList.remove('flash');
     void el.offsetWidth;
@@ -2501,20 +2607,21 @@
     levels.forEach(function (l) { tools += '<button type="button" class="chip" data-action="pick-level" data-level="' + l + '" aria-pressed="' + (p.level === l) + '">' + l + '</button>'; });
     if (s.kind === 'elective' && EXTRA.length) tools += '<button type="button" class="chip" data-action="pick-ug" aria-pressed="' + p.ugOnly + '" title="Hide level 0 and level 5 to 9 subjects from the WSU subject list">Undergraduate levels 1–4</button>';
     tools += '<button type="button" class="chip" data-action="pick-off" aria-pressed="' + p.showOff + '">Show subjects not offered in ' + s.session + '</button></div>';
-    if (s.kind === 'llb' || s.kind === 'elective') tools += areaTools('pick-area', p.area);
+    const areas = s.kind === 'llb' || s.kind === 'elective';
+    if (areas) tools += areaTools('pick-area', p.area);
 
     const custom = s.kind === 'elective'
-      ? '<div class="pick-section"><h4>Not on the list? Enter it yourself</h4><form class="custom-form" id="custom-form"><div class="field"><label for="cu-code">Code</label><input class="input" id="cu-code" placeholder="e.g. HUMN 1052" maxlength="12" value="' + esc(s.custom ? s.code : '') + '"></div><div class="field"><label for="cu-title">Title</label><input class="input" id="cu-title" placeholder="Subject title" maxlength="120" value="' + esc(s.custom ? s.title : '') + '"></div><button type="submit" class="btn btn-primary">Use subject</button></form><p class="small muted" style="margin:4px 8px 0">Check prerequisites and session availability in the 2027 Handbook.</p></div>'
+      ? '<div class="pick-section"><h3>Not on the list? Enter it yourself</h3><form class="custom-form" id="custom-form"><div class="field"><label for="cu-code">Code</label><input class="input" id="cu-code" placeholder="e.g. HUMN 1052" maxlength="12" value="' + esc(s.custom ? s.code : '') + '"></div><div class="field"><label for="cu-title">Title</label><input class="input" id="cu-title" placeholder="Subject title" maxlength="120" value="' + esc(s.custom ? s.title : '') + '"></div><button type="submit" class="btn btn-primary">Use subject</button></form><p class="small muted" style="margin:4px 8px 0">Check prerequisites and session availability in the 2027 Handbook.</p></div>'
       : '';
 
     showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="picker-h">' +
       '<div class="modal-head"><div><h2 id="picker-h">' + esc(pickerTitle(s)) + '</h2><p>' + where(s) + ' · ' + s.cp + ' CP · ' + esc(ctx.deg.code) + ' ' + esc(ctx.opt.majorCode !== 'BASE' ? ctx.opt.majorLabel : ctx.deg.title) + '</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
-      '<div class="modal-tools">' + tools + KEY_HINT + '</div>' +
+      '<div class="modal-tools">' + tools + toolsNote(areas, KEY_HINT) + '</div>' +
       '<div class="modal-body"><div id="pick-results"></div>' + custom + '</div>' +
       '<div class="modal-foot"><span class="small muted">Subjects already in your plan are disabled. TBC = 2027 session not yet published.</span><div style="display:flex;gap:8px">' +
       (s.pick ? '<button type="button" class="btn" data-action="pick-clear">' + (s.kind === 'option' ? 'Reset to WSLSA pick' : 'Clear choice') + '</button>' : '') +
       '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button></div></div></div></div>');
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     renderPickerResults();
     if (first) { const q = $('#pick-q'); if (q && window.matchMedia('(pointer:fine)').matches) q.focus(); }
   }
@@ -2584,32 +2691,32 @@
     if (best) {
       const badge = best.score >= 950 ? 'Exact match' : 'Best match';
       const otherSession = s.session === 'Autumn' ? 'Spring' : 'Autumn';
-      html += '<div class="pick-section pick-best"><h4><span>' + badge + '</span></h4><div class="pick-list">' + (best.src === 'list' ? listRow(best.e, badge) : row(best.item, best.off ? 'off' : false, badge)) + '</div>' +
+      html += '<div class="pick-section pick-best"><h3><span>' + badge + '</span></h3><div class="pick-list">' + (best.src === 'list' ? listRow(best.e, badge) : row(best.item, best.off ? 'off' : false, badge)) + '</div>' +
         (best.off ? '<p class="pick-hint">' + esc(best.e.code) + ' runs only in ' + otherSession + ', so it cannot go in this ' + s.session + ' slot.</p>' : '') + '</div>';
     }
     const offered = groups.offered.filter(notBest);
     const tbc = groups.tbc.filter(notBest);
     const offeredHead = (s.kind === 'elective' ? 'LLB Alternates offered in ' : 'Offered in ') + s.session + ' 2027';
     if (offered.length || !q || s.kind !== 'elective') {
-      html += '<div class="pick-section"><h4><span>' + offeredHead + '</span><span>' + offered.length + (hiddenByCampus ? ' · ' + hiddenByCampus + ' hidden by campus filter' : '') + '</span></h4><div class="pick-list">' +
+      html += '<div class="pick-section"><h3><span>' + offeredHead + '</span><span>' + offered.length + (hiddenByCampus ? ' · ' + hiddenByCampus + ' hidden by campus filter' : '') + '</span></h3><div class="pick-list">' +
         (offered.length ? offered.map(function (i) { return row(i); }).join('') : '<div class="pick-empty">' + (best && best.src === 'pool' ? 'No other matches' : 'No matching subjects') + ' offered in ' + s.session + '.' + CLEAR_PICK + '</div>') + '</div></div>';
     } else {
       html += '<p class="pick-hint">No ' + (best && best.src === 'pool' ? 'other ' : '') + 'LLB Alternates offered in ' + s.session + ' match “' + esc(p.q.trim()) + '”.</p>';
     }
-    if (tbc.length) html += '<div class="pick-section"><h4><span>Session TBC (not yet published for 2027)</span><span>' + tbc.length + '</span></h4><div class="pick-list">' + tbc.map(function (i) { return row(i); }).join('') + '</div></div>';
+    if (tbc.length) html += '<div class="pick-section"><h3><span>Session TBC (not yet published for 2027)</span><span>' + tbc.length + '</span></h3><div class="pick-list">' + tbc.map(function (i) { return row(i); }).join('') + '</div></div>';
     if (listOn) html += extraPickSection(p, q, listPool, listHits.filter(notBest), listRow, best && best.src === 'list');
     groups.off = groups.off.filter(notBest);
-    if (p.showOff && groups.off.length) html += '<div class="pick-section"><h4><span>Not offered in ' + s.session + '</span><span>' + groups.off.length + '</span></h4><div class="pick-list">' + groups.off.map(function (i) { return row(i, 'off'); }).join('') + '</div></div>';
+    if (p.showOff && groups.off.length) html += '<div class="pick-section"><h3><span>Not offered in ' + s.session + '</span><span>' + groups.off.length + '</span></h3><div class="pick-list">' + groups.off.map(function (i) { return row(i, 'off'); }).join('') + '</div></div>';
     else if (groups.off.length) html += '<p class="small muted" style="margin:10px 8px">' + plural(groups.off.length, 'matching subject') + ' in this list ' + (groups.off.length === 1 ? 'runs' : 'run') + ' only in ' + (s.session === 'Autumn' ? 'Spring' : 'Autumn') + '.</p>';
     $('#pick-results').innerHTML = html;
   }
   // Elective slots can also take any subject from the WSU subject list.
   function extraPickSection(p, q, pool, hits, listRow, bestFromList) {
-    const head = '<div class="pick-section"><h4><span>Any WSU subject · subject list and 2027 Handbook</span><span>';
+    const head = '<div class="pick-section"><h3><span>Any WSU subject · subject list and 2027 Handbook</span><span>';
     if (q.length < 2) {
-      return head + pool.length.toLocaleString('en-AU') + ' subjects</span></h4><p class="pick-hint">Type a subject code (for example ACCT2004) or words from its name above to search ' + pool.length.toLocaleString('en-AU') + ' more WSU subjects' + (p.ugOnly ? ' at undergraduate levels 1–4' : '') + '. The list gives codes and titles only, so check sessions and prerequisites in the 2027 Handbook.</p></div>';
+      return head + pool.length.toLocaleString('en-AU') + ' subjects</span></h3><p class="pick-hint">Type a subject code (for example ACCT2004) or words from its name above to search ' + pool.length.toLocaleString('en-AU') + ' more WSU subjects' + (p.ugOnly ? ' at undergraduate levels 1–4' : '') + '. The list gives codes and titles only, so check sessions and prerequisites in the 2027 Handbook.</p></div>';
     }
-    return head + hits.length.toLocaleString('en-AU') + (hits.length === 1 ? ' match' : ' matches') + '</span></h4><div class="pick-list">' +
+    return head + hits.length.toLocaleString('en-AU') + (hits.length === 1 ? ' match' : ' matches') + '</span></h3><div class="pick-list">' +
       (hits.length ? hits.slice(0, PICK_LIMIT).map(function (e) { return listRow(e); }).join('') : '<div class="pick-empty">No ' + (bestFromList ? 'other ' : '') + 'subjects in the WSU subject list match “' + esc(p.q.trim()) + '”' + (p.ugOnly ? ' at levels 1–4. Turn off “Undergraduate levels 1–4” to search every level' : '') + '.' + CLEAR_PICK + '</div>') + '</div>' +
       (hits.length > PICK_LIMIT ? '<p class="pick-hint">Showing the ' + PICK_LIMIT + ' most relevant of ' + hits.length.toLocaleString('en-AU') + '. Add more of the code or name to narrow the list.</p>' : '') + '</div>';
   }
@@ -2663,26 +2770,27 @@
     tools += '<button type="button" class="chip" data-action="pick-ug" aria-pressed="' + p.ugOnly + '" title="Hide level 0 and level 5 to 9 subjects">Undergraduate levels 1–4</button>';
     if (!summer) tools += '<button type="button" class="chip" data-action="pick-off" aria-pressed="' + p.showOff + '">Show subjects not offered in ' + s.session + '</button>';
     tools += '</div>';
-    if (s.orig && (s.orig.kind === 'llb' || s.orig.kind === 'elective')) tools += areaTools('pick-area', p.area);
+    const areas = s.orig && (s.orig.kind === 'llb' || s.orig.kind === 'elective');
+    if (areas) tools += areaTools('pick-area', p.area);
     const maxY = Math.min(MAX_YEARS, ctx.slots.reduce(function (m, x) { return Math.max(m, x.year); }, 1) + 1);
     let moveOpts = '';
     for (let y = 1; y <= maxY; y++) {
       PLAN_SESSIONS.forEach(function (ss) { moveOpts += '<option value="' + y + '|' + ss + '"' + (y === s.year && ss === s.session ? ' selected' : '') + '>Year ' + y + ' · ' + ss + '</option>'; });
     }
     const typedCP = s.custom ? s.cp : s.cp > 0 ? s.cp : 10;
-    const custom = '<div class="pick-section"><h4>Not on the list? Enter it yourself</h4><form class="custom-form cf-cp" id="custom-form">' +
+    const custom = '<div class="pick-section"><h3>Not on the list? Enter it yourself</h3><form class="custom-form cf-cp" id="custom-form">' +
       '<div class="field"><label for="cu-code">Code</label><input class="input" id="cu-code" placeholder="e.g. HUMN 1052" maxlength="12" value="' + esc(s.custom ? s.code : '') + '"></div>' +
       '<div class="field"><label for="cu-title">Title</label><input class="input" id="cu-title" placeholder="Subject title" maxlength="120" value="' + esc(s.custom ? s.title : '') + '"></div>' +
       '<div class="field"><label for="cu-cp">Credit</label><div class="select-wrap"><select id="cu-cp">' + [0, 10, 20, 30, 40].map(function (c) { return '<option value="' + c + '"' + (c === typedCP ? ' selected' : '') + '>' + c + ' CP</option>'; }).join('') + '</select></div></div>' +
       '<button type="submit" class="btn btn-primary">Use subject</button></form><p class="small muted" style="margin:4px 8px 0">A code from the 2027 guides or the WSU subject list fills in its real title and credit points.</p></div>';
     showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="picker-h">' +
       '<div class="modal-head"><div><h2 id="picker-h">' + (s.pending ? 'Choose a subject' : 'Change or move this subject') + '</h2><p>' + where(s) + ' · ' + s.cp + ' CP · ' + esc(ctx.deg.title) + (s.replaced ? ' · template subject: ' + esc(s.replaced.code + ' ' + s.replaced.title) : '') + '</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
-      '<div class="modal-tools">' + tools + KEY_HINT + '</div>' +
+      '<div class="modal-tools">' + tools + toolsNote(areas, KEY_HINT) + '</div>' +
       '<div class="modal-body"><div id="pick-results"></div>' + custom + '</div>' +
       '<div class="modal-foot"><div class="move-row"><label for="cp-move">Move to</label><div class="select-wrap"><select id="cp-move">' + moveOpts + '</select></div></div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' + (s.pending || s.done ? '' : '<button type="button" class="btn" data-action="defer" data-slot="' + s.id + '">Defer to next offered session</button>') + (s.pending ? '' : '<button type="button" class="btn" data-action="pick-clear">Clear subject</button>') +
       '<button type="button" class="btn" data-action="cremove" data-slot="' + s.id + '">Remove slot</button><button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button></div></div></div></div>');
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     renderCustomPickerResults();
     if (first) { const q = $('#pick-q'); if (q && window.matchMedia('(pointer:fine)').matches) q.focus(); }
   }
@@ -2746,7 +2854,7 @@
         const later = ctx.slots.filter(function (x) { return !x.pending && orderIdx(x.year, x.session) > orderIdx(s.year, s.session); });
         const hits = q ? rankByQuery(later, q) : sortSlots(later);
         if (later.length) {
-          html += '<div class="pick-section"><h4><span>Bring forward from later in your plan</span><span>' + hits.length + '</span></h4><div class="pick-list">' +
+          html += '<div class="pick-section"><h3><span>Bring forward from later in your plan</span><span>' + hits.length + '</span></h3><div class="pick-list">' +
             (hits.length ? hits.map(function (x) {
               return '<button type="button" class="pick" data-action="cbring" data-from="' + x.id + '">' +
                 '<span class="p-code">' + hlCode(x.code, q) + '</span><span class="p-title">' + hl(x.title, q) + '</span>' +
@@ -2758,22 +2866,22 @@
     }
     if (best) {
       const badge = best.score >= 950 ? 'Exact match' : 'Best match';
-      html += '<div class="pick-section pick-best"><h4><span>' + badge + '</span></h4><div class="pick-list">' + crow(best.i, badge) + '</div>' +
+      html += '<div class="pick-section pick-best"><h3><span>' + badge + '</span></h3><div class="pick-list">' + crow(best.i, badge) + '</div>' +
         (best.i.off && best.i.off.none ? '<p class="pick-hint">' + esc(best.i.e.code) + ' runs only in ' + other + '. You can still place it here, but it stays flagged until you move it to an ' + other + ' session.</p>' : '') + '</div>';
     }
     if (sugg.length && (suggItems.filter(notBest).length || !q)) {
       const list = suggItems.filter(notBest);
-      html += '<div class="pick-section"><h4><span>' + esc(suggestionsHead(s)) + '</span><span>' + list.length + '</span></h4><div class="pick-list">' +
+      html += '<div class="pick-section"><h3><span>' + esc(suggestionsHead(s)) + '</span><span>' + list.length + '</span></h3><div class="pick-list">' +
         (list.length ? list.map(function (i) { return crow(i); }).join('') : '<div class="pick-empty">No ' + (best ? 'other ' : '') + 'template options match.' + CLEAR_PICK + '</div>') + '</div></div>';
     }
-    const head = '<div class="pick-section"><h4><span>Any WSU subject · 2027 guides and subject list</span><span>';
+    const head = '<div class="pick-section"><h3><span>Any WSU subject · 2027 guides and subject list</span><span>';
     if (q.length >= 2 && best && !anyItems.filter(notBest).length) {
       html += '<p class="pick-hint">No other subjects match “' + esc(p.q.trim()) + '”.</p>';
     } else if (q.length < 2) {
-      html += head + pool.length.toLocaleString('en-AU') + ' subjects</span></h4><p class="pick-hint">Type a subject code (for example LAWS1001) or words from its name to search ' + pool.length.toLocaleString('en-AU') + ' WSU subjects' + (p.ugOnly ? ' at undergraduate levels 1–4' : '') + '. Subjects in the 2027 guides show their sessions and campuses; the subject list gives codes and titles only.</p></div>';
+      html += head + pool.length.toLocaleString('en-AU') + ' subjects</span></h3><p class="pick-hint">Type a subject code (for example LAWS1001) or words from its name to search ' + pool.length.toLocaleString('en-AU') + ' WSU subjects' + (p.ugOnly ? ' at undergraduate levels 1–4' : '') + '. Subjects in the 2027 guides show their sessions and campuses; the subject list gives codes and titles only.</p></div>';
     } else {
       const list = anyItems.filter(notBest);
-      html += head + list.length.toLocaleString('en-AU') + (list.length === 1 ? ' match' : ' matches') + '</span></h4><div class="pick-list">' +
+      html += head + list.length.toLocaleString('en-AU') + (list.length === 1 ? ' match' : ' matches') + '</span></h3><div class="pick-list">' +
         (list.length ? list.slice(0, PICK_LIMIT).map(function (i) { return crow(i); }).join('') : '<div class="pick-empty">No ' + (best ? 'other ' : '') + 'subjects match “' + esc(p.q.trim()) + '”' + (p.ugOnly ? ' at levels 1–4' : '') + '.' + CLEAR_PICK + '</div>') + '</div>' +
         (list.length > PICK_LIMIT ? '<p class="pick-hint">Showing the ' + PICK_LIMIT + ' most relevant of ' + list.length.toLocaleString('en-AU') + '. Add more of the code or name to narrow the list.</p>' : '') + '</div>';
     }
@@ -2892,7 +3000,7 @@
       '<p class="cs-warn" id="cs-warn"' + (filled && start !== 'keep' ? '' : ' hidden') + ' data-filled="' + filled + '">Starting again replaces the ' + plural(filled, 'subject') + ' in your current custom plan.</p>' +
       '</fieldset></form>' +
       '<div class="modal-foot"><span class="small muted">Saved in this browser and in your share link.</span><div style="display:flex;gap:8px"><button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="submit" form="setup-form" class="btn btn-primary">' + (plan ? 'Update plan →' : 'Create plan →') + '</button></div></div></div></div>');
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     const n = $('#cs-name');
     if (n && window.matchMedia('(pointer:fine)').matches) n.focus();
   }
@@ -2919,6 +3027,7 @@
     document.querySelectorAll('[data-action="cs-cp"]').forEach(function (b) { b.setAttribute('aria-pressed', String(+b.dataset.v === +cp)); });
   }
   function applySetup() {
+    ui.folded = null;
     const cpRaw = +$('#cs-cp').value;
     if (!(cpRaw >= 10 && cpRaw <= MAX_CP)) { toast('Enter the credit points your degree requires, between 10 and ' + MAX_CP + '.'); $('#cs-cp').focus(); return; }
     const start = setupStart();
@@ -3437,7 +3546,7 @@
       '<div id="progress-results"></div></div>' +
       '<div class="modal-foot"><span class="small muted">Import again whenever you have new results.</span><div style="display:flex;gap:8px">' +
       '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="button" class="btn btn-primary" data-action="progress-apply" id="progress-apply" disabled>Build my plan</button></div></div></div></div>');
-    document.body.style.overflow = 'hidden';
+    lockScroll();
   }
   function showProgress(info) {
     ui.progress = buildProgress(info);
@@ -3475,7 +3584,7 @@
       '<p class="pick-hint">' + (p.fromAudit ? 'What you still need comes from the Still needed lists in your audit' : 'Your Subject Results page does not list what you still need, so the rest follows the WSLSA 2027 pathway. Your Degree Works audit lists it, so import that for a plan that matches your own requirements') +
       (p.next ? ', laid out from ' + esc(p.next) + '. Choices stay open for you to fill.' : '.') + '</p>' +
       notes.map(function (n) { return '<p class="pick-hint">' + n + '</p>'; }).join('') +
-      '<div class="pick-section"><h4><span>Your subjects so far</span><span>' + p.history.length + '</span></h4><div class="progress-sessions">' +
+      '<div class="pick-section"><h3><span>Your subjects so far</span><span>' + p.history.length + '</span></h3><div class="progress-sessions">' +
       Object.keys(groups).map(Number).sort(function (a, b) { return a - b; }).map(function (k) {
         return '<div class="ps-row"><span class="ps-when">' + esc(groups[k].label) + '</span><div class="chiplist">' + groups[k].list.map(function (f) {
           return '<span class="chipbtn' + (f.status === 'progress' ? ' is-open' : '') + '"><code>' + esc(f.code) + '</code>' + esc(titleOf(f)) + (f.status === 'progress' ? ' <span>studying</span>' : '') + '</span>';
@@ -3488,6 +3597,7 @@
     if (!p) return;
     state.custom = p.plan;
     state.mode = 'custom';
+    ui.folded = null;
     if (p.tdeg) { state.degree = p.tdeg.code; state.majorFor[p.tdeg.code] = p.tpl; }
     const done = p.history.filter(function (f) { return f.status === 'done'; }).length;
     const now = p.history.length - done;
@@ -3563,7 +3673,7 @@
       '<div id="import-results"></div></div>' +
       '<div class="modal-foot"><span class="small muted" id="import-summary">Subjects you pass later can be ticked here again.</span><div style="display:flex;gap:8px">' +
       '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="button" class="btn btn-primary" data-action="import-apply" id="import-apply" disabled>Tick subjects</button></div></div></div></div>');
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     const t = $('#import-text');
     if (t && window.matchMedia('(pointer:fine)').matches) t.focus();
   }
@@ -3581,7 +3691,7 @@
     const found = matchFound(parseResults(text), lastCtx);
     ui.importFound = found;
     const section = function (title, n, hint, body) {
-      return '<div class="pick-section"><h4><span>' + title + '</span><span>' + n + '</span></h4>' + (hint ? '<p class="pick-hint">' + hint + '</p>' : '') + body + '</div>';
+      return '<div class="pick-section"><h3><span>' + title + '</span><span>' + n + '</span></h3>' + (hint ? '<p class="pick-hint">' + hint + '</p>' : '') + body + '</div>';
     };
     const rows = function (place) {
       return '<div class="import-list">' + found.map(function (f, i) { return (place ? f.place : f.slots.length) ? importRow(f, i, place) : ''; }).join('') + '</div>';
@@ -3622,6 +3732,7 @@
       });
     });
     closeModal();
+    ui.folded = null;
     render();
     toast('Ticked off ' + plural(picked.length, 'subject') + ' from your results' + (placed ? ', ' + placed + ' of them in open choices' : '') + '.');
   }
@@ -3865,8 +3976,8 @@
       '<label class="check-row"><input type="checkbox" name="exp-llbTbc"' + (e.llbTbc ? ' checked' : '') + '><span>Include subjects with session TBC</span></label></fieldset>' +
       '<p class="export-help"><b>Tips.</b> Paper size A4, scale 100%, margins default. Background tints are forced on with <code>print-color-adjust</code>; if a browser still drops them, tick <b>Background graphics</b> in its print dialog.</p>' +
       '<button type="button" class="btn btn-primary" data-action="export-print" style="min-height:46px">Print / Save PDF →</button>' +
-      '</div><div class="export-preview" id="export-preview"><div class="preview-meta"><span id="preview-pages">Preview</span><span>A4 · 10 mm margins</span></div><div class="preview-stage" id="preview-stage"></div></div></div></div></div>');
-    document.body.style.overflow = 'hidden';
+      '</div><div class="export-preview" id="export-preview" tabindex="0" role="region" aria-label="A4 preview of your guide"><div class="preview-meta"><span id="preview-pages">Preview</span><span>A4 · 10 mm margins</span></div><div class="preview-stage" id="preview-stage" inert></div></div></div></div></div>');
+    lockScroll();
     renderExportPreview();
   }
   function renderExportPreview() {
@@ -3919,13 +4030,42 @@
   }
 
   // ======================================================================== events
+  function setTopMenu(open) {
+    $('#top-actions').classList.toggle('is-open', open);
+    $('.top-menu-btn').setAttribute('aria-expanded', String(open));
+  }
   document.addEventListener('click', function (ev) {
+    if ($('#top-actions').classList.contains('is-open') && !ev.target.closest('.top-menu-btn')) setTopMenu(false);
     const el = ev.target.closest('[data-action]');
     if (!el) return;
     const a = el.dataset.action;
     const ctx = lastCtx;
     switch (a) {
+      case 'top-menu': setTopMenu(!$('#top-actions').classList.contains('is-open')); break;
+      case 'year-toggle': {
+        const fold = el.getAttribute('aria-expanded') === 'true';
+        transition(function () { setYearFold(+el.dataset.y, fold); }, true);
+        break;
+      }
+      case 'map-jump': {
+        const y = +el.dataset.y;
+        setYearFold(y, false);
+        const box = document.getElementById('year-' + y);
+        if (!box) break;
+        const target = el.dataset.s ? box.querySelector('.session[data-s="' + el.dataset.s + '"]') : box;
+        target.tabIndex = -1;
+        target.focus({ preventScroll: true });
+        target.scrollIntoView({ behavior: scrollMode(), block: 'start' });
+        break;
+      }
       case 'top': ev.preventDefault(); window.scrollTo({ top: 0, behavior: scrollMode() }); break;
+      case 'skip': {
+        ev.preventDefault();
+        const heading = $('#plan-heading');
+        heading.focus({ preventScroll: true });
+        heading.scrollIntoView({ behavior: scrollMode(), block: 'start' });
+        break;
+      }
       case 'backdrop': if (ev.target === el) closeModal(); break;
       case 'modal-close': closeModal(); break;
       case 'share': share(); break;
@@ -3933,6 +4073,7 @@
         if (isCustom()) {
           if (!window.confirm('Start your custom plan again? This clears every subject and tick and rebuilds it from ' + (state.custom.tpl ? 'the ' + tplLabel(state.custom.tpl) + ' template.' : 'empty slots.'))) return;
           rebuildCustom();
+          ui.folded = null;
           render();
           toast('Custom plan rebuilt.');
           break;
@@ -3941,6 +4082,7 @@
         if (!window.confirm('Clear all choices and progress for ' + key.replace('|BASE', '') + '?')) return;
         delete state.picks[key];
         delete state.done[key];
+        ui.folded = null;
         render();
         toast('Pathway reset to the WSLSA recommendation.');
         break;
@@ -4034,7 +4176,7 @@
         break;
       case 'suggest-undo': undoSuggest(); break;
       case 'mini-top': {
-        $('#dock-wrap').scrollIntoView({ behavior: scrollMode(), block: 'start' });
+        window.scrollTo({ top: $('#dock-wrap').getBoundingClientRect().top + window.scrollY - 8, behavior: scrollMode() });
         const first = $('#sel-degree');
         if (first) first.focus({ preventScroll: true });
         break;
@@ -4231,6 +4373,7 @@
   document.addEventListener('keydown', function (ev) {
     const el = ev.target;
     if (ev.key === 'Escape') {
+      if ($('#top-actions').classList.contains('is-open')) { setTopMenu(false); $('.top-menu-btn').focus(); return; }
       if (ui.modal) { closeModal(); return; }
       if (ui.xrayPin) { ui.xrayPin = ''; ui.xrayHover = ''; xrayClear(); return; }
       if (el.id === 'cat-q' && el.value) { el.value = ''; ui.cat.q = ''; renderCatalogueRows(lastCtx); return; }
@@ -4272,7 +4415,10 @@
 
   window.addEventListener('resize', function () { if (ui.modal === 'export') renderExportPreview(); });
   // remember whether the advisory panel is open across re-renders (toggle does not bubble)
-  document.addEventListener('toggle', function (ev) { if (ev.target.id === 'advisory-box') ui.advisoryOpen = ev.target.open; }, true);
+  document.addEventListener('toggle', function (ev) {
+    if (ev.target.id === 'advisory-box') ui.advisoryOpen = ev.target.open;
+    if (ev.target.id === 'legend-box') ui.legendOpen = ev.target.open;
+  }, true);
 
   // a link opened in a tab that already shows the explorer changes only the hash, without a reload
   window.addEventListener('hashchange', function () {
@@ -4280,9 +4426,16 @@
     if (opened === null) return;
     if (!opened) { toast(LINK_FAILED); return; }
     if (ui.modal) closeModal();
+    ui.folded = null;
     render();
     toast('Plan opened from the link.');
   });
+
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () {
+      document.documentElement.style.setProperty('--dock-h', Math.ceil($('#dock-wrap').getBoundingClientRect().height) + 'px');
+    }).observe($('#dock-wrap'));
+  }
 
   // ======================================================================== phone progress bar
   if (window.IntersectionObserver) {

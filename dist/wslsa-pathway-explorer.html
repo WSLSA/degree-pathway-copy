@@ -45,6 +45,7 @@
   --blush: #F2CCD6;
   --gold: #C59B27;
   --bronze: #B48A1E;
+  --bronze-ink: #80620F;
   --gold-soft: #E3C774;
   --gold-tint: #FBF6E8;
 
@@ -70,11 +71,13 @@
   --texture: repeating-linear-gradient(118deg, rgba(255, 255, 255, .035) 0 1px, transparent 1px 26px);
   --gutter: max(24px, env(safe-area-inset-left, 0px));
   --gutter-r: max(24px, env(safe-area-inset-right, 0px));
+  --dock-h: 96px;
+  --stick-h: calc(var(--dock-h) + 56px);
   color-scheme: light;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; scroll-padding-top: 130px; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: var(--stick-h); }
 body {
   margin: 0; background: var(--canvas); color: var(--text);
   font: 15px/1.55 var(--sans); font-feature-settings: "cv11", "ss03";
@@ -83,8 +86,22 @@ body {
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--crimson); text-underline-offset: 3px; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* the blue ring disappears on burgundy and charcoal */
+.hero-band :focus-visible, .year-bar :focus-visible, .site-footer :focus-visible, #toast :focus-visible { outline-color: var(--gold-soft); }
+.advisory > summary:focus-visible { outline-color: var(--gold-soft); outline-offset: -4px; }
+::selection { background: var(--gold-soft); color: var(--ink); }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.skip-link {
+  position: fixed; left: 12px; top: 12px; z-index: 100; padding: 11px 16px; border-radius: 2px; background: var(--ink); color: #fff;
+  font: 700 11px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; text-decoration: none; transform: translateY(-300%);
+}
+.skip-link:focus { transform: none; }
+#plan-heading:focus { outline: none; }
 .wrap { max-width: 1280px; margin: 0 auto; padding-left: var(--gutter); padding-right: var(--gutter-r); }
-.stack { display: grid; gap: 18px; padding-block: 18px 64px; }
+.stack { display: grid; gap: 10px; padding-block: 2px 64px; }
+.stack > * { min-width: 0; }
+#app h2, #app h3, .modal-head h2 { text-wrap: balance; }
+.notice-lead, .notice-main p, .why-text, .adv-sec p, .foot-col p, .modal-head p { text-wrap: pretty; }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
 .small { font-size: 12.5px; }
@@ -104,17 +121,22 @@ a { color: var(--crimson); text-underline-offset: 3px; }
   transition: background .15s, color .15s, border-color .15s;
 }
 .tbtn:hover, .btn:hover { color: var(--crimson); }
+.tbtn:active:not(:disabled), .btn:active:not(:disabled), .select-btn:active, .chip:active { transform: translateY(1px); }
+.tbtn:disabled, .btn:disabled { opacity: .5; cursor: not-allowed; }
 .tbtn-primary, .btn-primary { background: var(--crimson); color: #fff; border-color: var(--crimson); padding-inline: 20px; }
 .tbtn-primary:hover, .btn-primary:hover { background: var(--burgundy); border-color: var(--burgundy); color: #fff; }
+.tbtn-primary:disabled:hover, .btn-primary:disabled:hover { background: var(--crimson); border-color: var(--crimson); }
 .btn:not(.btn-primary):not(.btn-ghost) { border-color: var(--hairline-2); background: var(--surface); }
+.btn:not(.btn-primary):not(.btn-ghost):not(:disabled):hover { border-color: var(--crimson); }
 .tbtn-outline { border-color: var(--crimson); color: var(--crimson); }
-.tbtn-outline:hover { background: var(--crimson); color: #fff; }
+.tbtn-outline:not(:disabled):hover { background: var(--crimson); color: #fff; }
 .btn-ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn-ghost:not(:disabled):hover { background: var(--surface-2); color: var(--ink); }
 
 /* ---------- masthead (white, as on wslsa.com.au) */
-.topbar { background: var(--surface); border-bottom: 1px solid var(--hairline); }
+.topbar { position: relative; z-index: 45; background: var(--surface); border-bottom: 1px solid var(--hairline); }
 .topbar-inner {
-  max-width: 1280px; margin: 0 auto; padding-block: 12px; padding-left: var(--gutter); padding-right: var(--gutter-r);
+  max-width: 1280px; margin: 0 auto; padding-block: 8px; padding-left: var(--gutter); padding-right: var(--gutter-r);
   display: flex; align-items: center; justify-content: space-between; gap: 18px;
 }
 .crest { display: flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; min-width: 0; }
@@ -122,49 +144,50 @@ a { color: var(--crimson); text-underline-offset: 3px; }
 /* the official WSLSA crest: in colour on light backgrounds, reversed (used as a mask) on dark ones */
 .crest-img { display: block; flex: none; background: var(--crest-img) center / contain no-repeat; }
 .crest-rev { display: block; flex: none; background-color: var(--gold-soft); -webkit-mask: var(--crest-img) center / contain no-repeat; mask: var(--crest-img) center / contain no-repeat; }
-.brand-crest { width: 108px; height: 56px; }
+.brand-crest { width: 92px; height: 48px; }
 .crest-text { display: grid; min-width: 0; padding-left: 14px; border-left: 1px solid var(--hairline); color: var(--ink); }
 .ct-ws { font: 500 17px/1.05 var(--serif); color: #4a4a4f; }
 .ct-lsa { font: 800 14.5px/1.2 var(--sans); letter-spacing: .03em; text-transform: uppercase; color: var(--crimson); }
-.crest-text small { font: 700 9px/1.5 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--bronze); margin-top: 3px; }
+.crest-text small { font: 700 10px/1.5 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--bronze-ink); margin-top: 3px; }
 .top-actions { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; justify-content: flex-end; }
-.top-link { color: var(--muted); }
+.top-link, .top-quiet { color: var(--muted); }
+.top-menu-btn { display: none; }
 
 /* ---------- burgundy hero band */
 .hero-band { position: relative; overflow: hidden; background-color: var(--burgundy); background-image: var(--texture); color: #fff; }
-.hero-grid { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 32px; align-items: center; padding-block: 34px 30px; }
-.hero-band .kicker { color: var(--blush); }
-.hero-app { margin: 16px 0 0; font: italic 500 22px/1.2 var(--serif); color: var(--blush); }
+.hero-grid { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; padding-block: 18px 16px; }
+.hero-app { margin: 0; font: italic 500 19px/1.2 var(--serif); color: var(--blush); }
 .hero-app b { font-style: normal; font-weight: 700; color: var(--gold-soft); }
-.hero-band h1 { margin: 2px 0 0; font: 600 clamp(36px, 5vw, 60px)/1.02 var(--serif); letter-spacing: -.005em; color: #fff; text-wrap: balance; }
+.hero-band h1 { margin: 2px 0 0; font: 600 clamp(30px, 3.6vw, 48px)/1.05 var(--serif); letter-spacing: -.005em; color: #fff; text-wrap: balance; }
 .hero-band h1 .slash { color: var(--gold-soft); font-style: italic; font-weight: 500; padding: 0 .06em; }
-.hero-meta { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 14px; color: var(--blush); }
+.hero-meta { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 14px; color: var(--blush); }
 .hero-meta .course { font: 700 12.5px var(--mono); color: #fff; border: 1px solid rgba(255, 255, 255, .35); padding: 3px 8px; border-radius: 2px; }
 .hero-meta .major { color: #fff; font-weight: 600; }
 .pbadge { display: inline-flex; align-items: center; gap: 7px; font: 700 10.5px/1 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--gold-soft); padding: 6px 10px; border: 1px solid rgba(227, 199, 116, .55); border-radius: 2px; }
 .pbadge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
-.why-btn { background: none; border: 0; padding: 0; color: #fff; font: 700 11px var(--sans); letter-spacing: .16em; text-transform: uppercase; cursor: pointer; border-bottom: 1px solid var(--gold); padding-bottom: 2px; }
+.why-btn { display: inline-flex; align-items: center; min-height: 24px; background: none; border: 0; padding: 0; color: #fff; font: 700 11px var(--sans); letter-spacing: .16em; text-transform: uppercase; cursor: pointer; border-bottom: 1px solid var(--gold); }
+.why-btn:hover { color: var(--gold-soft); }
 .why-text { flex-basis: 100%; margin: 4px 0 0; max-width: 92ch; color: #f6dfe5; font-size: 14px; line-height: 1.6; }
 .why-text b { color: #fff; }
-.hero-seal { display: grid; justify-items: center; gap: 12px; flex: none; }
-.hero-crest { width: 270px; height: 140px; }
-.hero-est { font: 700 9.5px/1.4 var(--sans); letter-spacing: .24em; text-transform: uppercase; color: var(--gold-soft); padding-top: 10px; border-top: 1px solid rgba(227, 199, 116, .45); }
+.hero-seal { display: grid; justify-items: center; gap: 8px; flex: none; }
+.hero-crest { width: 190px; height: 98px; }
+.hero-est { font: 700 10.5px/1.4 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--gold-soft); padding-top: 7px; border-top: 1px solid rgba(227, 199, 116, .45); }
 .hero-watermark { position: absolute; right: -120px; top: -30px; width: 720px; height: 372px; z-index: 0; pointer-events: none; background-color: rgba(255, 255, 255, .045); }
 
 /* ---------- sticky command dock */
 .dock {
-  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 40; padding-block: 10px;
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 40; padding-block: 8px;
   background: color-mix(in srgb, var(--canvas) 88%, transparent);
   backdrop-filter: saturate(1.3) blur(10px); -webkit-backdrop-filter: saturate(1.3) blur(10px);
   border-bottom: 1px solid transparent;
 }
 .dock-card {
-  display: grid; grid-template-columns: minmax(0, 2.3fr) minmax(0, 2fr) minmax(0, 1.25fr) auto minmax(200px, 1.35fr);
-  gap: 10px 16px; align-items: end; padding: 12px 16px;
+  display: grid; grid-template-columns: minmax(0, 2.3fr) minmax(0, 2fr) minmax(0, 1.25fr) auto minmax(170px, 1.35fr);
+  gap: 10px 14px; align-items: end; padding: 9px 14px 10px;
   background: var(--surface); border: 1px solid var(--hairline); border-top: 2px solid var(--crimson); border-radius: var(--radius); box-shadow: var(--shadow);
 }
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.field > label, .field-label { font: 700 10px/1.2 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+.field > label, .field-label { font: 700 10.5px/1.2 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
 .select-wrap { position: relative; }
 .select-wrap select {
   width: 100%; appearance: none; -webkit-appearance: none; min-height: 40px; padding: 8px 34px 8px 11px;
@@ -176,35 +199,36 @@ a { color: var(--crimson); text-underline-offset: 3px; }
   content: ""; position: absolute; right: 13px; top: 50%; width: 7px; height: 7px; margin-top: -5px;
   border-right: 1.5px solid var(--crimson); border-bottom: 1.5px solid var(--crimson); transform: rotate(45deg); pointer-events: none;
 }
-.locked { display: flex; align-items: center; gap: 9px; min-height: 40px; padding: 7px 11px; border-radius: 2px; background: var(--surface-2); border: 1px dashed var(--hairline-2); color: var(--muted); font-size: 13px; line-height: 1.3; }
+.locked { display: flex; align-items: center; gap: 9px; min-height: 40px; padding: 4px 10px; border-radius: 2px; background: var(--surface-2); border: 1px dashed var(--hairline-2); color: var(--muted); font-size: 12.5px; line-height: 1.25; }
 .locked svg { flex: none; color: var(--bronze); }
 .locked b { color: var(--text); }
 .segmented { display: inline-flex; border: 1px solid var(--hairline-2); border-radius: 2px; background: var(--surface); }
 .segmented button { border: 0; background: none; padding: 0 13px; min-height: 38px; font: 700 10.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .segmented button + button { border-left: 1px solid var(--hairline-2); }
+.segmented button:not([aria-pressed="true"]):hover { background: var(--surface-2); color: var(--ink); }
 .segmented button[aria-pressed="true"] { background: var(--ink); color: #fff; }
 .progress { display: grid; gap: 6px; min-width: 0; }
 .progress-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .progress-num { font: 700 14.5px var(--mono); color: var(--ink); white-space: nowrap; }
-.progress-num small { font: 700 9.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.progress-num small { font: 700 10.5px var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .bar { height: 6px; background: var(--surface-2); overflow: hidden; }
 .bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--crimson), var(--gold)); transition: width .35s ease; }
 .progress-meta { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- stat ribbon (wslsa.com.au stats band) */
-.ribbon { display: flex; flex-wrap: wrap; align-items: stretch; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); }
-.ribbon > div { flex: 0 1 auto; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 14px 22px; border-right: 1px solid var(--hairline); min-width: 0; }
-.ribbon > div:last-child { border-right: 0; margin-left: auto; padding-right: 16px; }
-.rb-v { order: 1; font: 600 22px/1.1 var(--serif); color: var(--ink); }
-.rb-v.big { font-size: 34px; line-height: .95; color: var(--crimson); }
+.ribbon { display: flex; flex-wrap: wrap; align-items: stretch; gap: 1px; overflow: hidden; background: var(--hairline); border: 1px solid var(--hairline); border-radius: var(--radius); }
+.ribbon > div { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 8px 18px; background: var(--surface); min-width: 0; }
+.ribbon > div:last-child { align-items: flex-end; padding-right: 14px; }
+.rb-v { order: 1; font: 600 20px/1.15 var(--serif); color: var(--ink); }
+.rb-v.big { font-size: 28px; line-height: 1; color: var(--crimson); }
 .rb-v small { font: 500 14px var(--serif); color: var(--muted); }
-.rb-l { order: 2; font: 700 9.5px/1.3 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
-.ribbon .handbook { align-self: center; }
+.rb-l { order: 2; font: 700 10.5px/1.3 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.ribbon .handbook { min-height: 36px; padding-block: 7px; }
 
 /* ---------- advisory callout (charcoal, gold capitals) */
 .advisory { border-radius: var(--radius); background: var(--surface); border: 1px solid var(--hairline); box-shadow: var(--shadow); overflow: hidden; }
 .advisory > summary {
-  display: flex; align-items: center; gap: 14px; padding: 13px 18px; cursor: pointer; list-style: none;
+  display: flex; align-items: center; gap: 14px; padding: 10px 18px; cursor: pointer; list-style: none;
   background: var(--ink); color: #fff; border-left: 4px solid var(--adv, var(--gold));
 }
 .advisory > summary::-webkit-details-marker { display: none; }
@@ -227,9 +251,9 @@ a { color: var(--crimson); text-underline-offset: 3px; }
 .adv-sec p b { color: var(--text); }
 .adv-sec ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
 .adv-sec li { font-size: 13.5px; line-height: 1.55; }
-.note-scope { display: block; font: 700 10px var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--crimson); margin-bottom: 3px; }
+.note-scope { display: block; font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--crimson); margin-bottom: 3px; }
 .note-scope.related { color: var(--slate); }
-.where { display: inline-block; font: 700 11.5px var(--mono); padding: 1px 7px; border-radius: 2px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--hairline); margin-right: 6px; cursor: pointer; }
+.where { display: inline-block; font: 700 11.5px var(--mono); padding: 4px 7px; border-radius: 2px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--hairline); margin-right: 6px; cursor: pointer; }
 .where:hover { border-color: var(--crimson); color: var(--crimson); }
 .hint { display: block; margin-top: 5px; font-size: 12.5px; color: var(--muted); padding-left: 10px; border-left: 2px solid var(--gold); }
 .hint b { color: var(--text); }
@@ -238,23 +262,31 @@ a { color: var(--crimson); text-underline-offset: 3px; }
 .chipbtn code { font: 700 11.5px var(--mono); color: var(--amber-ink); white-space: nowrap; }
 .chipbtn span { color: var(--muted); font-size: 11.5px; }
 .chipbtn:hover { border-color: var(--amber); }
-.linkish { background: none; border: 0; padding: 0; color: var(--crimson); font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; font-size: inherit; }
+.linkish { display: inline-block; background: none; border: 0; padding: 2px 0; color: var(--crimson); font-weight: 700; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; font-size: inherit; }
 
 /* ---------- micro legend */
-.micro-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 10px 16px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 12.5px; color: var(--muted); }
-.lg-title { font: 700 9.5px var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--ink); }
+.micro-legend { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 12.5px; color: var(--muted); }
+.legend-box > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; min-height: 36px; padding: 5px 14px; cursor: pointer; list-style: none; }
+.legend-box > summary::-webkit-details-marker { display: none; }
+.lg-title { font: 700 10.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--ink); }
 .lg-group { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 12px; }
+.lg-cta { margin-left: auto; font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); white-space: nowrap; border-bottom: 1px solid var(--hairline-2); }
+.lg-cta::after { content: " ▾"; color: var(--crimson); }
+.legend-box[open] .lg-cta::after { content: " ▴"; }
+.legend-box > summary:hover .lg-cta { color: var(--crimson); border-color: var(--crimson); }
+.lg-body { display: grid; gap: 8px; padding: 9px 14px 11px; border-top: 1px solid var(--hairline); }
+.lg-tip { margin: 0; }
+.lg-tip .lg-title { margin-right: 8px; }
 .lg-sw { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .lg-sw i { width: 14px; height: 14px; background: #fff; border: 1px solid var(--hairline-2); border-left: 3px solid var(--k); }
 .lg-sw.slot i { border: 1.5px dashed var(--amber); background: var(--amber-tint); }
 .lg-camp { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
-.lg-sep { width: 1px; align-self: stretch; background: var(--hairline); }
 
 /* ---------- campus pills */
 .pills { display: inline-flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
 .pill {
   --dot: var(--faint);
-  position: relative; display: inline-flex; align-items: center; gap: 4px; height: 21px; padding: 0 7px 0 6px;
+  position: relative; display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px 0 7px;
   border-radius: 999px; background: var(--surface-2); border: 1px solid var(--hairline); color: var(--ink);
   font: 700 10.5px/1 var(--mono); letter-spacing: .03em; user-select: none; transition: opacity .15s, background .15s;
 }
@@ -265,12 +297,14 @@ a { color: var(--crimson); text-underline-offset: 3px; }
   background: var(--ink); color: #fff; font: 600 12px/1.3 var(--sans); letter-spacing: 0; padding: 6px 9px; border-radius: 2px;
   white-space: nowrap; z-index: 60; pointer-events: none; box-shadow: 0 6px 18px rgba(0,0,0,.22);
 }
+.subj-side .pill[data-tip]:hover::after, .subj-side .pill[data-tip]:focus-visible::after { left: auto; right: 0; transform: none; }
+.lg-camp .pill[data-tip]:hover::after, .lg-camp .pill[data-tip]:focus-visible::after { left: 0; transform: none; }
 .cp-PS { --dot: #1F3A68; } .cp-PC { --dot: #2F5D9E; } .cp-EX { --dot: #5B6788; } .cp-CA { --dot: #8B0029; }
 .cp-HA { --dot: #2D6936; } .cp-BC { --dot: #B45309; } .cp-PE { --dot: #6D4AA6; } .cp-LC { --dot: #0D6B71; }
 .cp-ON { --dot: #15803D; }
 .cp-TBC { background: var(--amber-tint); border: 1px dashed var(--amber); color: var(--amber-ink); }
 .cp-TBC::before { display: none; }
-.pill-y2026 { background: transparent; border-style: dashed; color: var(--muted); font-size: 9.5px; }
+.pill-y2026 { background: transparent; border-style: dashed; color: var(--muted); font-size: 10.5px; }
 .pill-y2026::before { display: none; }
 body.has-campus .pill.dim { opacity: .32; }
 body.has-campus .pill.on { background: var(--crimson); border-color: var(--crimson); color: #fff; }
@@ -278,49 +312,63 @@ body.has-campus .pill.on::before { background: #fff; }
 body.has-campus .pill.online { background: var(--ok-tint); border-color: #b6e2c4; color: var(--ok); }
 
 /* ---------- year cards */
-.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-top: 6px; }
-.section-head h2 { margin: 4px 0 0; font: 600 34px/1.1 var(--serif); color: var(--ink); }
-.grid { display: grid; gap: 22px; }
+.section-head { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin-top: 2px; }
+.section-head h2 { margin: 2px 0 0; font: 600 30px/1.1 var(--serif); color: var(--ink); }
+.section-tools { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.tool-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.section-tools .tbtn { min-height: 36px; padding: 7px 13px; }
+.plan-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.grid { display: grid; gap: 16px; }
 .pt-note { margin: 0; padding: 12px 16px; background: var(--slate-tint); color: var(--slate); font-size: 13.5px; border-left: 3px solid var(--slate); }
 .year { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); box-shadow: var(--shadow); }
 .year-bar {
-  position: relative; overflow: hidden; display: flex; align-items: center; gap: 16px; padding: 12px 20px;
+  position: relative; overflow: hidden; display: flex; align-items: center; gap: 14px; padding: 9px 14px 9px 18px;
   background-color: var(--ink); background-image: var(--texture); color: #fff; border-radius: var(--radius) var(--radius) 0 0;
 }
 .year-bar::after {
   content: attr(data-roman); position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
-  font: italic 600 110px/1 var(--serif); color: rgba(197, 155, 39, .1); pointer-events: none;
+  font: italic 600 92px/1 var(--serif); color: rgba(197, 155, 39, .1); pointer-events: none;
 }
 .year-seal {
-  flex: none; display: grid; place-items: center; min-width: 48px; height: 48px; padding: 0 6px; border-radius: 24px;
+  flex: none; display: grid; place-items: center; min-width: 42px; height: 42px; padding: 0 5px; border-radius: 21px;
   border: 1px dashed rgba(197, 155, 39, .7); box-shadow: inset 0 0 0 3px var(--ink), inset 0 0 0 4px rgba(197, 155, 39, .35);
-  color: var(--gold); font: 600 21px/1 var(--serif); letter-spacing: .04em;
+  color: var(--gold); font: 600 19px/1 var(--serif); letter-spacing: .04em;
 }
 .year-titles { display: grid; gap: 2px; }
 .year-titles .caps { color: var(--gold); font-size: 9.5px; }
-.year-bar h2 { margin: 0; font: 600 30px/1 var(--serif); letter-spacing: .005em; }
+.year-bar h2 { margin: 0; font: 600 27px/1 var(--serif); letter-spacing: .005em; }
+.year-toggle {
+  position: relative; z-index: 1; flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid rgba(197, 155, 39, .55); border-radius: 2px;
+  background: transparent; cursor: pointer; transition: background .15s, border-color .15s;
+}
+.year-toggle::before { content: ""; width: 8px; height: 8px; margin-top: 4px; border-right: 1.5px solid var(--gold-soft); border-bottom: 1.5px solid var(--gold-soft); transform: rotate(225deg); transition: transform .18s; }
+.year-toggle[aria-expanded="false"]::before { margin-top: -4px; transform: rotate(45deg); }
+.year-toggle:hover { background: rgba(197, 155, 39, .18); border-color: var(--gold); }
+.year.is-folded .year-bar { border-radius: var(--radius); }
+.sessions[hidden] { display: none; }
+.year.flash, .session.flash { animation: flash 1.3s ease-out; }
 .year-cp { margin-left: auto; position: relative; z-index: 1; font: 600 12px var(--mono); color: #d8d2c8; text-align: right; }
 .year-cp b { color: #fff; }
 .year-cp .done { display: block; color: var(--gold); font-size: 11px; margin-top: 3px; }
 .sessions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.session { min-width: 0; padding: 16px 16px 18px; }
+.session { min-width: 0; padding: 12px 14px 14px; }
 .session + .session { border-left: 1px solid var(--hairline); }
-.session-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 2px 12px; padding-bottom: 8px; border-bottom: 1px solid var(--hairline); }
+.session-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 2px 10px; padding-bottom: 6px; border-bottom: 1px solid var(--hairline); }
 .session-head h3 { margin: 0; font: 600 24px/1 var(--serif); color: var(--ink); display: flex; align-items: baseline; gap: 8px; }
-.session-head h3 span { font: 700 9.5px var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--crimson); }
-.session-tools { display: flex; align-items: baseline; gap: 14px; }
+.session-head h3 span { font: 700 10.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--crimson); }
+.session-tools { display: flex; align-items: center; gap: 12px; }
 .session-cp { font: 700 12px var(--mono); color: var(--ink); }
-.mark-all { background: none; border: 0; padding: 0 0 2px; font: 700 10px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); cursor: pointer; border-bottom: 1px solid var(--hairline-2); }
+.mark-all { min-height: 24px; background: none; border: 0; padding: 0; font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); cursor: pointer; border-bottom: 1px solid var(--hairline-2); }
 .mark-all:hover { color: var(--crimson); border-color: var(--crimson); }
 .slots { display: grid; gap: 8px; }
-.slot-empty { padding: 18px; border: 1px dashed var(--hairline-2); color: var(--faint); font-size: 13px; text-align: center; }
+.slot-empty { padding: 18px; border: 1px dashed var(--hairline-2); color: var(--muted); font-size: 13px; text-align: center; }
 
 /* ---------- subject cards */
 .subj {
   --k: var(--crimson); --k-tint: var(--crimson-tint);
   position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 14px; align-items: center;
-  padding: 11px 14px 11px 12px; background: var(--surface); border: 1px solid var(--hairline); border-left: 3px solid var(--k);
-  border-radius: 3px; transition: opacity .25s ease, box-shadow .2s, border-color .2s, background .2s; scroll-margin-top: 140px;
+  padding: 10px 12px 10px 10px; background: var(--surface); border: 1px solid var(--hairline); border-left: 3px solid var(--k);
+  border-radius: 3px; transition: opacity .25s ease, box-shadow .2s, border-color .2s, background .2s;
 }
 .subj:hover { box-shadow: 0 3px 14px rgba(30, 29, 32, .07); }
 .k-law { --k: var(--crimson); --k-tint: var(--crimson-tint); }
@@ -329,8 +377,11 @@ body.has-campus .pill.online { background: var(--ok-tint); border-color: #b6e2c4
 .k-slot { --k: var(--amber-solid); --k-tint: #FEF3C7; }
 .k-slot.is-pending { background: var(--amber-tint); border: 1.5px dashed var(--amber); }
 .k-slot.is-chosen { border-color: #EBC98F; border-left-color: var(--amber-solid); }
-.subj.is-done { opacity: .58; }
-.subj.is-done:hover { opacity: .85; }
+.subj.is-done { background: #F8F5EF; border-left-color: var(--ok); }
+.subj.is-done .subj-title { color: var(--muted); font-weight: 600; }
+.subj.is-done .code-pill { background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--hairline-2); }
+.subj.is-done .cat { color: var(--muted); }
+.k-slot.is-chosen.is-done { border-color: var(--hairline); border-left-color: var(--ok); }
 .subj.flash { animation: flash 1.3s ease-out; }
 @keyframes flash { 0% { box-shadow: 0 0 0 3px var(--gold); } 100% { box-shadow: 0 0 0 0 transparent; } }
 .subj-lead { display: flex; align-items: center; gap: 10px; align-self: start; padding-top: 1px; }
@@ -339,15 +390,17 @@ body.has-campus .pill.online { background: var(--ok-tint); border-color: #b6e2c4
 .subj-main { min-width: 0; }
 .subj-title { font-size: 14.5px; font-weight: 700; color: var(--ink); line-height: 1.35; overflow-wrap: anywhere; }
 .is-pending .subj-title { color: var(--amber-ink); font-weight: 600; }
-.subj.is-done .subj-title { text-decoration: line-through; text-decoration-color: rgba(30, 29, 32, .35); }
+.subj.is-done .subj-title { text-decoration: line-through; text-decoration-color: rgba(30, 29, 32, .45); }
 .subj-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 4px; }
-.cat { font: 700 9.5px/1.4 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--k); }
+.subj-meta .cat { font: 700 10.5px/1.4 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--k); }
 .flag { font: 700 10.5px/1.4 var(--sans); padding: 1px 7px; border-radius: 999px; letter-spacing: .02em; white-space: nowrap; }
 .flag-tbc { background: #FEF3C7; color: var(--amber-ink); }
 .flag-2026 { border: 1px dashed var(--hairline-2); color: var(--muted); }
 .flag-chosen { background: #FEF3C7; color: var(--amber-ink); }
 .flag-campus { background: var(--slate-tint); color: var(--slate); }
-.flag-warn { background: var(--crimson-tint); color: var(--crimson); text-decoration: none; cursor: pointer; border: 0; }
+.flag-warn { background: var(--crimson-tint); color: var(--crimson); text-decoration: none; }
+button.flag-warn { min-height: 24px; border: 0; cursor: pointer; }
+button.flag-warn:hover { background: var(--blush); }
 .flag-done { background: var(--ok-tint); color: var(--ok); }
 .subj-note { margin-top: 4px; font-size: 12px; color: var(--muted); }
 .subj-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; align-self: start; }
@@ -359,7 +412,7 @@ body.has-campus .pill.online { background: var(--ok-tint); border-color: #b6e2c4
   transition: background .15s, transform .15s;
 }
 .select-btn:hover { background: var(--amber-ink); transform: translateX(2px); }
-.text-btn { background: none; border: 0; padding: 0 0 2px; font: 700 10px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); cursor: pointer; border-bottom: 1px solid var(--hairline-2); }
+.text-btn { min-height: 24px; background: none; border: 0; padding: 0; font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); cursor: pointer; border-bottom: 1px solid var(--hairline-2); }
 .text-btn:hover { color: var(--crimson); border-color: var(--crimson); }
 .text-btn.strong { color: var(--amber-ink); border-color: var(--gold); }
 .inline-opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
@@ -375,7 +428,7 @@ body.has-campus .pill.online { background: var(--ok-tint); border-color: #b6e2c4
 .inline-opt[disabled] { opacity: .45; cursor: not-allowed; }
 
 /* animated completion checkbox */
-.tick { position: relative; display: inline-grid; place-items: center; width: 22px; height: 22px; flex: none; cursor: pointer; }
+.tick { position: relative; display: inline-grid; place-items: center; width: 24px; height: 24px; flex: none; cursor: pointer; }
 .tick input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
 .tick-box { width: 20px; height: 20px; border-radius: 3px; border: 1.5px solid var(--hairline-2); background: var(--surface); display: grid; place-items: center; transition: background .2s, border-color .2s, transform .2s; }
 .tick-box::after { content: ""; width: 9px; height: 5px; margin-top: -2px; border-left: 2.2px solid #fff; border-bottom: 2.2px solid #fff; transform: rotate(-45deg) scale(0); transition: transform .22s cubic-bezier(.3, 1.6, .55, 1); }
@@ -394,7 +447,8 @@ body.has-campus .pill.online { background: var(--ok-tint); border-color: #b6e2c4
   display: inline-flex; align-items: baseline; gap: 8px; border: 0; background: none; padding: 13px 12px 12px; cursor: pointer;
   font: 700 10.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap;
 }
-.tab .idx { font: 700 11px var(--mono); letter-spacing: 0; color: var(--faint); }
+.tab:hover { color: var(--ink); border-bottom-color: var(--hairline-2); }
+.tab .idx { font: 700 11px var(--mono); letter-spacing: 0; color: var(--muted); }
 .tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--crimson); }
 .tab[aria-selected="true"] .idx { color: var(--crimson); }
 .tab-panel { padding: 22px 22px 26px; }
@@ -409,23 +463,24 @@ body.has-campus .pill.online { background: var(--ok-tint); border-color: #b6e2c4
 .acc-list li, .exit-list li { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font-size: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--hairline); }
 .src-list li { font-size: 13.5px; padding-left: 16px; position: relative; }
 .src-list li::before { content: ""; position: absolute; left: 0; top: .7em; width: 8px; height: 1px; background: var(--gold); }
-.status { flex: none; font: 700 9.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; padding: 3px 8px; border-radius: 2px; white-space: nowrap; }
+.status { flex: none; font: 700 10.5px var(--sans); letter-spacing: .1em; text-transform: uppercase; padding: 3px 8px; border-radius: 2px; white-space: nowrap; }
 .status-essential { background: var(--crimson-tint); color: var(--crimson); }
 .status-major { background: var(--teal-tint); color: var(--teal); }
 .status-non { background: var(--surface-2); color: var(--muted); }
 .kv { margin: 0 0 14px; font-size: 14px; }
-.kv dt { font: 700 9.5px var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+.kv dt { font: 700 10.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
 .kv dd { margin: 4px 0 0; }
 .cat-filters { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; margin-bottom: 12px; }
 .input { width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--hairline-2); border-radius: 2px; background: var(--surface); color: var(--ink); font-size: 14px; }
 .check-row { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; cursor: pointer; }
-.check-row input { margin-top: 3px; accent-color: var(--crimson); }
+.check-row input { flex: none; width: 16px; height: 16px; margin-top: 3px; accent-color: var(--crimson); }
 .table-scroll { overflow-x: auto; border: 1px solid var(--hairline); max-height: 620px; }
 table.cat { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-table.cat th { position: sticky; top: 0; background: var(--ink); color: #fff; text-align: left; font: 700 9.5px var(--sans); letter-spacing: .18em; text-transform: uppercase; padding: 11px 10px; z-index: 1; }
+table.cat th { position: sticky; top: 0; background: var(--ink); color: #fff; text-align: left; font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; padding: 11px 10px; z-index: 1; }
 table.cat td { padding: 8px 10px; border-bottom: 1px solid var(--hairline); vertical-align: top; }
 table.cat tr.in-plan td { background: var(--gold-tint); }
 table.cat td.c-code { font: 700 12.5px var(--mono); white-space: nowrap; color: var(--crimson); }
+table.cat td:nth-child(4) { white-space: nowrap; }
 table.cat td.c-comp { color: var(--muted); font-size: 12.5px; max-width: 260px; }
 .cat-count { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
 
@@ -440,12 +495,12 @@ table.cat td.c-comp { color: var(--muted); font-size: 12.5px; max-width: 260px; 
 .foot-crest { width: 112px; height: 58px; }
 .foot-sub { margin: 0; font: italic 500 17px var(--serif); color: var(--gold-soft); }
 .foot-name { margin: 0; font: 700 15px/1.25 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: #fff; }
-.foot-tag { margin: 8px 0 0; font: 700 10px var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--gold); }
-.foot-col h4 { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font: 700 10.5px var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--gold); }
-.foot-col h4::before { content: ""; width: 24px; height: 1px; background: currentColor; }
+.foot-tag { margin: 8px 0 0; font: 700 10.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
+.foot-col h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font: 700 10.5px var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--gold); }
+.foot-col h2::before { content: ""; width: 24px; height: 1px; background: currentColor; }
 .foot-col p { margin: 0 0 10px; font-size: 13px; line-height: 1.65; }
 .foot-links { display: grid; gap: 10px; margin-top: 6px; }
-.foot-links a { color: #fff; font: 700 10.5px var(--sans); letter-spacing: .18em; text-transform: uppercase; text-decoration: none; width: fit-content; border-bottom: 1px solid var(--gold); padding-bottom: 2px; }
+.foot-links a { display: inline-flex; align-items: center; min-height: 24px; color: #fff; font: 700 10.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; text-decoration: none; width: fit-content; border-bottom: 1px solid var(--gold); }
 .foot-links a:hover { color: var(--gold-soft); }
 .foot-base {
   position: relative; max-width: 1280px; margin: 0 auto; padding-block: 16px 24px; padding-left: var(--gutter); padding-right: var(--gutter-r);
@@ -465,11 +520,12 @@ table.cat td.c-comp { color: var(--muted); font-size: 12.5px; max-width: 260px; 
 .modal-x:hover { background: var(--surface-2); color: var(--ink); }
 .modal-tools { padding: 12px 20px; display: grid; gap: 10px; border-bottom: 1px solid var(--hairline); background: var(--canvas); }
 .tool-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.chip { border: 1px solid var(--hairline-2); background: var(--surface); border-radius: 2px; padding: 6px 11px; font: 700 10px var(--sans); letter-spacing: .14em; text-transform: uppercase; cursor: pointer; color: var(--muted); min-height: 32px; }
+.chip { border: 1px solid var(--hairline-2); background: var(--surface); border-radius: 2px; padding: 4px 10px; font: 600 12.5px/1.25 var(--sans); cursor: pointer; color: var(--text); min-height: 30px; }
+.chip:not([aria-pressed="true"]):hover { border-color: var(--muted); color: var(--ink); }
 .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
 .modal-body { overflow-y: auto; padding: 8px 12px 14px; flex: 1; min-height: 0; }
 .modal-foot { padding: 12px 20px; border-top: 1px solid var(--hairline); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-.pick-section h4 { margin: 16px 8px 6px; font: 700 9.5px var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+.pick-section h3 { margin: 16px 8px 6px; font: 700 10.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
 .pick-list { display: grid; gap: 4px; }
 .pick {
   display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; width: 100%;
@@ -478,15 +534,16 @@ table.cat td.c-comp { color: var(--muted); font-size: 12.5px; max-width: 260px; 
 .pick:hover:not([disabled]) { background: var(--canvas); border-color: var(--hairline); }
 .pick[aria-current="true"] { background: var(--gold-tint); border-color: #ecd9a4; }
 .pick[disabled] { cursor: not-allowed; opacity: .5; }
+.pick:active:not([disabled]) { background: var(--surface-2); }
 .pick .p-code { font: 700 12.5px var(--mono); color: var(--crimson); }
 .pick .p-title { font-size: 14px; font-weight: 700; color: var(--ink); }
 .pick .p-meta { grid-column: 2 / 3; font-size: 12px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; }
 .pick .p-side { grid-row: 1 / span 2; grid-column: 3; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
 .pick-empty { padding: 26px 12px; text-align: center; color: var(--muted); font-size: 14px; }
 .pick-hint { margin: 6px 10px 4px; font-size: 13px; color: var(--muted); }
-.pick-best h4 { color: var(--bronze); }
+.pick-best h3 { color: var(--bronze-ink); }
 .pick-best .pick { border-color: #ecd9a4; background: var(--gold-tint); }
-.status-best { background: var(--gold); color: #fff; }
+.status-best { background: var(--gold); color: var(--ink); }
 .pick mark, table.cat mark { background: #FCE7A6; color: inherit; padding: 0 1px; border-radius: 2px; }
 table.cat tr.extra td.c-code { color: var(--slate); }
 .custom-form { display: grid; grid-template-columns: 140px minmax(0, 1fr) auto; gap: 8px; align-items: end; padding: 6px 8px 4px; }
@@ -495,11 +552,12 @@ table.cat tr.extra td.c-code { color: var(--slate); }
 .export-layout { display: grid; grid-template-columns: 330px minmax(0, 1fr); flex: 1; min-height: 0; }
 .export-settings { border-right: 1px solid var(--hairline); padding: 16px 18px; overflow-y: auto; display: grid; gap: 16px; align-content: start; }
 .export-settings fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
-.export-settings legend { font: 700 9.5px var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; padding: 0; }
+.export-settings legend { font: 700 10.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; padding: 0; }
 .opt-card { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; padding: 11px 12px; border-radius: 2px; border: 1px solid var(--hairline-2); cursor: pointer; background: var(--surface); }
 .opt-card input { margin: 3px 0 0; accent-color: var(--crimson); grid-row: span 2; }
 .opt-card b { font-size: 14px; color: var(--ink); }
 .opt-card span { font-size: 12.5px; color: var(--muted); }
+.opt-card:not(.is-off):hover { border-color: var(--muted); }
 .opt-card:has(input:checked) { border-color: var(--crimson); box-shadow: 0 0 0 1px var(--crimson) inset; background: var(--crimson-tint); }
 .export-preview { background: #E7E1D8; overflow: auto; padding: 18px; position: relative; }
 .preview-stage { transform-origin: top left; }
@@ -513,56 +571,105 @@ table.cat tr.extra td.c-code { color: var(--slate); }
 
 /* ---------- responsive */
 @media (max-width: 1180px) {
+  .dock-card { grid-template-columns: minmax(0, 2fr) minmax(0, 1.7fr) minmax(136px, 1.2fr) auto minmax(160px, 1.2fr); gap: 10px; }
+  .select-wrap select { padding-right: 28px; }
+  .select-wrap::after { right: 11px; }
+  .segmented button { padding-inline: 10px; }
+  .hero-crest { width: 160px; height: 83px; }
+  .hero-est { display: none; }
+}
+@media (max-width: 1120px) {
+  .top-link { display: none; }
+}
+/* below this the dock takes two rows, too much to keep on screen, so a small bar stands in for it */
+@media (max-width: 1040px) {
+  :root { --stick-h: 60px; }
+  .dock { position: static; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
   .dock-card { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); }
   .dock-card .progress { grid-column: span 2; }
-  .hero-crest { width: 210px; height: 109px; }
 }
 @media (max-width: 980px) {
-  .top-link { display: none; }
   .foot-inner { grid-template-columns: 1fr 1fr; }
   .foot-brand { grid-column: 1 / -1; }
   .cat-filters { grid-template-columns: 1fr 1fr; }
   .export-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(320px, 1fr); }
   .export-settings { border-right: 0; border-bottom: 1px solid var(--hairline); max-height: 42vh; }
 }
+/* the masthead actions move into a menu before they would wrap */
+@media (max-width: 1040px) {
+  .top-menu-btn { display: inline-flex; flex: none; border-color: var(--hairline-2); }
+  .top-menu-btn::after { content: "▾"; color: var(--crimson); }
+  .top-menu-btn[aria-expanded="true"]::after { content: "▴"; }
+  .top-actions {
+    display: none; position: absolute; top: 100%; right: var(--gutter-r); z-index: 60; min-width: min(280px, calc(100vw - 32px)); flex-direction: column; align-items: stretch; gap: 2px; padding: 8px;
+    background: var(--surface); border: 1px solid var(--hairline); border-top: 2px solid var(--crimson); border-radius: 0 0 var(--radius) var(--radius); box-shadow: var(--shadow-lg);
+  }
+  .top-actions.is-open { display: flex; }
+  .top-actions .tbtn { justify-content: flex-start; min-height: 44px; }
+  .top-actions .top-link { display: inline-flex; }
+}
 @media (max-width: 900px) {
-  .dock { position: static; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
-  html { scroll-padding-top: 16px; }
-  .subj { scroll-margin-top: 16px; }
   .two-col { grid-template-columns: 1fr; }
   .hero-seal { display: none; }
   .hero-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
   :root { --gutter: max(16px, env(safe-area-inset-left, 0px)); --gutter-r: max(16px, env(safe-area-inset-right, 0px)); }
-  .topbar-inner { flex-wrap: wrap; gap: 8px; }
-  .top-actions { width: 100%; justify-content: flex-start; gap: 0; }
+  .topbar-inner { gap: 10px; }
   .tbtn { padding: 8px 10px; letter-spacing: .12em; min-height: 36px; }
-  .hero-grid { padding-block: 26px 24px; }
-  .hero-band .kicker::before { width: 20px; }
-  .brand-crest { width: 84px; height: 44px; }
+  .crest-text small { display: none; }
+  .hero-grid { padding-block: 14px 14px; }
+  .hero-app { font-size: 16px; }
+  .hero-band h1 { font-size: clamp(26px, 7.4vw, 34px); }
+  .hero-meta { gap: 6px 10px; font-size: 13px; }
+  .brand-crest { width: 76px; height: 40px; }
   .crest { gap: 10px; }
   .crest-text { padding-left: 10px; }
   .ct-ws { font-size: 15px; }
   .ct-lsa { font-size: 12.5px; }
-  .dock-card { grid-template-columns: 1fr; }
-  .dock-card .progress { grid-column: auto; }
-  .ribbon { display: grid; grid-template-columns: 1fr 1fr; }
-  .ribbon > div { padding: 12px 14px; border-right: 0; border-bottom: 1px solid var(--hairline); }
-  .ribbon > div:nth-child(odd) { border-right: 1px solid var(--hairline); }
-  .ribbon > div:last-child { grid-column: 1 / -1; margin-left: 0; border-bottom: 0; border-right: 0; }
+  /* facts stay in the page, after the plan, so the plan comes first on a small screen */
+  .stack > #facts { order: 1; }
+  .stack > #details { order: 2; }
+  /* the selects say what they are once chosen, so their labels make way for the plan */
+  .dock { padding-block: 8px 0; }
+  .dock-card { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 10px; }
+  .dock-card > .field:nth-child(-n+2), .dock-card .progress { grid-column: 1 / -1; }
+  .dock .field > label, .dock .field > .field-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .dock .segmented { display: flex; }
+  .dock .segmented button { flex: 1; padding: 0 4px; letter-spacing: .06em; }
+  .progress { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; align-items: baseline; }
+  .progress-top { display: contents; }
+  .progress .field-label { display: none; }
+  .progress-meta { grid-row: 1; grid-column: 1; }
+  .progress-num { grid-row: 1; grid-column: 2; }
+  .progress .bar { grid-row: 2; grid-column: 1 / -1; }
+  .lg-long { display: none; }
+  .section-head h2 { font-size: 27px; }
+  .section-tools, .tool-group { width: 100%; }
+  .tool-group { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .section-tools .tbtn { min-height: 38px; padding: 6px 8px; white-space: normal; line-height: 1.25; letter-spacing: .08em; text-align: center; }
+  .ribbon { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ribbon > div { padding: 7px 12px; }
+  .ribbon > div:last-child { grid-column: 1 / -1; align-items: stretch; padding: 7px 12px 9px; }
+  .rb-v { font-size: 17px; }
+  .rb-v.big { font-size: 24px; }
+  .rb-v small { font-size: 13px; }
   .advisory > summary { flex-wrap: wrap; gap: 6px 10px; }
   .adv-counts { flex-basis: 100%; order: 3; }
   .adv-body { grid-template-columns: 1fr; }
   .sessions { grid-template-columns: 1fr; }
   .session + .session { border-left: 0; border-top: 1px solid var(--hairline); }
-  .year-bar h2 { font-size: 26px; }
-  .year-bar::after { font-size: 80px; }
-  .subj { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "lead side" "main main"; }
+  .year-bar { padding: 8px 12px 8px 14px; }
+  .year-bar h2 { font-size: 25px; }
+  .year-bar::after { font-size: 72px; }
+  /* a card reads top down: tick, code and credit points; title; type and tools; campuses */
+  .subj { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "lead cp" "main main" "pills pills"; }
   .subj-lead { grid-area: lead; }
-  .subj-side { grid-area: side; flex-direction: row-reverse; align-items: center; justify-content: flex-start; flex-wrap: wrap; }
+  .subj-side { display: contents; }
+  .subj-side .cp-badge { grid-area: cp; justify-self: end; }
+  .subj-side .pills { grid-area: pills; justify-content: flex-start; }
+  .subj-side .pills:empty { display: none; }
   .subj-main { grid-area: main; }
-  .pills { justify-content: flex-start; }
   .foot-inner { grid-template-columns: 1fr; }
   .cat-filters, .custom-form { grid-template-columns: 1fr; }
   .pick { grid-template-columns: 82px minmax(0, 1fr); }
@@ -573,17 +680,15 @@ table.cat tr.extra td.c-code { color: var(--slate); }
 }
 
 /* ---------- custom degree plans */
-.section-head { align-items: flex-end; flex-wrap: wrap; }
-.section-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .add-slot { color: var(--amber-ink); border-color: var(--gold); }
 .session-cp.over { color: var(--crimson); }
-.session-cp.over::after { content: " · over load"; font: 700 9.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; }
+.session-cp.over::after { content: " · over load"; font: 700 10.5px var(--sans); letter-spacing: .1em; text-transform: uppercase; }
 .grid-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .plan-empty { padding: 22px; border: 1.5px dashed var(--amber); background: var(--amber-tint); color: var(--amber-ink); font-size: 14px; }
 .structure-row.row-open .sbar span { background: repeating-linear-gradient(90deg, var(--amber) 0 6px, transparent 6px 10px); }
 .custom-form.cf-cp { grid-template-columns: 140px minmax(0, 1fr) 104px auto; }
 .move-row { display: flex; align-items: center; gap: 10px; }
-.move-row label { font: 700 10px var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.move-row label { font: 700 10.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 .move-row .select-wrap select { min-height: 38px; font-size: 13.5px; }
 .modal-setup { width: min(760px, 100%); }
 .setup-body { overflow-y: auto; padding: 18px 20px 20px; display: grid; gap: 22px; flex: 1; min-height: 0; }
@@ -611,51 +716,87 @@ table.cat tr.extra td.c-code { color: var(--slate); }
 }
 
 /* ---------- School of Law notice and Summer sessions */
-.notice-card {
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 14px 28px; padding: 18px 22px;
-  background: var(--surface); border: 1px solid var(--hairline); border-left: 4px solid var(--gold); border-radius: var(--radius); box-shadow: var(--shadow);
-}
-.notice-main h3 { margin: 4px 0 6px; font: 600 24px/1.15 var(--serif); color: var(--ink); }
-.notice-main p:not(.kicker), .notice-contact p { margin: 0; font-size: 13.5px; color: var(--muted); max-width: 78ch; }
+.notice { background: var(--gold-tint); border-bottom: 1px solid #ecd9a4; }
+.notice-sum { display: flex; align-items: center; gap: 6px 18px; min-height: 36px; padding-block: 6px; cursor: pointer; list-style: none; font-size: 13.5px; }
+.notice-sum::-webkit-details-marker { display: none; }
+.notice-sum:focus-visible { outline-offset: -3px; }
+.notice-tag { flex: none; font: 700 10.5px/1.3 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--crimson); }
+.notice-tag i { font-style: normal; opacity: .7; padding: 0 .15em; }
+.notice-lead { flex: 1; min-width: 0; line-height: 1.35; }
+.notice-lead b { color: var(--ink); }
+.notice-cta { flex: none; font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--crimson); white-space: nowrap; border-bottom: 1px solid var(--gold); }
+.notice-cta::after { content: " ▾"; }
+.notice-box[open] .notice-cta::after { content: " ▴"; }
+.notice-sum:hover .notice-cta { color: var(--burgundy); border-color: var(--burgundy); }
+.notice-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 14px 28px; padding-block: 4px 18px; }
+.notice-main { display: grid; gap: 8px; align-content: start; }
+.notice-main h3 { margin: 6px 0 0; font: 600 22px/1.15 var(--serif); color: var(--ink); }
+.notice-main p, .notice-contact p { margin: 0; font-size: 13.5px; color: var(--muted); max-width: 88ch; }
 .notice-main b { color: var(--ink); }
-.notice-contact { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-left: 22px; border-left: 1px solid var(--hairline); }
+.notice-contact { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-left: 22px; border-left: 1px solid #ecd9a4; }
 .notice-mail { font-family: var(--mono); letter-spacing: 0; text-transform: none; font-size: 12.5px; overflow-wrap: anywhere; }
-.notice-more { grid-column: 1 / -1; border-top: 1px solid var(--hairline); padding-top: 10px; }
-.notice-more > summary { cursor: pointer; font: 700 10.5px var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--crimson); }
-.notice-more p { margin: 10px 0 0; font-size: 13px; color: var(--muted); max-width: 90ch; }
-.phase-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
-.phase-grid > div { display: grid; gap: 4px; align-content: start; padding: 10px 12px; background: var(--canvas); border: 1px solid var(--hairline); font-size: 13px; }
+.phase-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.phase-grid > div { display: grid; gap: 4px; align-content: start; padding: 10px 12px; background: var(--surface); border: 1px solid #ecd9a4; font-size: 13px; }
+@media (max-width: 960px) {
+  .notice-sum { flex-wrap: wrap; gap: 2px 12px; }
+  .notice-cta { order: 2; margin-left: auto; }
+  .notice-lead { order: 3; flex: 1 1 100%; }
+}
 .phase-grid b { font: 600 20px/1 var(--serif); color: var(--crimson); }
 .phase-grid code { font: 700 11.5px var(--mono); color: var(--ink); }
 .summer-add {
   position: relative; z-index: 1; background: transparent; border: 1px solid rgba(197, 155, 39, .7); border-radius: 2px; padding: 5px 10px;
-  color: var(--gold-soft); font: 700 10px var(--sans); letter-spacing: .16em; text-transform: uppercase; cursor: pointer; white-space: nowrap;
+  color: var(--gold-soft); font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; cursor: pointer; white-space: nowrap;
 }
 .summer-add:hover { background: var(--gold); border-color: var(--gold); color: var(--ink); }
 .session.session-summer { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--hairline); background: linear-gradient(180deg, var(--gold-tint), transparent 120px); }
-.session-summer .session-head h3 span { color: var(--bronze); }
+.session-summer .session-head h3 span { color: var(--bronze-ink); }
 .session-summer .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .cs-summer { margin: 0; padding: 9px 12px; background: var(--gold-tint); border-left: 3px solid var(--gold); color: var(--ink-2); font-size: 13px; }
 .summer-hint { padding: 9px 12px; background: var(--gold-tint); border-left: 3px solid var(--gold); color: var(--ink-2); }
 @media (max-width: 760px) {
-  .notice-card { grid-template-columns: 1fr; padding: 16px; }
-  .notice-contact { padding-left: 0; border-left: 0; padding-top: 12px; border-top: 1px solid var(--hairline); }
+  .notice-sum { font-size: 13px; }
+  .notice-tag { letter-spacing: .1em; }
+  .wide-only { display: none; }
+  .notice-body { grid-template-columns: 1fr; }
+  .notice-contact { padding-left: 0; border-left: 0; padding-top: 12px; border-top: 1px solid #ecd9a4; }
   .phase-grid { grid-template-columns: 1fr; }
   .year-bar { flex-wrap: wrap; }
+  .year-toggle { order: 2; margin-left: auto; }
+  .year-cp { order: 3; flex-basis: 100%; margin-left: 0; text-align: left; }
+  .year-cp .done { display: inline; margin: 0 0 0 8px; }
   .session-summer .slots { grid-template-columns: 1fr; }
 }
 
 /* ---------- calendar years, next to enrol and tick off from results */
-.year-bar h2 small { display: block; margin-top: 5px; font: 700 10px/1 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--gold); }
+.year-bar h2 small { display: block; margin-top: 5px; font: 700 10.5px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
 .next-card {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; padding: 16px 22px;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 20px; padding: 10px 18px 12px;
   background: var(--surface); border: 1px solid var(--hairline); border-left: 4px solid var(--crimson); border-radius: var(--radius); box-shadow: var(--shadow);
 }
-.next-main { flex: 1 1 520px; min-width: 0; display: grid; gap: 8px; }
-.next-main h3 { margin: 0; font: 600 24px/1.15 var(--serif); color: var(--ink); }
-.next-main h3 small { font: 700 10.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-left: 6px; }
-.next-note { margin: 0; font-size: 13px; color: var(--amber-ink); }
-.next-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.next-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 14px; min-width: 0; }
+.next-head h2 { margin: 0; font: 600 24px/1.15 var(--serif); color: var(--ink); }
+.next-head h2 small { font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-left: 6px; }
+.next-side { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.next-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.next-side .tbtn { min-height: 36px; padding: 7px 12px; letter-spacing: .12em; }
+.next-side .text-btn { letter-spacing: .1em; }
+.next-head .kicker::before { display: none; }
+.next-alt { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding-left: 16px; border-left: 1px solid var(--hairline); }
+.next-alt-l { font: 700 10.5px/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.next-chips { flex: 1 1 100%; }
+.chipbtn .cb-t { color: var(--text); font-size: 12.5px; }
+.next-note { flex: 1 1 100%; margin: -2px 0 0; font-size: 13px; color: var(--amber-ink); }
+@media (max-width: 860px) {
+  .next-alt { padding-left: 0; border-left: 0; }
+}
+@media (max-width: 760px) {
+  .next-card { padding: 10px 14px 12px; }
+  .next-head h2 { font-size: 22px; }
+  .next-side, .next-actions { width: 100%; }
+  .next-actions .tbtn { flex: 1; }
+  .next-chips .chipbtn:not(.is-open) .cb-t { display: none; }
+}
 .chipbtn.is-open { border-style: dashed; }
 .import-body { display: grid; gap: 8px; align-content: start; padding: 14px 20px; }
 .import-body textarea { width: 100%; resize: vertical; font: 13px/1.5 var(--mono); min-height: 120px; }
@@ -680,7 +821,7 @@ table.cat tr.extra td.c-code { color: var(--slate); }
 .progress-facts small { display: block; color: var(--muted); }
 .progress-sessions { display: grid; gap: 8px; }
 .ps-row { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; align-items: start; }
-.ps-when { font: 700 10px/2.2 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.ps-when { font: 700 10.5px/2.2 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .import-list { display: grid; gap: 4px; }
 .import-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--hairline); border-radius: 3px; cursor: pointer; font-size: 13.5px; }
 .import-row:hover { border-color: var(--hairline-2); }
@@ -702,12 +843,12 @@ table.cat tr.extra td.c-code { color: var(--slate); }
 @keyframes card-in { from { opacity: 0; transform: translateY(8px); } }
 .tab-panel.panel-in, .inline-opts.opts-in, #next.is-changed .next-card { animation: panel-in .3s cubic-bezier(.22, 1, .36, 1); }
 @keyframes panel-in { from { opacity: 0; transform: translateY(6px); } }
-.advisory, .notice-more { interpolate-size: allow-keywords; }
-.advisory::details-content, .notice-more::details-content {
+.advisory, .notice-box, .legend-box { interpolate-size: allow-keywords; }
+.advisory::details-content, .notice-box::details-content, .legend-box::details-content {
   block-size: 0; overflow: clip; opacity: 0;
   transition: block-size .32s cubic-bezier(.22, 1, .36, 1), opacity .24s ease, content-visibility .32s allow-discrete;
 }
-.advisory[open]::details-content, .notice-more[open]::details-content { block-size: auto; opacity: 1; }
+.advisory[open]::details-content, .notice-box[open]::details-content, .legend-box[open]::details-content { block-size: auto; opacity: 1; }
 .progress-num .num, .rb-v .num { font-variant-numeric: tabular-nums; }
 .bar.glow { overflow: visible; }
 .bar.glow > span { position: relative; overflow: hidden; animation: bar-glow 1.4s ease-out; }
@@ -718,9 +859,11 @@ table.cat tr.extra td.c-code { color: var(--slate); }
 @keyframes year-glow { 35% { box-shadow: inset 0 0 0 1px var(--gold), 0 0 20px rgba(197, 155, 39, .5); } }
 html.vt-cards .subj { view-transition-name: var(--vt); }
 html.vt-cards .dock { view-transition-name: wslsa-dock; }
+html.vt-cards .dmap { view-transition-name: wslsa-map; }
 ::view-transition-group(*) { animation-duration: .38s; animation-timing-function: cubic-bezier(.22, 1, .36, 1); }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; }
 ::view-transition-group(wslsa-dock) { z-index: 5; }
+::view-transition-group(wslsa-map) { z-index: 4; }
 
 /* ---------- windows open and close smoothly */
 .modal { animation: modal-in .18s cubic-bezier(.22, 1, .36, 1); }
@@ -734,7 +877,7 @@ html.vt-cards .dock { view-transition-name: wslsa-dock; }
 @keyframes modal-out { to { opacity: 0; transform: scale(.97); } }
 
 /* ---------- prerequisite chain */
-.chain-btn { padding: 1px 7px; border: 1px solid var(--hairline-2); border-radius: 999px; background: var(--surface); color: var(--muted); font: 700 9.5px/1.5 var(--sans); letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
+.chain-btn { min-height: 24px; padding: 0 9px; border: 1px solid var(--hairline-2); border-radius: 999px; background: var(--surface); color: var(--muted); font: 700 10.5px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
 .chain-btn:hover { border-color: var(--bronze); color: var(--ink); }
 .chain-btn[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--ink); }
 #grid.is-xray .subj:not(.xray-self):not([data-xray]) { opacity: .34; }
@@ -745,7 +888,7 @@ html.vt-cards .dock { view-transition-name: wslsa-dock; }
 .subj[data-xray^="Usually"] { outline: 1.5px dashed var(--slate); outline-offset: 1px; }
 .subj[data-xray]::after {
   content: attr(data-xray); position: absolute; top: -9px; right: 10px; z-index: 2; padding: 2px 8px; border-radius: 999px; pointer-events: none;
-  background: var(--gold); color: var(--ink); font: 700 9.5px/1.4 var(--sans); letter-spacing: .1em; text-transform: uppercase;
+  background: var(--gold); color: var(--ink); font: 700 10.5px/1.4 var(--sans); letter-spacing: .08em; text-transform: uppercase;
 }
 .subj[data-xray="Unlocks"]::after { background: var(--teal); color: #fff; }
 .subj[data-xray^="Usually"]::after { background: var(--slate); color: #fff; }
@@ -756,7 +899,7 @@ html.vt-cards .dock { view-transition-name: wslsa-dock; }
 /* ---------- commute check */
 .session-tools { flex-wrap: wrap; justify-content: flex-end; }
 .commute-slot:empty { display: none; }
-.commute-pill { padding: 1px 8px; border: 1px solid #d7deea; border-radius: 999px; background: var(--slate-tint); color: var(--slate); font: 700 10px/1.5 var(--mono); white-space: nowrap; cursor: help; }
+.commute-pill { padding: 1px 8px; border: 1px solid #d7deea; border-radius: 999px; background: var(--slate-tint); color: var(--slate); font: 700 10.5px/1.5 var(--mono); white-space: nowrap; cursor: help; }
 
 /* ---------- drag between sessions in a custom plan */
 .subj[draggable="true"] { cursor: grab; }
@@ -776,15 +919,13 @@ html.vt-cards .dock { view-transition-name: wslsa-dock; }
 .summer-add.drop-over { outline: 2px solid #fff; }
 
 /* ---------- search states and keyboard hints */
-.kbd-hint { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
-.modal-tools .kbd-hint { margin: 0; }
 kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid var(--hairline-2); border-bottom-width: 2px; border-radius: 3px; background: var(--surface); color: var(--ink); font: 700 10.5px/1.5 var(--mono); text-align: center; }
-.toast-action { margin-left: 12px; padding: 0 0 1px; border: 0; border-bottom: 1px solid var(--gold); background: none; color: var(--gold-soft); font: 700 11px var(--sans); letter-spacing: .14em; text-transform: uppercase; cursor: pointer; }
+.toast-action { min-height: 24px; margin-left: 12px; padding: 0; border: 0; border-bottom: 1px solid var(--gold); background: none; color: var(--gold-soft); font: 700 11px var(--sans); letter-spacing: .14em; text-transform: uppercase; cursor: pointer; }
 #toast.has-action.show { pointer-events: auto; }
 
-/* ---------- phone progress bar: the dock scrolls away below 900px, so this stands in for it */
+/* ---------- small-screen progress bar: the dock scrolls away below 1040px, so this stands in for it */
 .mini-bar { display: none; }
-@media (max-width: 900px) {
+@media (max-width: 1040px) {
   .mini-bar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: grid; grid-template-columns: auto auto minmax(40px, 1fr) auto; align-items: center; gap: 10px;
     padding: 8px max(12px, env(safe-area-inset-right, 0px)) max(8px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
@@ -803,40 +944,105 @@ kbd { display: inline-block; min-width: 18px; padding: 0 5px; border: 1px solid 
   #toast { bottom: max(62px, calc(env(safe-area-inset-bottom, 0px) + 58px)); }
   #xray-note { bottom: 62px; }
   #toast.show ~ #xray-note { bottom: 124px; }
-  .chain-btn { min-height: 26px; }
+}
+
+/* ---------- degree map */
+.dmap {
+  position: sticky; top: var(--dock-h); z-index: 35; overflow-x: auto; scrollbar-width: thin; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius);
+  box-shadow: 0 2px 10px rgba(30, 29, 32, .07);
+}
+.dm-list { display: flex; margin: 0; padding: 0; list-style: none; }
+.dm-year { flex: 1 0 auto; display: flex; align-items: center; gap: 2px; padding: 4px 6px; border-left: 1px solid var(--hairline); transition: background .15s; }
+.dm-year:first-child { border-left: 0; }
+.dm-year.is-here { background: var(--crimson-tint); box-shadow: inset 0 -2px 0 var(--crimson); }
+.dm-y, .dm-s { display: flex; align-items: center; gap: 6px; min-height: 30px; border: 1px solid transparent; border-radius: 2px; background: none; cursor: pointer; color: var(--muted); transition: background .15s, color .15s, border-color .15s; }
+.dm-y { flex: none; padding: 0 6px; font: 700 10.5px var(--sans); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+.dm-s { flex: 1 1 54px; min-width: 54px; padding: 0 6px; font: 600 11px var(--sans); }
+.dm-y:hover, .dm-s:hover { background: var(--surface-2); color: var(--ink); }
+.dm-y:focus-visible, .dm-s:focus-visible { outline-offset: -2px; }
+.dm-many .dm-year { padding-inline: 3px; }
+.dm-many .dm-y { padding-inline: 4px; letter-spacing: 0; }
+.dm-many .dm-s { flex-basis: 36px; min-width: 36px; padding-inline: 4px; }
+.dm-many .dm-n { display: none; }
+.dm-many .dm-seg { min-width: 26px; gap: 1px; }
+.dm-year.is-here .dm-y { color: var(--crimson); }
+.dm-year.is-done .dm-yl::after { content: " ✓"; color: var(--ok); }
+.dm-s.is-next { border-color: var(--gold); background: var(--gold-tint); color: var(--ink); }
+.dm-fill { display: none; }
+.dm-seg { flex: 1; display: flex; gap: 2px; min-width: 22px; }
+.dm-seg i { flex: 1; height: 8px; border-radius: 1px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--hairline-2); }
+.dm-seg i.on { background: var(--ok); box-shadow: none; }
+.dm-seg i.open { background: var(--amber-tint); box-shadow: inset 0 0 0 1px var(--amber); }
+@media (max-width: 1040px) {
+  .dmap { top: env(safe-area-inset-top, 0px); }
+}
+/* on a narrow screen each year is one tile with a progress line, and a long plan scrolls sideways */
+@media (max-width: 900px) {
+  .dm-year, .dm-many .dm-year { flex: 1 0 62px; padding: 0; }
+  .dm-many .dm-year { flex-basis: 44px; }
+  .dm-s { display: none; }
+  .dm-y, .dm-many .dm-y { flex: 1; flex-direction: column; justify-content: center; align-items: stretch; gap: 4px; min-height: 44px; padding: 0 8px; border: 0; border-radius: 0; text-align: center; letter-spacing: .04em; }
+  .dm-fill { display: block; height: 4px; background: var(--surface-2); border-radius: 2px; overflow: hidden; }
+  .dm-fill span { display: block; height: 100%; background: var(--ok); }
+}
+
+/* ---------- the tools on each card wait until the card is in use; a touch screen always shows them */
+@media (hover: hover) and (pointer: fine) {
+  .chain-btn, .defer-btn { opacity: 0; transition: opacity .12s, border-color .15s, color .15s; }
+  .subj:hover .chain-btn, .subj:hover .defer-btn, .subj:focus-within .chain-btn, .subj:focus-within .defer-btn, .chain-btn[aria-pressed="true"] { opacity: 1; }
 }
 
 /* ---------- practice areas, session load, defer, compare */
 .area-chips { margin-top: 2px; }
 .area-note { margin: 6px 0 10px; font-size: 12px; color: var(--muted); }
 .modal-tools .area-note { margin: 0; }
-.area-tag { display: inline-block; margin: 0 4px; padding: 0 7px; border: 1px solid #ecd9a4; border-radius: 999px; background: var(--gold-tint); color: var(--amber-ink); font: 700 10px/1.6 var(--sans); letter-spacing: 0; text-transform: none; white-space: nowrap; }
+.area-tag { display: inline-block; margin: 0 4px; padding: 0 7px; border: 1px solid #ecd9a4; border-radius: 999px; background: var(--gold-tint); color: var(--amber-ink); font: 700 10.5px/1.6 var(--sans); letter-spacing: 0; text-transform: none; white-space: nowrap; }
 .load-slot:empty { display: none; }
-.load-pill { padding: 1px 8px; border: 1px solid #f1d6a8; border-radius: 999px; background: var(--amber-tint); color: var(--amber-ink); font: 700 10px/1.5 var(--mono); white-space: nowrap; cursor: help; }
-.defer-btn { padding: 1px 7px; border: 1px solid var(--hairline-2); border-radius: 999px; background: var(--surface); color: var(--muted); font: 700 9.5px/1.5 var(--sans); letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
+.load-pill { padding: 1px 8px; border: 1px solid #f1d6a8; border-radius: 999px; background: var(--amber-tint); color: var(--amber-ink); font: 700 10.5px/1.5 var(--mono); white-space: nowrap; cursor: help; }
+.defer-btn { min-height: 24px; padding: 0 9px; border: 1px solid var(--hairline-2); border-radius: 999px; background: var(--surface); color: var(--muted); font: 700 10.5px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
 .defer-btn:hover { border-color: var(--crimson); color: var(--crimson); }
 .structure-done { border-bottom: 0; }
 .structure-done .sbar span, .structure-row[data-area] .sbar i { transition: width .35s ease; }
 .structure-row[data-area] .sbar > span { background: var(--hairline-2); }
 .structure-row[data-area] .sbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--crimson), var(--gold)); }
 .compare-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-.compare-table thead th { padding: 10px; background: var(--ink); color: #fff; text-align: left; font: 700 9.5px var(--sans); letter-spacing: .18em; text-transform: uppercase; }
+.compare-table thead th { padding: 10px; background: var(--ink); color: #fff; text-align: left; font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; }
 .compare-table tbody th { width: 34%; padding: 8px 10px; border-bottom: 1px solid var(--hairline); color: var(--muted); text-align: left; font: 600 13px var(--sans); }
 .compare-table td { padding: 8px 10px; border-bottom: 1px solid var(--hairline); color: var(--text); }
 .compare-table tr.is-diff td { background: var(--gold-tint); font-weight: 700; color: var(--ink); }
-@media (max-width: 900px) {
-  .defer-btn { min-height: 26px; }
+/* a finger needs more room than a pointer, so the tick reaches past its box without moving the layout */
+@media (pointer: coarse) {
+  .tick { width: 40px; height: 40px; margin: -8px; }
+  .chain-btn, .defer-btn, .mark-all, .text-btn, button.flag-warn { min-height: 34px; }
+  .chain-btn, .defer-btn { padding-inline: 12px; }
+  .pill[role="button"] { height: 30px; }
+  .why-btn { min-height: 34px; }
+  .chip { min-height: 38px; }
+  .foot-links a { min-height: 34px; }
+  .year-toggle { width: 40px; height: 40px; }
+  .dm-s { min-height: 38px; }
+  .summer-add { min-height: 34px; }
 }
 /* on a phone the area chips scroll sideways, so the subject list stays in view */
 @media (max-width: 760px) {
   .modal-tools .area-chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
   .modal-tools .area-chips .chip { flex: none; }
+  .modal-tools .area-note { display: none; }
+  .modal-tools { padding: 10px 14px; gap: 8px; }
+  .modal-head { padding: 12px 14px 10px; }
+  .modal-head h2 { font-size: 24px; }
+  .modal-foot { padding: 8px 14px; }
+  .modal-foot .small { font-size: 12px; line-height: 1.35; }
 }
 @media (hover: none) {
   .kbd-only { display: none; }
 }
+@media (forced-colors: active) {
+  .dm-seg i, .bar, .dm-fill { border: 1px solid CanvasText; }
+  .dm-seg i.on, .bar > span, .dm-fill span { background: Highlight; forced-color-adjust: none; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .advisory::details-content, .notice-more::details-content { transition: none; }
+  .advisory::details-content, .notice-box::details-content, .legend-box::details-content { transition: none; }
 }
 
 </style>
@@ -1034,16 +1240,18 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
 </head>
 <body>
 <div class="app" id="app">
+  <a class="skip-link" href="#plan-heading" data-action="skip">Skip to your plan</a>
   <header class="topbar">
     <div class="topbar-inner">
       <a class="crest" href="#" data-action="top" aria-label="Western Sydney Law Students' Association, 2027 Degree Pathway Explorer, back to top">
         <span class="crest-img brand-crest" role="img" aria-label="WSLSA crest"></span>
         <span class="crest-text"><span class="ct-ws">Western Sydney</span><span class="ct-lsa">Law Students' Association</span><small>Est. 1996 · Degree Pathway Explorer</small></span>
       </a>
-      <nav class="top-actions" aria-label="Plan actions">
+      <button type="button" class="tbtn top-menu-btn" data-action="top-menu" aria-expanded="false" aria-controls="top-actions">Menu</button>
+      <nav class="top-actions" id="top-actions" aria-label="Plan actions">
         <a class="tbtn top-link" href="https://wslsa.com.au/" target="_blank" rel="noopener">wslsa.com.au ↗</a>
         <button type="button" class="tbtn" data-action="share" title="Copy a link that restores this exact plan on any device">Copy Share Link</button>
-        <button type="button" class="tbtn" data-action="reset" title="Clear choices and progress for this pathway">Reset Plan</button>
+        <button type="button" class="tbtn top-quiet" data-action="reset" title="Clear choices and progress for this pathway">Reset Plan</button>
         <button type="button" class="tbtn" data-action="export-open" title="Choose guide type, orientation and LLB Alternate filters, with a live A4 preview">PDF Options</button>
         <button type="button" class="tbtn tbtn-primary" data-action="print">Print / Save PDF →</button>
       </nav>
@@ -1051,11 +1259,12 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   </header>
 
   <main id="main">
+    <section class="notice" id="notice" aria-label="School of Law update"></section>
+
     <section class="hero-band" aria-labelledby="hero-title">
       <span class="hero-watermark crest-rev" aria-hidden="true"></span>
       <div class="wrap hero-grid">
         <div class="hero-copy">
-          <p class="kicker">Western Sydney Law Students' Association <i>·</i> Est. 1996 <i>·</i> By students, for students</p>
           <p class="hero-app"><b>2027</b> Degree Pathway Explorer</p>
           <h1 id="hero-title">Degree Pathway Explorer</h1>
           <div class="hero-meta" id="hero-meta"></div>
@@ -1073,18 +1282,20 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
 
     <div class="wrap stack">
       <section class="ribbon" id="facts" aria-label="Key facts"></section>
-      <section class="notice" id="notice" aria-label="School of Law update"></section>
       <section id="advisory" aria-label="Pathway advisory"></section>
       <section id="next" aria-label="Next to enrol"></section>
       <div class="section-head">
         <div>
           <p class="kicker" id="section-kicker">Recommended pathway <i>·</i> 2027</p>
-          <h2>Your degree, session by session</h2>
+          <h2 id="plan-heading" tabindex="-1">Your degree, session by session</h2>
         </div>
         <div class="section-tools" id="section-tools"></div>
       </div>
       <section class="micro-legend" id="legend" aria-label="Legend"></section>
-      <section class="grid" id="grid" aria-label="Recommended pathway"></section>
+      <div class="plan-body">
+        <nav class="dmap" id="dmap" aria-label="Jump to a year or session in your plan"></nav>
+        <section class="grid" id="grid" aria-label="Recommended pathway"></section>
+      </div>
       <section class="drawer" id="details" aria-label="Degree details"></section>
     </div>
   </main>
@@ -2296,7 +2507,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     if (r.pending.length && !ctx.custom) checks.push('<p><b>Still to choose:</b> ' + r.pending.map(function (s) { return '<button type="button" class="linkish" data-action="jump" data-slot="' + s.id + '">' + where(s) + '</button>'; }).join(', ') + '.</p>');
     if (checks.length) secs.push('<section class="adv-sec"><h3><span class="idx">' + idx() + '</span>' + (ctx.custom ? 'Campus &amp; session checks' : 'Campus &amp; choice checks') + '</h3>' + checks.join('') + '</section>');
 
-    setHTML($('#advisory'), '<details class="advisory ' + sev + '" id="advisory-box"' + (ui.advisoryOpen ? ' open' : '') + '>' +
+    setHTML($('#advisory'), '<h2 class="sr-only">Pathway advisory</h2><details class="advisory ' + sev + '" id="advisory-box"' + (ui.advisoryOpen ? ' open' : '') + '>' +
       '<summary>' + ALERT_ICON + '<span class="adv-label">Pathway Advisory</span><span class="adv-counts">' + parts.join(' · ') + '</span><span class="adv-cta">View details</span></summary>' +
       '<div class="adv-body">' + secs.join('') + '</div></details>');
   }
@@ -2304,44 +2515,45 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   // The next session with subjects still to do, with its codes ready to copy for enrolment.
   function renderNext(ctx) {
     const next = nextSession(ctx);
-    const actions = function (codes) {
+    const side = function (codes) {
       const lines = next ? next.slots.filter(function (s) { return !s.done && !s.pending; }).map(function (s) { return s.code + ' ' + s.title; }).join('\n') : '';
-      return '<div class="next-actions">' + (codes.length ? '<button type="button" class="tbtn tbtn-primary" data-action="copy-codes" data-codes="' + esc(codes.join(', ')) + '" data-copy="' + esc(lines) + '" title="Copy the codes and titles, ready for WSU MySR or Allocate+">Copy Codes</button>' : '') +
-        (next ? '<button type="button" class="tbtn tbtn-outline" data-action="ics" title="Save a calendar reminder for this session with your planned subjects and campuses">Export .ics</button>' : '') +
-        '<button type="button" class="tbtn tbtn-outline" data-action="progress-open" title="Already studying? Rebuild your plan from your Degree Works audit or Subject Results PDF, with your past years in it">Import my progress</button>' +
-        '<button type="button" class="tbtn tbtn-outline" data-action="import-open" title="Paste your academic record or results to tick off the subjects you have passed">Tick off from my results</button></div>';
+      const main = (codes.length ? '<button type="button" class="tbtn tbtn-primary" data-action="copy-codes" data-codes="' + esc(codes.join(', ')) + '" data-copy="' + esc(lines) + '" title="Copy the codes and titles, ready for WSU MySR or Allocate+">Copy Codes</button>' : '') +
+        (next ? '<button type="button" class="tbtn tbtn-outline" data-action="ics" title="Save a calendar reminder for this session with your planned subjects and campuses">Export .ics</button>' : '');
+      return '<div class="next-side">' + (main ? '<div class="next-actions">' + main + '</div>' : '') +
+        '<div class="next-alt"><span class="next-alt-l">Already studying?</span>' +
+        '<button type="button" class="tbtn tbtn-outline" data-action="progress-open" title="Rebuild your plan from your Degree Works audit or Subject Results PDF, with your past years in it">Import my progress</button>' +
+        '<button type="button" class="text-btn" data-action="import-open" title="Paste your academic record or results to tick off the subjects you have passed">Tick off from my results</button></div></div>';
     };
     if (!next) {
-      setHTML($('#next'), '<div class="next-card"><div class="next-main"><p class="kicker">Next to enrol</p><h3>' + (ctx.slots.length ? 'Every subject in your plan is ticked off' : 'Your plan has no subjects yet') + '</h3></div>' + actions([]) + '</div>');
+      setHTML($('#next'), '<div class="next-card"><div class="next-head"><p class="kicker">Next to enrol</p><h2>' + (ctx.slots.length ? 'Every subject in your plan is ticked off' : 'Your plan has no subjects yet') + '</h2></div>' + side([]) + '</div>');
       return;
     }
     const todo = next.slots.filter(function (s) { return !s.done; });
     const codes = todo.filter(function (s) { return !s.pending; }).map(function (s) { return s.code; });
     const choices = todo.filter(function (s) { return s.pending; }).length;
     const started = ctx.slots.some(function (s) { return s.done; });
-    setHTML($('#next'), '<div class="next-card"><div class="next-main">' +
+    setHTML($('#next'), '<div class="next-card"><div class="next-head">' +
       '<p class="kicker">' + (started ? 'Next to enrol' : 'Your first session') + '</p>' +
-      '<h3>' + sessionLabel(next.year, next.session) + ' <small>Year ' + next.year + (state.load === 'PT' ? ' · part-time' : '') + '</small></h3>' +
-      '<div class="chiplist">' + todo.map(function (s) {
-        return '<button type="button" class="chipbtn' + (s.pending ? ' is-open' : '') + '" data-action="jump" data-slot="' + s.id + '"><code>' + esc(s.pending ? 'Choose' : s.code) + '</code>' + esc(s.title) + ' <span>' + s.cp + ' CP</span></button>';
+      '<h2>' + sessionLabel(next.year, next.session) + ' <small>Year ' + next.year + (state.load === 'PT' ? ' · part-time' : '') + '</small></h2></div>' +
+      side(codes) +
+      '<div class="chiplist next-chips">' + todo.map(function (s) {
+        return '<button type="button" class="chipbtn' + (s.pending ? ' is-open' : '') + '" data-action="jump" data-slot="' + s.id + '" title="' + esc((s.pending ? '' : s.code + ' ') + s.title) + ', ' + s.cp + ' CP" aria-label="' + esc((s.pending ? 'Choose: ' : s.code + ' ') + s.title) + ', ' + s.cp + ' CP"><code>' + esc(s.pending ? 'Choose' : s.code) + '</code><span class="cb-t">' + esc(s.title) + '</span></button>';
       }).join('') + '</div>' +
-      (choices ? '<p class="next-note">' + plural(choices, 'choice') + ' to make before you enrol.</p>' : '') + '</div>' +
-      actions(codes) + '</div>');
+      (choices ? '<p class="next-note">' + plural(choices, 'choice') + ' to make before you enrol.</p>' : '') + '</div>');
   }
 
   function renderLegend(ctx) {
     const types = [['law', 'Law core', '--crimson'], ['nonlaw', 'Non-law core', '--slate'], ['major', 'Major / minor', '--teal']];
-    $('#legend').innerHTML =
-      '<div class="lg-group"><span class="lg-title">Unit type</span>' + types.map(function (t) {
+    setHTML($('#legend'), '<details class="legend-box" id="legend-box"' + (ui.legendOpen ? ' open' : '') + '><summary>' +
+      '<span class="lg-title">Key</span><span class="lg-group">' + types.map(function (t) {
         return '<span class="lg-sw"><i style="--k:var(' + t[2] + ')"></i>' + t[1] + '</span>';
-      }).join('') + '<span class="lg-sw slot"><i></i>' + (ctx.custom ? 'Open slot, your choice or a change' : 'Your choice (LLB Alternate, choice, elective)') + '</span></div>' +
-      '<span class="lg-sep" aria-hidden="true"></span>' +
+      }).join('') + '<span class="lg-sw slot"><i></i>' + (ctx.custom ? 'Open slot, your choice or a change' : 'Your choice<span class="lg-long"> (LLB Alternate, choice, elective)</span>') + '</span></span>' +
+      '<span class="lg-cta">Campus codes and tips</span></summary><div class="lg-body">' +
       '<div class="lg-group"><span class="lg-title">Campus</span>' + Object.keys(META.campuses).map(function (c) {
         return '<span class="lg-camp">' + pill(c, { focus: true }) + esc(META.campuses[c].replace(' (Kingswood)', '')) + '</span>';
       }).join('') + '<span class="lg-camp">' + pill('TBC', { focus: true }) + 'Not yet published</span>' +
       (state.campus ? '<button type="button" class="linkish small" data-action="campus-clear">Clear highlight</button>' : '') + '</div>' +
-      '<span class="lg-sep" aria-hidden="true"></span>' +
-      '<div class="lg-group"><span class="lg-title">Chain</span><span>Hover a subject, or press its Chain button, to see what it depends on and unlocks.</span></div>';
+      '<p class="lg-tip"><span class="lg-title">Chain</span> Hover a subject, or press its Chain button, to see what it depends on and unlocks.</p></div></details>');
   }
 
   function selectLabel(s) {
@@ -2428,11 +2640,93 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   }
   function sumCP(list, doneOnly) { return list.reduce(function (a, s) { return a + (!doneOnly || s.done ? s.cp : 0); }, 0); }
 
+  // Years that are already finished when a plan opens start folded, so a current student lands near
+  // where they are now. Ticking never folds a year: the page must not move under a student's hand.
+  function foldedYears(ctx, years) {
+    const key = ctx.key + '|' + state.load;
+    if (!ui.folded || ui.folded.key !== key) {
+      const fold = {};
+      if (ctx.slots.some(function (s) { return !s.done; })) {
+        years.forEach(function (y) {
+          const all = y.Autumn.concat(y.Spring, y.Summer);
+          if (all.length && all.every(function (s) { return s.done; })) fold[y.year] = true;
+        });
+      }
+      ui.folded = { key: key, years: fold };
+    }
+    return ui.folded.years;
+  }
+  function foldLabel(y, fold) { return (fold ? 'Show' : 'Hide') + ' Year ' + y + ' subjects'; }
+  function setYearFold(y, fold) {
+    const box = document.getElementById('year-' + y);
+    if (!box) return;
+    if (ui.folded) { if (fold) ui.folded.years[y] = true; else delete ui.folded.years[y]; }
+    box.classList.toggle('is-folded', fold);
+    box.querySelector('.sessions').hidden = fold;
+    const b = box.querySelector('.year-toggle');
+    b.setAttribute('aria-expanded', String(!fold));
+    b.setAttribute('aria-label', foldLabel(y, fold));
+    b.title = foldLabel(y, fold);
+  }
+
+  // ---- degree map: every session of the plan at a glance, one press from any of them
+  const SESSION_SHORT = { Autumn: 'Aut', Spring: 'Spr', Summer: 'Sum' };
+  function renderMap(ctx) {
+    const box = $('#dmap');
+    const years = timeline(ctx, state.load);
+    box.hidden = !years.length;
+    const next = nextSession(ctx);
+    const doneOf = function (list) { return list.filter(function (s) { return s.done; }).length; };
+    const many = years.length > 6;
+    setHTML(box, '<ol class="dm-list' + (many ? ' dm-many' : '') + '">' + years.map(function (y) {
+      const all = y.Autumn.concat(y.Spring, y.Summer);
+      const total = sumCP(all);
+      const finished = all.length && doneOf(all) === all.length;
+      const sessions = y.Summer.length ? PLAN_SESSIONS : SESSIONS;
+      const yearLabel = 'Year ' + y.year + ', ' + calYear(y.year) + ': ' + doneOf(all) + ' of ' + plural(all.length, 'subject') + ' done';
+      return '<li class="dm-year' + (finished ? ' is-done' : '') + '" data-y="' + y.year + '">' +
+        '<button type="button" class="dm-y" data-action="map-jump" data-y="' + y.year + '" aria-label="' + yearLabel + '" title="' + yearLabel + '"><span class="dm-yl">' + (many ? 'Y' : 'Year ') + y.year + '</span><span class="dm-fill"><span style="width:' + (total ? Math.round(sumCP(all, true) / total * 100) : 0) + '%"></span></span></button>' +
+        sessions.map(function (sess) {
+          const list = sortSlots(y[sess]);
+          const isNext = next && next.year === y.year && next.session === sess;
+          const label = sessionLabel(y.year, sess) + ', Year ' + y.year + ': ' + (list.length ? doneOf(list) + ' of ' + plural(list.length, 'subject') + ' done' : 'no subjects') + (isNext ? ', next to enrol' : '');
+          return '<button type="button" class="dm-s' + (isNext ? ' is-next' : '') + '" data-action="map-jump" data-y="' + y.year + '" data-s="' + sess + '" aria-label="' + label + '" title="' + label + '"><span class="dm-n">' + SESSION_SHORT[sess] + '</span><span class="dm-seg">' +
+            list.map(function (s) { return '<i' + (s.done ? ' class="on"' : s.pending ? ' class="open"' : '') + '></i>'; }).join('') + '</span></button>';
+        }).join('') + '</li>';
+    }).join('') + '</ol>');
+    markHere();
+  }
+  // the year on screen, marked in the map; a map too wide for the screen keeps that year in view
+  function markHere() {
+    const box = $('#dmap');
+    box.querySelectorAll('.dm-year').forEach(function (li) {
+      const on = +li.dataset.y === ui.here;
+      li.classList.toggle('is-here', on);
+      const b = li.querySelector('.dm-y');
+      if (on) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
+      if (on && box.scrollWidth > box.clientWidth) box.scrollTo({ left: li.offsetLeft - (box.clientWidth - li.offsetWidth) / 2, behavior: scrollMode() });
+    });
+  }
+  let yearSpy = null;
+  function updateHere() {
+    const marker = window.innerHeight * 0.3;
+    let here = 0;
+    document.querySelectorAll('#grid .year').forEach(function (y) { if (y.getBoundingClientRect().top <= marker) here = +y.id.replace('year-', ''); });
+    if (here !== ui.here) { ui.here = here; markHere(); }
+  }
+  function watchYears() {
+    if (!window.IntersectionObserver) return;
+    if (yearSpy) yearSpy.disconnect();
+    yearSpy = new IntersectionObserver(updateHere, { rootMargin: '-30% 0px -65% 0px' });
+    document.querySelectorAll('#grid .year').forEach(function (y) { yearSpy.observe(y); });
+  }
+
   function renderGrid(ctx) {
     const years = timeline(ctx, state.load);
     const pt = state.load === 'PT';
     let html = pt ? '<p class="pt-note"><b>Part-time view (indicative).</b> ' + (ctx.custom && ctx.plan.start ? 'Sessions that have begun stay as they are, and the rest is laid out at 20 CP a session, keeping every subject in the session type it is planned for.' : 'Each full-time session is split into two 20 CP sessions, keeping every subject in the session type it is offered in.') + ' This lengthens the pathway to about ' + fmt(ctx.deg.ptYears) + ' years and can shift prerequisite timing, so confirm your sequence with the Academic Program Advisor.' + (ctx.custom ? ' Switch to Full-time to add, remove or move slots.' : '') + '</p>' : '';
     const edit = ctx.custom && !pt;
+    const folded = foldedYears(ctx, years);
     // cards glide by subject, as slot numbers shift when a custom plan changes; names must be unique
     const named = {};
     ctx.slots.forEach(function (s) {
@@ -2449,16 +2743,18 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       const addSummer = !pt && !lists.Summer.length
         ? '<button type="button" class="summer-add" data-action="summer-add" data-y="' + y.year + '" title="' + (ctx.custom ? 'Add a Summer session after Spring in Year ' + y.year : 'Add a Summer session to Year ' + y.year + ' in your own editable copy of this pathway') + '">+ Add Summer</button>'
         : '';
-      html += '<article class="year" id="year-' + y.year + '" aria-label="Year ' + y.year + '">' +
+      const fold = !!folded[y.year];
+      html += '<article class="year' + (fold ? ' is-folded' : '') + '" id="year-' + y.year + '" aria-label="Year ' + y.year + '">' +
         '<header class="year-bar" data-roman="' + R + '"><span class="year-seal" aria-hidden="true">' + R + '</span>' +
         '<h2>Year ' + y.year + '<small>' + calYear(y.year) + (pt ? ' · part-time' : '') + '</small></h2>' + addSummer +
-        '<div class="year-cp"><b>' + sumCP(lists.Autumn) + ' CP</b> Autumn · <b>' + sumCP(lists.Spring) + ' CP</b> Spring' + (lists.Summer.length ? ' · <b>' + sumCP(lists.Summer) + ' CP</b> Summer' : '') + '<span class="done">' + sumCP(all, true) + ' / ' + sumCP(all) + ' CP completed</span></div></header>' +
-        '<div class="sessions">';
+        '<div class="year-cp"><b>' + sumCP(lists.Autumn) + ' CP</b> Autumn · <b>' + sumCP(lists.Spring) + ' CP</b> Spring' + (lists.Summer.length ? ' · <b>' + sumCP(lists.Summer) + ' CP</b> Summer' : '') + '<span class="done">' + sumCP(all, true) + ' / ' + sumCP(all) + ' CP completed</span></div>' +
+        '<button type="button" class="year-toggle" data-action="year-toggle" data-y="' + y.year + '" aria-expanded="' + !fold + '" aria-controls="year-' + y.year + '-body" aria-label="' + foldLabel(y.year, fold) + '" title="' + foldLabel(y.year, fold) + '"></button></header>' +
+        '<div class="sessions" id="year-' + y.year + '-body"' + (fold ? ' hidden' : '') + '>';
       sessions.forEach(function (sess) {
         const list = lists[sess];
         const allDone = list.length && list.every(function (s) { return s.done; });
         const over = ctx.custom && !pt && sumCP(list) > LOAD_CP.FT;
-        html += '<section class="session' + (sess === 'Summer' ? ' session-summer' : '') + '" aria-label="' + sess + ' session" data-y="' + y.year + '" data-s="' + sess + '"><div class="session-head"><h3>' + sess + '<span>Session</span></h3><div class="session-tools"><span class="commute-slot">' + commutePill(list) + '</span><span class="load-slot">' + loadPill(list) + '</span>' +
+        html += '<section class="session' + (sess === 'Summer' ? ' session-summer' : '') + '" aria-label="Year ' + y.year + ' ' + sess + ' session" data-y="' + y.year + '" data-s="' + sess + '"><div class="session-head"><h3>' + sess + '<span>Session</span></h3><div class="session-tools"><span class="commute-slot">' + commutePill(list) + '</span><span class="load-slot">' + loadPill(list) + '</span>' +
           (edit ? '<button type="button" class="mark-all add-slot" data-action="cadd" data-y="' + y.year + '" data-s="' + sess + '">+ Add slot</button>' : '') +
           (list.length ? '<button type="button" class="mark-all" data-action="session-done" data-ids="' + list.map(function (s) { return s.id; }).join(',') + '">' + (allDone ? 'Unmark all' : 'Mark all done') + '</button>' : '') +
           '<span class="session-cp' + (over ? ' over' : '') + '"' + (over ? ' title="More than the 40 CP full-time load"' : '') + '>' + sumCP(list) + ' CP</span></div></div><div class="slots">' +
@@ -2563,7 +2859,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
           (EXTRA.length ? '<option value="__extra__"' + (ui.cat.comp === '__extra__' ? ' selected' : '') + '>WSU subject list (' + EXTRA.length.toLocaleString('en-AU') + ' more subjects)</option>' : '') + '</select></div></div>' +
         '<div class="field"><label for="cat-session">Session</label><div class="select-wrap"><select id="cat-session"><option value="">Autumn or Spring</option><option value="Autumn"' + (ui.cat.session === 'Autumn' ? ' selected' : '') + '>Offered in Autumn</option><option value="Spring"' + (ui.cat.session === 'Spring' ? ' selected' : '') + '>Offered in Spring</option><option value="TBC"' + (ui.cat.session === 'TBC' ? ' selected' : '') + '>Session TBC</option></select></div></div>' +
         '<label class="check-row" style="padding-bottom:10px"><input type="checkbox" id="cat-inplan"' + (ui.cat.inPlan ? ' checked' : '') + '>In my plan</label>' +
-        '</div>' + (d.llbComponent ? areaTools('cat-area', ui.cat.area) : '') + '<p class="kbd-hint kbd-only"><kbd>/</kbd> search the catalogue · <kbd>Esc</kbd> close a window or clear a highlight</p><div id="cat-results"></div>';
+        '</div>' + (d.llbComponent ? areaTools('cat-area', ui.cat.area) : '') + toolsNote(d.llbComponent, '<kbd>/</kbd> search the catalogue · <kbd>Esc</kbd> close a window or clear a highlight') + '<div id="cat-results"></div>';
     }
     html += '</div>';
     $('#details').innerHTML = html;
@@ -2592,7 +2888,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     else if (extraHits.length > extraLimit) note = ' · showing the first ' + extraLimit + ' WSU subject list matches; refine the search to narrow them';
     else if (!wantExtra && EXTRA.length && !ui.cat.comp && !ui.cat.area) note =' · search to include ' + EXTRA.length.toLocaleString('en-AU') + ' more subjects from the WSU subject list';
     $('#cat-results').innerHTML = '<p class="cat-count">' + (onlyExtra ? extraHits.length.toLocaleString('en-AU') + ' of ' + EXTRA.length.toLocaleString('en-AU') + ' WSU subject list subjects' : rows.length + ' of ' + d.catalogue.length + ' degree subjects' + (extraHits.length ? ' + ' + extraHits.length.toLocaleString('en-AU') + ' from the WSU subject list' : '')) + note + '</p>' +
-      '<div class="table-scroll"><table class="cat"><thead><tr><th>Code</th><th>Title</th><th>Component</th><th>Level</th><th>Autumn</th><th>Spring</th><th>CP</th><th>Data source</th></tr></thead><tbody>' +
+      '<div class="table-scroll" tabindex="0" role="region" aria-label="Subject catalogue results"><table class="cat"><thead><tr><th>Code</th><th>Title</th><th>Component</th><th>Level</th><th>Autumn</th><th>Spring</th><th>CP</th><th>Data source</th></tr></thead><tbody>' +
       rows.map(function (c) {
         const inPlan = !!ctx.used[c.code];
         return '<tr class="' + (inPlan ? 'in-plan' : '') + '"><td class="c-code">' + hlCode(c.code, q) + '</td><td>' + hl(c.title, q) + (inPlan ? ' <span class="status status-major">In plan</span>' : '') + areaTags(c.code) + '</td><td class="c-comp">' + esc(c.component) + '</td><td class="small">' + esc(c.level) + '</td><td>' + cell(c.autumn) + '</td><td>' + cell(c.spring) + '</td><td class="small mono">' + c.cp + '</td><td class="small muted">' + esc(c.source) + '</td></tr>';
@@ -2620,18 +2916,20 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   ];
   // rendered once at boot: the content never changes, and re-rendering would close the details panel
   function renderNotice() {
-    $('#notice').innerHTML = '<div class="notice-card"><div class="notice-main">' +
-      '<p class="kicker">School of Law update <i>·</i> 26 October 2026</p>' +
-      '<h3>Started your law degree before 2027?</h3>' +
-      '<p>This explorer follows the 2027 Handbook, which reflects the School of Law\'s new curriculum for students starting in 2027. If you are a current student, the School of Law advises choosing the <b>2026 Handbook</b> when you plan and enrol in your 2027 subjects, as it reflects the requirements of your course.</p></div>' +
-      '<div class="notice-contact"><span class="field-label">Need guidance?</span><p>For further guidance on planning your enrolment, contact the Law Enquiry Team.</p>' +
-      '<a class="tbtn tbtn-outline notice-mail" href="mailto:' + LAW_ENQUIRY + '">' + LAW_ENQUIRY + '</a></div>' +
-      '<details class="notice-more"><summary>Subjects being phased out</summary>' +
+    $('#notice').innerHTML = '<h2 class="sr-only">School of Law update</h2><details class="notice-box" id="notice-box">' +
+      '<summary class="wrap notice-sum"><span class="notice-tag">School of Law update <i>·</i> 26 Oct<span class="wide-only">ober</span> 2026</span>' +
+      '<span class="notice-lead"><b>Started your law degree before 2027?</b> The School of Law advises choosing the 2026 Handbook when you plan and enrol.</span>' +
+      '<span class="notice-cta"><span class="wide-only">View </span>details</span></summary>' +
+      '<div class="wrap notice-body"><div class="notice-main">' +
+      '<p>This explorer follows the 2027 Handbook, which reflects the School of Law\'s new curriculum for students starting in 2027. If you are a current student, the School of Law advises choosing the <b>2026 Handbook</b> when you plan and enrol in your 2027 subjects, as it reflects the requirements of your course.</p>' +
+      '<h3>Subjects being phased out</h3>' +
       '<p>If you fail one of these subjects, or have not completed it in the correct order, enrol in its next available offering. Each is listed under the year of its final offering.</p>' +
       '<div class="phase-grid">' + PHASE_OUT.map(function (p) {
         return '<div><b>' + p[0] + '</b>' + p[1].map(function (s) { return '<span><code>' + s[0] + '</code> ' + esc(s[1]) + '</span>'; }).join('') + '</div>';
       }).join('') + '</div>' +
-      '<p>Remedies (LAWS 4014) runs in Autumn and Spring 2027, then once a year from 2028, so its session in a later year of your pathway may change.</p></details></div>';
+      '<p>Remedies (LAWS 4014) runs in Autumn and Spring 2027, then once a year from 2028, so its session in a later year of your pathway may change.</p></div>' +
+      '<div class="notice-contact"><span class="field-label">Need guidance?</span><p>For further guidance on planning your enrolment, contact the Law Enquiry Team.</p>' +
+      '<a class="tbtn tbtn-outline notice-mail" href="mailto:' + LAW_ENQUIRY + '">' + LAW_ENQUIRY + '</a></div></div></details>';
   }
   const CREST = '<span class="crest-img pd-crest" role="img" aria-label="WSLSA crest"></span>';
   const FOOT_LINE = '© 2026 Western Sydney Law Students\' Association Inc. <i>·</i> Building EK, Parramatta South Campus <i>·</i> By students, for students';
@@ -2639,19 +2937,19 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   function renderFoot(ctx) {
     $('#site-foot').innerHTML = '<span class="foot-watermark crest-rev" aria-hidden="true"></span><div class="foot-inner">' +
       '<div class="foot-brand"><span class="crest-rev foot-crest" role="img" aria-label="WSLSA crest"></span><div><p class="foot-sub">Western Sydney</p><p class="foot-name">Law Students\' Association</p><p class="foot-tag">Est. 1996 · By students, for students</p></div></div>' +
-      '<div class="foot-col"><h4>Your plan</h4><p>Choices and progress are saved in this browser only and are never uploaded. To continue on another phone or computer, use Copy Share Link and open that link there.</p>' +
+      '<div class="foot-col"><h2>Your plan</h2><p>Choices and progress are saved in this browser only and are never uploaded. To continue on another phone or computer, use Copy Share Link and open that link there.</p>' +
       '<div class="foot-links"><a href="' + esc(ctx.deg.handbook) + '" target="_blank" rel="noopener">Official 2027 Handbook →</a><a href="mailto:' + LAW_ENQUIRY + '">Email the Law Enquiry Team →</a><a href="https://wslsa.com.au/" target="_blank" rel="noopener">wslsa.com.au →</a></div></div>' +
-      '<div class="foot-col"><h4>Official handbook disclaimer</h4><p>' + esc(disclaimerText()) + '</p></div>' +
+      '<div class="foot-col"><h2>Official handbook disclaimer</h2><p>' + esc(disclaimerText()) + '</p></div>' +
       '</div><div class="foot-base">' + FOOT_LINE + '</div>';
   }
 
   function renderSectionHead(ctx) {
     $('#section-kicker').innerHTML = (ctx.custom ? 'Custom pathway' : 'Recommended pathway') + ' <i>·</i> 2027';
-    $('#section-tools').innerHTML = suggestButtons(ctx) + pinButtons() + (ctx.custom
+    $('#section-tools').innerHTML = '<div class="tool-group">' + suggestButtons(ctx) + pinButtons() + '</div><div class="tool-group">' + (ctx.custom
       ? '<button type="button" class="tbtn tbtn-outline" data-action="custom-setup" title="Change the degree name, credit points or starting template">Edit setup</button>' +
         '<button type="button" class="tbtn" data-action="custom-exit" title="Your custom plan is kept; switch back any time from the Degree menu">← WSLSA pathways</button>'
       : '<button type="button" class="tbtn tbtn-outline" data-action="custom-from-current" title="Copy this pathway into your own editable plan">Customise this pathway →</button>' +
-        (state.custom ? '<button type="button" class="tbtn" data-action="custom-open" title="Switch to your saved custom plan">Open my custom plan</button>' : '<button type="button" class="tbtn" data-action="custom-open" title="Set the credit points and build a degree from scratch">Build my own</button>'));
+        (state.custom ? '<button type="button" class="tbtn" data-action="custom-open" title="Switch to your saved custom plan">Open my custom plan</button>' : '<button type="button" class="tbtn" data-action="custom-open" title="Set the credit points and build a degree from scratch">Build my own</button>')) + '</div>';
   }
 
   // ======================================================================== motion
@@ -2741,6 +3039,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   }
   function afterRender(ctx) {
     showCounters(ctx);
+    watchYears();
     ui.xrayHover = '';
     if (ui.xrayPin && ctx.byId[ui.xrayPin]) xrayShow(ui.xrayPin);
     else { ui.xrayPin = ''; xrayClear(); }
@@ -2802,6 +3101,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       }
     });
     $('#progress-meta').textContent = progressMeta(ctx);
+    renderMap(ctx);
     renderAdvisory(ctx);
     const next = $('#next');
     renderNext(ctx);
@@ -3114,6 +3414,16 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   // ======================================================================== modals: focus and closing
   let modalTimer = 0;
   let focusBack = null;
+  function lockScroll() {
+    if (document.body.style.overflow === 'hidden') return;
+    const bar = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    if (bar > 0) $('#app').style.paddingRight = bar + 'px';
+  }
+  function unlockScroll() {
+    document.body.style.overflow = '';
+    $('#app').style.paddingRight = '';
+  }
   function showModal(html) {
     const root = $('#modal-root');
     const closing = root.classList.contains('closing');
@@ -3126,7 +3436,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     const opening = !root.firstChild || closing;
     root.innerHTML = html;
     $('#app').inert = true;
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     if (opening) {
       const m = root.querySelector('.modal');
       m.tabIndex = -1;
@@ -3143,7 +3453,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     const root = $('#modal-root');
     clearTimeout(modalTimer);
     $('#app').inert = false;
-    document.body.style.overflow = '';
+    unlockScroll();
     if (now === true || !root.firstChild || !motionOK()) {
       root.classList.remove('closing');
       root.innerHTML = '';
@@ -3164,6 +3474,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     let el = f.el && f.el.isConnected ? f.el : f.id ? document.getElementById(f.id) : null;
     if (!el && f.action) el = document.querySelector('[data-action="' + f.action + '"]' + (f.slot ? '[data-slot="' + f.slot + '"]' : ''));
     if (el && el.focus) el.focus({ preventScroll: true });
+    if (el && el.closest('#top-actions') && document.activeElement !== el) $('.top-menu-btn').focus({ preventScroll: true });
   }
   function trapTab(ev) {
     const box = $('#modal-root .modal');
@@ -3178,7 +3489,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     else if (ev.shiftKey && at === first) { ev.preventDefault(); last.focus(); }
     else if (!ev.shiftKey && at === last) { ev.preventDefault(); first.focus(); }
   }
-  const KEY_HINT = '<p class="kbd-hint kbd-only"><kbd>/</kbd> search · <kbd>Esc</kbd> close</p>';
+  const KEY_HINT = '<kbd>/</kbd> search · <kbd>Esc</kbd> close';
   const CLEAR_PICK = ' <button type="button" class="linkish" data-action="pick-reset">Clear filters</button>';
 
   // The chain view follows a settled pointer or the keyboard, unless a Chain button has pinned it. A pointer
@@ -3235,7 +3546,10 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     return '<div class="tool-row area-chips" role="group" aria-label="Filter by practice area">' +
       [{ id: '', label: 'All Areas' }].concat(PRACTICE.areas).map(function (a) {
         return '<button type="button" class="chip" data-action="' + action + '" data-area="' + a.id + '" aria-pressed="' + ((current || '') === a.id) + '">' + esc(a.label) + '</button>';
-      }).join('') + '</div><p class="area-note">Areas are WSLSA groupings by subject title, not Handbook categories.</p>';
+      }).join('') + '</div>';
+  }
+  function toolsNote(areas, keys) {
+    return '<p class="area-note">' + (areas ? 'Areas are WSLSA groupings by subject title, not Handbook categories. ' : '') + '<span class="kbd-only">' + keys + '</span></p>';
   }
   function pressArea(action, area) {
     document.querySelectorAll('[data-action="' + action + '"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.area === area)); });
@@ -3449,13 +3763,13 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     const moved = Object.keys(now).filter(function (c) { return was[c] && was[c].w !== now[c].w; });
     const chip = function (x, extra) { return '<span class="chipbtn"><code>' + esc(x.c) + '</code>' + esc(x.t) + (extra ? ' <span>' + esc(extra) + '</span>' : '') + '</span>'; };
     const list = function (title, codes, draw) {
-      return '<div class="pick-section"><h4><span>' + title + '</span><span>' + codes.length + '</span></h4>' +
+      return '<div class="pick-section"><h3><span>' + title + '</span><span>' + codes.length + '</span></h3>' +
         (codes.length ? '<div class="chiplist">' + codes.map(draw).join('') + '</div>' : '<p class="pick-hint">None.</p>') + '</div>';
     };
     ui.modal = 'compare';
     showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="compare-h">' +
       '<div class="modal-head"><div><h2 id="compare-h">Compare with pinned</h2><p>Your snapshot from ' + esc(a.pinned) + ' against your plan as it is now.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
-      '<div class="modal-body import-body"><div class="table-scroll"><table class="compare-table"><thead><tr><th scope="col"></th><th scope="col">Pinned</th><th scope="col">Now</th></tr></thead><tbody>' +
+      '<div class="modal-body import-body"><div class="table-scroll" tabindex="0" role="region" aria-label="Comparison of your plans"><table class="compare-table"><thead><tr><th scope="col"></th><th scope="col">Pinned</th><th scope="col">Now</th></tr></thead><tbody>' +
       row('Plan', a.label, b.label) + row('Load', a.load, b.load) + row('Final completion session', a.finish, b.finish) +
       row('Total sessions', a.sessions, b.sessions) + row('Summer sessions used', a.summers, b.summers) +
       row('Multi-campus commute sessions', a.commute, b.commute) + row('Heavy L3/4 load sessions', a.heavy, b.heavy) +
@@ -3531,6 +3845,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     renderNext(ctx);
     renderSectionHead(ctx);
     renderLegend(ctx);
+    renderMap(ctx);
     renderGrid(ctx);
     renderDetails(ctx);
     renderFoot(ctx);
@@ -3563,6 +3878,8 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   function flashSlot(id, stay) {
     const el = document.getElementById('slot-' + id);
     if (!el) return;
+    const home = el.closest('.year');
+    if (home && home.classList.contains('is-folded')) setYearFold(+home.id.replace('year-', ''), false);
     if (!stay) el.scrollIntoView({ behavior: scrollMode(), block: 'center' });
     el.classList.remove('flash');
     void el.offsetWidth;
@@ -3609,20 +3926,21 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     levels.forEach(function (l) { tools += '<button type="button" class="chip" data-action="pick-level" data-level="' + l + '" aria-pressed="' + (p.level === l) + '">' + l + '</button>'; });
     if (s.kind === 'elective' && EXTRA.length) tools += '<button type="button" class="chip" data-action="pick-ug" aria-pressed="' + p.ugOnly + '" title="Hide level 0 and level 5 to 9 subjects from the WSU subject list">Undergraduate levels 1–4</button>';
     tools += '<button type="button" class="chip" data-action="pick-off" aria-pressed="' + p.showOff + '">Show subjects not offered in ' + s.session + '</button></div>';
-    if (s.kind === 'llb' || s.kind === 'elective') tools += areaTools('pick-area', p.area);
+    const areas = s.kind === 'llb' || s.kind === 'elective';
+    if (areas) tools += areaTools('pick-area', p.area);
 
     const custom = s.kind === 'elective'
-      ? '<div class="pick-section"><h4>Not on the list? Enter it yourself</h4><form class="custom-form" id="custom-form"><div class="field"><label for="cu-code">Code</label><input class="input" id="cu-code" placeholder="e.g. HUMN 1052" maxlength="12" value="' + esc(s.custom ? s.code : '') + '"></div><div class="field"><label for="cu-title">Title</label><input class="input" id="cu-title" placeholder="Subject title" maxlength="120" value="' + esc(s.custom ? s.title : '') + '"></div><button type="submit" class="btn btn-primary">Use subject</button></form><p class="small muted" style="margin:4px 8px 0">Check prerequisites and session availability in the 2027 Handbook.</p></div>'
+      ? '<div class="pick-section"><h3>Not on the list? Enter it yourself</h3><form class="custom-form" id="custom-form"><div class="field"><label for="cu-code">Code</label><input class="input" id="cu-code" placeholder="e.g. HUMN 1052" maxlength="12" value="' + esc(s.custom ? s.code : '') + '"></div><div class="field"><label for="cu-title">Title</label><input class="input" id="cu-title" placeholder="Subject title" maxlength="120" value="' + esc(s.custom ? s.title : '') + '"></div><button type="submit" class="btn btn-primary">Use subject</button></form><p class="small muted" style="margin:4px 8px 0">Check prerequisites and session availability in the 2027 Handbook.</p></div>'
       : '';
 
     showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="picker-h">' +
       '<div class="modal-head"><div><h2 id="picker-h">' + esc(pickerTitle(s)) + '</h2><p>' + where(s) + ' · ' + s.cp + ' CP · ' + esc(ctx.deg.code) + ' ' + esc(ctx.opt.majorCode !== 'BASE' ? ctx.opt.majorLabel : ctx.deg.title) + '</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
-      '<div class="modal-tools">' + tools + KEY_HINT + '</div>' +
+      '<div class="modal-tools">' + tools + toolsNote(areas, KEY_HINT) + '</div>' +
       '<div class="modal-body"><div id="pick-results"></div>' + custom + '</div>' +
       '<div class="modal-foot"><span class="small muted">Subjects already in your plan are disabled. TBC = 2027 session not yet published.</span><div style="display:flex;gap:8px">' +
       (s.pick ? '<button type="button" class="btn" data-action="pick-clear">' + (s.kind === 'option' ? 'Reset to WSLSA pick' : 'Clear choice') + '</button>' : '') +
       '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button></div></div></div></div>');
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     renderPickerResults();
     if (first) { const q = $('#pick-q'); if (q && window.matchMedia('(pointer:fine)').matches) q.focus(); }
   }
@@ -3692,32 +4010,32 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     if (best) {
       const badge = best.score >= 950 ? 'Exact match' : 'Best match';
       const otherSession = s.session === 'Autumn' ? 'Spring' : 'Autumn';
-      html += '<div class="pick-section pick-best"><h4><span>' + badge + '</span></h4><div class="pick-list">' + (best.src === 'list' ? listRow(best.e, badge) : row(best.item, best.off ? 'off' : false, badge)) + '</div>' +
+      html += '<div class="pick-section pick-best"><h3><span>' + badge + '</span></h3><div class="pick-list">' + (best.src === 'list' ? listRow(best.e, badge) : row(best.item, best.off ? 'off' : false, badge)) + '</div>' +
         (best.off ? '<p class="pick-hint">' + esc(best.e.code) + ' runs only in ' + otherSession + ', so it cannot go in this ' + s.session + ' slot.</p>' : '') + '</div>';
     }
     const offered = groups.offered.filter(notBest);
     const tbc = groups.tbc.filter(notBest);
     const offeredHead = (s.kind === 'elective' ? 'LLB Alternates offered in ' : 'Offered in ') + s.session + ' 2027';
     if (offered.length || !q || s.kind !== 'elective') {
-      html += '<div class="pick-section"><h4><span>' + offeredHead + '</span><span>' + offered.length + (hiddenByCampus ? ' · ' + hiddenByCampus + ' hidden by campus filter' : '') + '</span></h4><div class="pick-list">' +
+      html += '<div class="pick-section"><h3><span>' + offeredHead + '</span><span>' + offered.length + (hiddenByCampus ? ' · ' + hiddenByCampus + ' hidden by campus filter' : '') + '</span></h3><div class="pick-list">' +
         (offered.length ? offered.map(function (i) { return row(i); }).join('') : '<div class="pick-empty">' + (best && best.src === 'pool' ? 'No other matches' : 'No matching subjects') + ' offered in ' + s.session + '.' + CLEAR_PICK + '</div>') + '</div></div>';
     } else {
       html += '<p class="pick-hint">No ' + (best && best.src === 'pool' ? 'other ' : '') + 'LLB Alternates offered in ' + s.session + ' match “' + esc(p.q.trim()) + '”.</p>';
     }
-    if (tbc.length) html += '<div class="pick-section"><h4><span>Session TBC (not yet published for 2027)</span><span>' + tbc.length + '</span></h4><div class="pick-list">' + tbc.map(function (i) { return row(i); }).join('') + '</div></div>';
+    if (tbc.length) html += '<div class="pick-section"><h3><span>Session TBC (not yet published for 2027)</span><span>' + tbc.length + '</span></h3><div class="pick-list">' + tbc.map(function (i) { return row(i); }).join('') + '</div></div>';
     if (listOn) html += extraPickSection(p, q, listPool, listHits.filter(notBest), listRow, best && best.src === 'list');
     groups.off = groups.off.filter(notBest);
-    if (p.showOff && groups.off.length) html += '<div class="pick-section"><h4><span>Not offered in ' + s.session + '</span><span>' + groups.off.length + '</span></h4><div class="pick-list">' + groups.off.map(function (i) { return row(i, 'off'); }).join('') + '</div></div>';
+    if (p.showOff && groups.off.length) html += '<div class="pick-section"><h3><span>Not offered in ' + s.session + '</span><span>' + groups.off.length + '</span></h3><div class="pick-list">' + groups.off.map(function (i) { return row(i, 'off'); }).join('') + '</div></div>';
     else if (groups.off.length) html += '<p class="small muted" style="margin:10px 8px">' + plural(groups.off.length, 'matching subject') + ' in this list ' + (groups.off.length === 1 ? 'runs' : 'run') + ' only in ' + (s.session === 'Autumn' ? 'Spring' : 'Autumn') + '.</p>';
     $('#pick-results').innerHTML = html;
   }
   // Elective slots can also take any subject from the WSU subject list.
   function extraPickSection(p, q, pool, hits, listRow, bestFromList) {
-    const head = '<div class="pick-section"><h4><span>Any WSU subject · subject list and 2027 Handbook</span><span>';
+    const head = '<div class="pick-section"><h3><span>Any WSU subject · subject list and 2027 Handbook</span><span>';
     if (q.length < 2) {
-      return head + pool.length.toLocaleString('en-AU') + ' subjects</span></h4><p class="pick-hint">Type a subject code (for example ACCT2004) or words from its name above to search ' + pool.length.toLocaleString('en-AU') + ' more WSU subjects' + (p.ugOnly ? ' at undergraduate levels 1–4' : '') + '. The list gives codes and titles only, so check sessions and prerequisites in the 2027 Handbook.</p></div>';
+      return head + pool.length.toLocaleString('en-AU') + ' subjects</span></h3><p class="pick-hint">Type a subject code (for example ACCT2004) or words from its name above to search ' + pool.length.toLocaleString('en-AU') + ' more WSU subjects' + (p.ugOnly ? ' at undergraduate levels 1–4' : '') + '. The list gives codes and titles only, so check sessions and prerequisites in the 2027 Handbook.</p></div>';
     }
-    return head + hits.length.toLocaleString('en-AU') + (hits.length === 1 ? ' match' : ' matches') + '</span></h4><div class="pick-list">' +
+    return head + hits.length.toLocaleString('en-AU') + (hits.length === 1 ? ' match' : ' matches') + '</span></h3><div class="pick-list">' +
       (hits.length ? hits.slice(0, PICK_LIMIT).map(function (e) { return listRow(e); }).join('') : '<div class="pick-empty">No ' + (bestFromList ? 'other ' : '') + 'subjects in the WSU subject list match “' + esc(p.q.trim()) + '”' + (p.ugOnly ? ' at levels 1–4. Turn off “Undergraduate levels 1–4” to search every level' : '') + '.' + CLEAR_PICK + '</div>') + '</div>' +
       (hits.length > PICK_LIMIT ? '<p class="pick-hint">Showing the ' + PICK_LIMIT + ' most relevant of ' + hits.length.toLocaleString('en-AU') + '. Add more of the code or name to narrow the list.</p>' : '') + '</div>';
   }
@@ -3771,26 +4089,27 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     tools += '<button type="button" class="chip" data-action="pick-ug" aria-pressed="' + p.ugOnly + '" title="Hide level 0 and level 5 to 9 subjects">Undergraduate levels 1–4</button>';
     if (!summer) tools += '<button type="button" class="chip" data-action="pick-off" aria-pressed="' + p.showOff + '">Show subjects not offered in ' + s.session + '</button>';
     tools += '</div>';
-    if (s.orig && (s.orig.kind === 'llb' || s.orig.kind === 'elective')) tools += areaTools('pick-area', p.area);
+    const areas = s.orig && (s.orig.kind === 'llb' || s.orig.kind === 'elective');
+    if (areas) tools += areaTools('pick-area', p.area);
     const maxY = Math.min(MAX_YEARS, ctx.slots.reduce(function (m, x) { return Math.max(m, x.year); }, 1) + 1);
     let moveOpts = '';
     for (let y = 1; y <= maxY; y++) {
       PLAN_SESSIONS.forEach(function (ss) { moveOpts += '<option value="' + y + '|' + ss + '"' + (y === s.year && ss === s.session ? ' selected' : '') + '>Year ' + y + ' · ' + ss + '</option>'; });
     }
     const typedCP = s.custom ? s.cp : s.cp > 0 ? s.cp : 10;
-    const custom = '<div class="pick-section"><h4>Not on the list? Enter it yourself</h4><form class="custom-form cf-cp" id="custom-form">' +
+    const custom = '<div class="pick-section"><h3>Not on the list? Enter it yourself</h3><form class="custom-form cf-cp" id="custom-form">' +
       '<div class="field"><label for="cu-code">Code</label><input class="input" id="cu-code" placeholder="e.g. HUMN 1052" maxlength="12" value="' + esc(s.custom ? s.code : '') + '"></div>' +
       '<div class="field"><label for="cu-title">Title</label><input class="input" id="cu-title" placeholder="Subject title" maxlength="120" value="' + esc(s.custom ? s.title : '') + '"></div>' +
       '<div class="field"><label for="cu-cp">Credit</label><div class="select-wrap"><select id="cu-cp">' + [0, 10, 20, 30, 40].map(function (c) { return '<option value="' + c + '"' + (c === typedCP ? ' selected' : '') + '>' + c + ' CP</option>'; }).join('') + '</select></div></div>' +
       '<button type="submit" class="btn btn-primary">Use subject</button></form><p class="small muted" style="margin:4px 8px 0">A code from the 2027 guides or the WSU subject list fills in its real title and credit points.</p></div>';
     showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="picker-h">' +
       '<div class="modal-head"><div><h2 id="picker-h">' + (s.pending ? 'Choose a subject' : 'Change or move this subject') + '</h2><p>' + where(s) + ' · ' + s.cp + ' CP · ' + esc(ctx.deg.title) + (s.replaced ? ' · template subject: ' + esc(s.replaced.code + ' ' + s.replaced.title) : '') + '</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
-      '<div class="modal-tools">' + tools + KEY_HINT + '</div>' +
+      '<div class="modal-tools">' + tools + toolsNote(areas, KEY_HINT) + '</div>' +
       '<div class="modal-body"><div id="pick-results"></div>' + custom + '</div>' +
       '<div class="modal-foot"><div class="move-row"><label for="cp-move">Move to</label><div class="select-wrap"><select id="cp-move">' + moveOpts + '</select></div></div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' + (s.pending || s.done ? '' : '<button type="button" class="btn" data-action="defer" data-slot="' + s.id + '">Defer to next offered session</button>') + (s.pending ? '' : '<button type="button" class="btn" data-action="pick-clear">Clear subject</button>') +
       '<button type="button" class="btn" data-action="cremove" data-slot="' + s.id + '">Remove slot</button><button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button></div></div></div></div>');
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     renderCustomPickerResults();
     if (first) { const q = $('#pick-q'); if (q && window.matchMedia('(pointer:fine)').matches) q.focus(); }
   }
@@ -3854,7 +4173,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
         const later = ctx.slots.filter(function (x) { return !x.pending && orderIdx(x.year, x.session) > orderIdx(s.year, s.session); });
         const hits = q ? rankByQuery(later, q) : sortSlots(later);
         if (later.length) {
-          html += '<div class="pick-section"><h4><span>Bring forward from later in your plan</span><span>' + hits.length + '</span></h4><div class="pick-list">' +
+          html += '<div class="pick-section"><h3><span>Bring forward from later in your plan</span><span>' + hits.length + '</span></h3><div class="pick-list">' +
             (hits.length ? hits.map(function (x) {
               return '<button type="button" class="pick" data-action="cbring" data-from="' + x.id + '">' +
                 '<span class="p-code">' + hlCode(x.code, q) + '</span><span class="p-title">' + hl(x.title, q) + '</span>' +
@@ -3866,22 +4185,22 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     }
     if (best) {
       const badge = best.score >= 950 ? 'Exact match' : 'Best match';
-      html += '<div class="pick-section pick-best"><h4><span>' + badge + '</span></h4><div class="pick-list">' + crow(best.i, badge) + '</div>' +
+      html += '<div class="pick-section pick-best"><h3><span>' + badge + '</span></h3><div class="pick-list">' + crow(best.i, badge) + '</div>' +
         (best.i.off && best.i.off.none ? '<p class="pick-hint">' + esc(best.i.e.code) + ' runs only in ' + other + '. You can still place it here, but it stays flagged until you move it to an ' + other + ' session.</p>' : '') + '</div>';
     }
     if (sugg.length && (suggItems.filter(notBest).length || !q)) {
       const list = suggItems.filter(notBest);
-      html += '<div class="pick-section"><h4><span>' + esc(suggestionsHead(s)) + '</span><span>' + list.length + '</span></h4><div class="pick-list">' +
+      html += '<div class="pick-section"><h3><span>' + esc(suggestionsHead(s)) + '</span><span>' + list.length + '</span></h3><div class="pick-list">' +
         (list.length ? list.map(function (i) { return crow(i); }).join('') : '<div class="pick-empty">No ' + (best ? 'other ' : '') + 'template options match.' + CLEAR_PICK + '</div>') + '</div></div>';
     }
-    const head = '<div class="pick-section"><h4><span>Any WSU subject · 2027 guides and subject list</span><span>';
+    const head = '<div class="pick-section"><h3><span>Any WSU subject · 2027 guides and subject list</span><span>';
     if (q.length >= 2 && best && !anyItems.filter(notBest).length) {
       html += '<p class="pick-hint">No other subjects match “' + esc(p.q.trim()) + '”.</p>';
     } else if (q.length < 2) {
-      html += head + pool.length.toLocaleString('en-AU') + ' subjects</span></h4><p class="pick-hint">Type a subject code (for example LAWS1001) or words from its name to search ' + pool.length.toLocaleString('en-AU') + ' WSU subjects' + (p.ugOnly ? ' at undergraduate levels 1–4' : '') + '. Subjects in the 2027 guides show their sessions and campuses; the subject list gives codes and titles only.</p></div>';
+      html += head + pool.length.toLocaleString('en-AU') + ' subjects</span></h3><p class="pick-hint">Type a subject code (for example LAWS1001) or words from its name to search ' + pool.length.toLocaleString('en-AU') + ' WSU subjects' + (p.ugOnly ? ' at undergraduate levels 1–4' : '') + '. Subjects in the 2027 guides show their sessions and campuses; the subject list gives codes and titles only.</p></div>';
     } else {
       const list = anyItems.filter(notBest);
-      html += head + list.length.toLocaleString('en-AU') + (list.length === 1 ? ' match' : ' matches') + '</span></h4><div class="pick-list">' +
+      html += head + list.length.toLocaleString('en-AU') + (list.length === 1 ? ' match' : ' matches') + '</span></h3><div class="pick-list">' +
         (list.length ? list.slice(0, PICK_LIMIT).map(function (i) { return crow(i); }).join('') : '<div class="pick-empty">No ' + (best ? 'other ' : '') + 'subjects match “' + esc(p.q.trim()) + '”' + (p.ugOnly ? ' at levels 1–4' : '') + '.' + CLEAR_PICK + '</div>') + '</div>' +
         (list.length > PICK_LIMIT ? '<p class="pick-hint">Showing the ' + PICK_LIMIT + ' most relevant of ' + list.length.toLocaleString('en-AU') + '. Add more of the code or name to narrow the list.</p>' : '') + '</div>';
     }
@@ -4000,7 +4319,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       '<p class="cs-warn" id="cs-warn"' + (filled && start !== 'keep' ? '' : ' hidden') + ' data-filled="' + filled + '">Starting again replaces the ' + plural(filled, 'subject') + ' in your current custom plan.</p>' +
       '</fieldset></form>' +
       '<div class="modal-foot"><span class="small muted">Saved in this browser and in your share link.</span><div style="display:flex;gap:8px"><button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="submit" form="setup-form" class="btn btn-primary">' + (plan ? 'Update plan →' : 'Create plan →') + '</button></div></div></div></div>');
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     const n = $('#cs-name');
     if (n && window.matchMedia('(pointer:fine)').matches) n.focus();
   }
@@ -4027,6 +4346,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     document.querySelectorAll('[data-action="cs-cp"]').forEach(function (b) { b.setAttribute('aria-pressed', String(+b.dataset.v === +cp)); });
   }
   function applySetup() {
+    ui.folded = null;
     const cpRaw = +$('#cs-cp').value;
     if (!(cpRaw >= 10 && cpRaw <= MAX_CP)) { toast('Enter the credit points your degree requires, between 10 and ' + MAX_CP + '.'); $('#cs-cp').focus(); return; }
     const start = setupStart();
@@ -4545,7 +4865,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       '<div id="progress-results"></div></div>' +
       '<div class="modal-foot"><span class="small muted">Import again whenever you have new results.</span><div style="display:flex;gap:8px">' +
       '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="button" class="btn btn-primary" data-action="progress-apply" id="progress-apply" disabled>Build my plan</button></div></div></div></div>');
-    document.body.style.overflow = 'hidden';
+    lockScroll();
   }
   function showProgress(info) {
     ui.progress = buildProgress(info);
@@ -4583,7 +4903,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       '<p class="pick-hint">' + (p.fromAudit ? 'What you still need comes from the Still needed lists in your audit' : 'Your Subject Results page does not list what you still need, so the rest follows the WSLSA 2027 pathway. Your Degree Works audit lists it, so import that for a plan that matches your own requirements') +
       (p.next ? ', laid out from ' + esc(p.next) + '. Choices stay open for you to fill.' : '.') + '</p>' +
       notes.map(function (n) { return '<p class="pick-hint">' + n + '</p>'; }).join('') +
-      '<div class="pick-section"><h4><span>Your subjects so far</span><span>' + p.history.length + '</span></h4><div class="progress-sessions">' +
+      '<div class="pick-section"><h3><span>Your subjects so far</span><span>' + p.history.length + '</span></h3><div class="progress-sessions">' +
       Object.keys(groups).map(Number).sort(function (a, b) { return a - b; }).map(function (k) {
         return '<div class="ps-row"><span class="ps-when">' + esc(groups[k].label) + '</span><div class="chiplist">' + groups[k].list.map(function (f) {
           return '<span class="chipbtn' + (f.status === 'progress' ? ' is-open' : '') + '"><code>' + esc(f.code) + '</code>' + esc(titleOf(f)) + (f.status === 'progress' ? ' <span>studying</span>' : '') + '</span>';
@@ -4596,6 +4916,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     if (!p) return;
     state.custom = p.plan;
     state.mode = 'custom';
+    ui.folded = null;
     if (p.tdeg) { state.degree = p.tdeg.code; state.majorFor[p.tdeg.code] = p.tpl; }
     const done = p.history.filter(function (f) { return f.status === 'done'; }).length;
     const now = p.history.length - done;
@@ -4671,7 +4992,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       '<div id="import-results"></div></div>' +
       '<div class="modal-foot"><span class="small muted" id="import-summary">Subjects you pass later can be ticked here again.</span><div style="display:flex;gap:8px">' +
       '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="button" class="btn btn-primary" data-action="import-apply" id="import-apply" disabled>Tick subjects</button></div></div></div></div>');
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     const t = $('#import-text');
     if (t && window.matchMedia('(pointer:fine)').matches) t.focus();
   }
@@ -4689,7 +5010,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     const found = matchFound(parseResults(text), lastCtx);
     ui.importFound = found;
     const section = function (title, n, hint, body) {
-      return '<div class="pick-section"><h4><span>' + title + '</span><span>' + n + '</span></h4>' + (hint ? '<p class="pick-hint">' + hint + '</p>' : '') + body + '</div>';
+      return '<div class="pick-section"><h3><span>' + title + '</span><span>' + n + '</span></h3>' + (hint ? '<p class="pick-hint">' + hint + '</p>' : '') + body + '</div>';
     };
     const rows = function (place) {
       return '<div class="import-list">' + found.map(function (f, i) { return (place ? f.place : f.slots.length) ? importRow(f, i, place) : ''; }).join('') + '</div>';
@@ -4730,6 +5051,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       });
     });
     closeModal();
+    ui.folded = null;
     render();
     toast('Ticked off ' + plural(picked.length, 'subject') + ' from your results' + (placed ? ', ' + placed + ' of them in open choices' : '') + '.');
   }
@@ -4973,8 +5295,8 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       '<label class="check-row"><input type="checkbox" name="exp-llbTbc"' + (e.llbTbc ? ' checked' : '') + '><span>Include subjects with session TBC</span></label></fieldset>' +
       '<p class="export-help"><b>Tips.</b> Paper size A4, scale 100%, margins default. Background tints are forced on with <code>print-color-adjust</code>; if a browser still drops them, tick <b>Background graphics</b> in its print dialog.</p>' +
       '<button type="button" class="btn btn-primary" data-action="export-print" style="min-height:46px">Print / Save PDF →</button>' +
-      '</div><div class="export-preview" id="export-preview"><div class="preview-meta"><span id="preview-pages">Preview</span><span>A4 · 10 mm margins</span></div><div class="preview-stage" id="preview-stage"></div></div></div></div></div>');
-    document.body.style.overflow = 'hidden';
+      '</div><div class="export-preview" id="export-preview" tabindex="0" role="region" aria-label="A4 preview of your guide"><div class="preview-meta"><span id="preview-pages">Preview</span><span>A4 · 10 mm margins</span></div><div class="preview-stage" id="preview-stage" inert></div></div></div></div></div>');
+    lockScroll();
     renderExportPreview();
   }
   function renderExportPreview() {
@@ -5027,13 +5349,42 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   }
 
   // ======================================================================== events
+  function setTopMenu(open) {
+    $('#top-actions').classList.toggle('is-open', open);
+    $('.top-menu-btn').setAttribute('aria-expanded', String(open));
+  }
   document.addEventListener('click', function (ev) {
+    if ($('#top-actions').classList.contains('is-open') && !ev.target.closest('.top-menu-btn')) setTopMenu(false);
     const el = ev.target.closest('[data-action]');
     if (!el) return;
     const a = el.dataset.action;
     const ctx = lastCtx;
     switch (a) {
+      case 'top-menu': setTopMenu(!$('#top-actions').classList.contains('is-open')); break;
+      case 'year-toggle': {
+        const fold = el.getAttribute('aria-expanded') === 'true';
+        transition(function () { setYearFold(+el.dataset.y, fold); }, true);
+        break;
+      }
+      case 'map-jump': {
+        const y = +el.dataset.y;
+        setYearFold(y, false);
+        const box = document.getElementById('year-' + y);
+        if (!box) break;
+        const target = el.dataset.s ? box.querySelector('.session[data-s="' + el.dataset.s + '"]') : box;
+        target.tabIndex = -1;
+        target.focus({ preventScroll: true });
+        target.scrollIntoView({ behavior: scrollMode(), block: 'start' });
+        break;
+      }
       case 'top': ev.preventDefault(); window.scrollTo({ top: 0, behavior: scrollMode() }); break;
+      case 'skip': {
+        ev.preventDefault();
+        const heading = $('#plan-heading');
+        heading.focus({ preventScroll: true });
+        heading.scrollIntoView({ behavior: scrollMode(), block: 'start' });
+        break;
+      }
       case 'backdrop': if (ev.target === el) closeModal(); break;
       case 'modal-close': closeModal(); break;
       case 'share': share(); break;
@@ -5041,6 +5392,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
         if (isCustom()) {
           if (!window.confirm('Start your custom plan again? This clears every subject and tick and rebuilds it from ' + (state.custom.tpl ? 'the ' + tplLabel(state.custom.tpl) + ' template.' : 'empty slots.'))) return;
           rebuildCustom();
+          ui.folded = null;
           render();
           toast('Custom plan rebuilt.');
           break;
@@ -5049,6 +5401,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
         if (!window.confirm('Clear all choices and progress for ' + key.replace('|BASE', '') + '?')) return;
         delete state.picks[key];
         delete state.done[key];
+        ui.folded = null;
         render();
         toast('Pathway reset to the WSLSA recommendation.');
         break;
@@ -5142,7 +5495,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
         break;
       case 'suggest-undo': undoSuggest(); break;
       case 'mini-top': {
-        $('#dock-wrap').scrollIntoView({ behavior: scrollMode(), block: 'start' });
+        window.scrollTo({ top: $('#dock-wrap').getBoundingClientRect().top + window.scrollY - 8, behavior: scrollMode() });
         const first = $('#sel-degree');
         if (first) first.focus({ preventScroll: true });
         break;
@@ -5339,6 +5692,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   document.addEventListener('keydown', function (ev) {
     const el = ev.target;
     if (ev.key === 'Escape') {
+      if ($('#top-actions').classList.contains('is-open')) { setTopMenu(false); $('.top-menu-btn').focus(); return; }
       if (ui.modal) { closeModal(); return; }
       if (ui.xrayPin) { ui.xrayPin = ''; ui.xrayHover = ''; xrayClear(); return; }
       if (el.id === 'cat-q' && el.value) { el.value = ''; ui.cat.q = ''; renderCatalogueRows(lastCtx); return; }
@@ -5380,7 +5734,10 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
 
   window.addEventListener('resize', function () { if (ui.modal === 'export') renderExportPreview(); });
   // remember whether the advisory panel is open across re-renders (toggle does not bubble)
-  document.addEventListener('toggle', function (ev) { if (ev.target.id === 'advisory-box') ui.advisoryOpen = ev.target.open; }, true);
+  document.addEventListener('toggle', function (ev) {
+    if (ev.target.id === 'advisory-box') ui.advisoryOpen = ev.target.open;
+    if (ev.target.id === 'legend-box') ui.legendOpen = ev.target.open;
+  }, true);
 
   // a link opened in a tab that already shows the explorer changes only the hash, without a reload
   window.addEventListener('hashchange', function () {
@@ -5388,9 +5745,16 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     if (opened === null) return;
     if (!opened) { toast(LINK_FAILED); return; }
     if (ui.modal) closeModal();
+    ui.folded = null;
     render();
     toast('Plan opened from the link.');
   });
+
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () {
+      document.documentElement.style.setProperty('--dock-h', Math.ceil($('#dock-wrap').getBoundingClientRect().height) + 'px');
+    }).observe($('#dock-wrap'));
+  }
 
   // ======================================================================== phone progress bar
   if (window.IntersectionObserver) {
