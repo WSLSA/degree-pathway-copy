@@ -238,12 +238,13 @@
   const STORE_KEY = 'wslsa-2027-pathway-explorer:v1';
   const DEFAULT_EXPORT = { mode: 'A', orient: 'portrait', ticks: true, llbSession: 'all', llbCampus: false, llbTbc: true };
   let state = sanitise(readStore());
-  const ui = { tab: 'structure', cat: { q: '', comp: '', session: '', inPlan: false, area: '' }, modal: null, picker: null, whyOpen: false, advisoryOpen: false };
+  const ui = { tab: 'structure', cat: { q: '', comp: '', session: '', inPlan: false, area: '' }, modal: null, picker: null, assign: null, whyOpen: false, advisoryOpen: false, gridQ: '', viewFold: {}, yearInfo: {}, matchIds: [], matchAt: -1 };
 
   function readStore() {
     try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; }
   }
   function saveState() {
+    recordHistory();
     try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* private mode: state still works for this session */ }
   }
   function str(v, max) { return typeof v === 'string' ? v.slice(0, max) : ''; }
@@ -315,6 +316,7 @@
       exp: Object.assign({}, DEFAULT_EXPORT),
       mode: s.mode === 'custom' && custom ? 'custom' : 'guide',
       custom: custom,
+      view: s.view === 'remaining' || s.view === 'action' ? s.view : 'all',
     };
     if (s.majorFor && typeof s.majorFor === 'object') {
       Object.keys(s.majorFor).forEach(function (d) {
@@ -1225,16 +1227,22 @@
 
   function renderLegend(ctx) {
     const types = [['law', 'Law core', '--crimson'], ['nonlaw', 'Non-law core', '--slate'], ['major', 'Major / minor', '--teal']];
-    setHTML($('#legend'), '<details class="legend-box" id="legend-box"' + (ui.legendOpen ? ' open' : '') + '><summary>' +
-      '<span class="lg-title">Key</span><span class="lg-group">' + types.map(function (t) {
+    const swatches = function (slotLabel) {
+      return types.map(function (t) {
         return '<span class="lg-sw"><i style="--k:var(' + t[2] + ')"></i>' + t[1] + '</span>';
-      }).join('') + '<span class="lg-sw slot"><i></i>' + (ctx.custom ? 'Open slot, your choice or a change' : 'Your choice<span class="lg-long"> (LLB Alternate, choice, elective)</span>') + '</span></span>' +
-      '<span class="lg-cta">Campus codes and tips</span></summary><div class="lg-body">' +
+      }).join('') + '<span class="lg-sw slot"><i></i>' + slotLabel + '</span>';
+    };
+    setHTML($('#legend'), '<details class="legend-box" id="legend-box"' + (ui.legendOpen ? ' open' : '') + '><summary>' +
+      '<span class="lg-group lg-inline" aria-hidden="true">' + swatches(ctx.custom ? 'Open or changed' : 'Your choice') + '</span>' +
+      '<span class="lg-cta">Key<span class="wide-only"> and campus codes</span></span></summary><div class="lg-body">' +
+      '<div class="lg-group"><span class="lg-title">Unit type</span>' + swatches(ctx.custom ? 'Open slot, your choice or a change' : 'Your choice (LLB Alternate, choice, elective)') + '</div>' +
       '<div class="lg-group"><span class="lg-title">Campus</span>' + Object.keys(META.campuses).map(function (c) {
         return '<span class="lg-camp">' + pill(c, { focus: true }) + esc(META.campuses[c].replace(' (Kingswood)', '')) + '</span>';
       }).join('') + '<span class="lg-camp">' + pill('TBC', { focus: true }) + 'Not yet published</span>' +
       (state.campus ? '<button type="button" class="linkish small" data-action="campus-clear">Clear highlight</button>' : '') + '</div>' +
-      '<p class="lg-tip"><span class="lg-title">Chain</span> Hover a subject, or press its Chain button, to see what it depends on and unlocks.</p></div></details>');
+      '<p class="lg-tip"><span class="lg-title">Chain</span> Hover a subject, or press its Chain button, to see what it depends on and unlocks.</p>' +
+      '<p class="lg-tip kbd-only"><span class="lg-title">Keys</span> <kbd>/</kbd> or <kbd>' + MOD_KEY + '+K</kbd> filter your plan · <kbd>' + UNDO_KEYS + '</kbd> undo · <kbd>' + REDO_KEYS + '</kbd> redo · <kbd>Esc</kbd> clear the filter or close a window</p>' +
+      '</div></details>');
   }
 
   function selectLabel(s) {
@@ -1334,14 +1342,29 @@
         });
       }
       ui.folded = { key: key, years: fold };
+      ui.viewFold = {};
     }
     return ui.folded.years;
   }
   function foldLabel(y, fold) { return (fold ? 'Show' : 'Hide') + ' Year ' + y + ' subjects'; }
   function setYearFold(y, fold) {
+    // a view's own opening and closing lasts until the view changes, and leaves the student's folds alone
+    if (state.view !== 'all') ui.viewFold[y] = fold;
+    else if (ui.folded) { if (fold) ui.folded.years[y] = true; else delete ui.folded.years[y]; }
+    showYearFold(y);
+    if (state.view !== 'all') applyGridFilter(true);
+  }
+  function yearIsFolded(y) {
+    if (state.view !== 'all' && ui.viewFold[y] != null) return ui.viewFold[y];
+    const info = ui.yearInfo[y];
+    if (state.view === 'action' && info && info.action) return false;
+    if (state.view === 'remaining' && info && info.finished) return true;
+    return !!(ui.folded && ui.folded.years[y]);
+  }
+  function showYearFold(y) {
     const box = document.getElementById('year-' + y);
     if (!box) return;
-    if (ui.folded) { if (fold) ui.folded.years[y] = true; else delete ui.folded.years[y]; }
+    const fold = yearIsFolded(y);
     box.classList.toggle('is-folded', fold);
     box.querySelector('.sessions').hidden = fold;
     const b = box.querySelector('.year-toggle');
@@ -1372,7 +1395,7 @@
           const isNext = next && next.year === y.year && next.session === sess;
           const label = sessionLabel(y.year, sess) + ', Year ' + y.year + ': ' + (list.length ? doneOf(list) + ' of ' + plural(list.length, 'subject') + ' done' : 'no subjects') + (isNext ? ', next to enrol' : '');
           return '<button type="button" class="dm-s' + (isNext ? ' is-next' : '') + '" data-action="map-jump" data-y="' + y.year + '" data-s="' + sess + '" aria-label="' + label + '" title="' + label + '"><span class="dm-n">' + SESSION_SHORT[sess] + '</span><span class="dm-seg">' +
-            list.map(function (s) { return '<i' + (s.done ? ' class="on"' : s.pending ? ' class="open"' : '') + '></i>'; }).join('') + '</span></button>';
+            list.map(function (s) { return '<i data-slot="' + s.id + '"' + (s.done ? ' class="on"' : s.pending ? ' class="open"' : '') + '></i>'; }).join('') + '</span></button>';
         }).join('') + '</li>';
     }).join('') + '</ol>');
     markHere();
@@ -1438,7 +1461,7 @@
         html += '<section class="session' + (sess === 'Summer' ? ' session-summer' : '') + '" aria-label="Year ' + y.year + ' ' + sess + ' session" data-y="' + y.year + '" data-s="' + sess + '"><div class="session-head"><h3>' + sess + '<span>Session</span></h3><div class="session-tools"><span class="commute-slot">' + commutePill(list) + '</span><span class="load-slot">' + loadPill(list) + '</span>' +
           (edit ? '<button type="button" class="mark-all add-slot" data-action="cadd" data-y="' + y.year + '" data-s="' + sess + '">+ Add slot</button>' : '') +
           (list.length ? '<button type="button" class="mark-all" data-action="session-done" data-ids="' + list.map(function (s) { return s.id; }).join(',') + '">' + (allDone ? 'Unmark all' : 'Mark all done') + '</button>' : '') +
-          '<span class="session-cp' + (over ? ' over' : '') + '"' + (over ? ' title="More than the 40 CP full-time load"' : '') + '>' + sumCP(list) + ' CP</span></div></div><div class="slots">' +
+          '<span class="session-cp' + (over ? ' over' : '') + '"' + (over ? ' title="More than the 40 CP full-time load"' : '') + '>' + sumCP(list) + ' CP</span></div></div><p class="session-clear"></p><div class="slots">' +
           (list.length ? list.map(function (s) { return slotHTML(s, ctx); }).join('') : '<div class="slot-empty">No subjects scheduled this session</div>') + '</div></section>';
       });
       html += '</div></article>';
@@ -1543,8 +1566,15 @@
         '</div>' + (d.llbComponent ? areaTools('cat-area', ui.cat.area) : '') + toolsNote(d.llbComponent, '<kbd>/</kbd> search the catalogue · <kbd>Esc</kbd> close a window or clear a highlight') + '<div id="cat-results"></div>';
     }
     html += '</div>';
+    // assigning from a long list leaves the list where it was
+    const scroller = $('#cat-results .table-scroll');
+    const keep = scroller ? [scroller.scrollTop, scroller.scrollLeft] : null;
     $('#details').innerHTML = html;
-    if (ui.tab === 'catalogue') renderCatalogueRows(ctx);
+    if (ui.tab === 'catalogue') {
+      renderCatalogueRows(ctx);
+      const again = $('#cat-results .table-scroll');
+      if (keep && again) { again.scrollTop = keep[0]; again.scrollLeft = keep[1]; }
+    }
   }
 
   function renderCatalogueRows(ctx) {
@@ -1569,14 +1599,14 @@
     else if (extraHits.length > extraLimit) note = ' · showing the first ' + extraLimit + ' WSU subject list matches; refine the search to narrow them';
     else if (!wantExtra && EXTRA.length && !ui.cat.comp && !ui.cat.area) note =' · search to include ' + EXTRA.length.toLocaleString('en-AU') + ' more subjects from the WSU subject list';
     $('#cat-results').innerHTML = '<p class="cat-count">' + (onlyExtra ? extraHits.length.toLocaleString('en-AU') + ' of ' + EXTRA.length.toLocaleString('en-AU') + ' WSU subject list subjects' : rows.length + ' of ' + d.catalogue.length + ' degree subjects' + (extraHits.length ? ' + ' + extraHits.length.toLocaleString('en-AU') + ' from the WSU subject list' : '')) + note + '</p>' +
-      '<div class="table-scroll" tabindex="0" role="region" aria-label="Subject catalogue results"><table class="cat"><thead><tr><th>Code</th><th>Title</th><th>Component</th><th>Level</th><th>Autumn</th><th>Spring</th><th>CP</th><th>Data source</th></tr></thead><tbody>' +
+      '<div class="table-scroll" tabindex="0" role="region" aria-label="Subject catalogue results"><table class="cat"><thead><tr><th>Code</th><th>Title</th><th>Component</th><th>Level</th><th>Autumn</th><th>Spring</th><th>CP</th><th>Data source</th><th class="c-plan">Your plan</th></tr></thead><tbody>' +
       rows.map(function (c) {
         const inPlan = !!ctx.used[c.code];
-        return '<tr class="' + (inPlan ? 'in-plan' : '') + '"><td class="c-code">' + hlCode(c.code, q) + '</td><td>' + hl(c.title, q) + (inPlan ? ' <span class="status status-major">In plan</span>' : '') + areaTags(c.code) + '</td><td class="c-comp">' + esc(c.component) + '</td><td class="small">' + esc(c.level) + '</td><td>' + cell(c.autumn) + '</td><td>' + cell(c.spring) + '</td><td class="small mono">' + c.cp + '</td><td class="small muted">' + esc(c.source) + '</td></tr>';
+        return '<tr class="' + (inPlan ? 'in-plan' : '') + '"><td class="c-code">' + hlCode(c.code, q) + '</td><td>' + hl(c.title, q) + areaTags(c.code) + '</td><td class="c-comp">' + esc(c.component) + '</td><td class="small">' + esc(c.level) + '</td><td>' + cell(c.autumn) + '</td><td>' + cell(c.spring) + '</td><td class="small mono">' + c.cp + '</td><td class="small muted">' + esc(c.source) + '</td>' + planCell(ctx, c.code) + '</tr>';
       }).join('') +
       extraHits.slice(0, extraLimit).map(function (e) {
         const inPlan = !!ctx.used[e.code];
-        return '<tr class="extra' + (inPlan ? ' in-plan' : '') + '"><td class="c-code">' + hlCode(e.code, q) + '</td><td>' + hl(e.title, q) + (inPlan ? ' <span class="status status-major">In plan</span>' : '') + '</td><td class="c-comp">WSU subject list (any-subject electives)</td><td class="small">' + e.level + '</td><td colspan="2" class="small muted">Check the 2027 Handbook</td><td class="small muted">—</td><td class="small muted">Subject list</td></tr>';
+        return '<tr class="extra' + (inPlan ? ' in-plan' : '') + '"><td class="c-code">' + hlCode(e.code, q) + '</td><td>' + hl(e.title, q) + '</td><td class="c-comp">WSU subject list (any-subject electives)</td><td class="small">' + e.level + '</td><td colspan="2" class="small muted">Check the 2027 Handbook</td><td class="small muted">—</td><td class="small muted">Subject list</td>' + planCell(ctx, e.code) + '</tr>';
       }).join('') + '</tbody></table></div>';
     if (!rows.length && !extraHits.length) $('#cat-results .table-scroll').outerHTML = '<div class="pick-empty">No subjects match these filters. <button type="button" class="linkish" data-action="cat-reset">Clear filters</button></div>';
   }
@@ -1626,11 +1656,12 @@
 
   function renderSectionHead(ctx) {
     $('#section-kicker').innerHTML = (ctx.custom ? 'Custom pathway' : 'Recommended pathway') + ' <i>·</i> 2027';
-    $('#section-tools').innerHTML = '<div class="tool-group">' + suggestButtons(ctx) + pinButtons() + '</div><div class="tool-group">' + (ctx.custom
+    $('#section-tools').innerHTML = '<div class="tool-group tool-group-history">' + historyButtons() + '</div><div class="tool-group">' + suggestButtons(ctx) + pinButtons() + '</div><div class="tool-group">' + (ctx.custom
       ? '<button type="button" class="tbtn tbtn-outline" data-action="custom-setup" title="Change the degree name, credit points or starting template">Edit setup</button>' +
         '<button type="button" class="tbtn" data-action="custom-exit" title="Your custom plan is kept; switch back any time from the Degree menu">← WSLSA pathways</button>'
       : '<button type="button" class="tbtn tbtn-outline" data-action="custom-from-current" title="Copy this pathway into your own editable plan">Customise this pathway →</button>' +
         (state.custom ? '<button type="button" class="tbtn" data-action="custom-open" title="Switch to your saved custom plan">Open my custom plan</button>' : '<button type="button" class="tbtn" data-action="custom-open" title="Set the credit points and build a degree from scratch">Build my own</button>')) + '</div>';
+    syncHistoryButtons();
   }
 
   // ======================================================================== motion
@@ -1783,6 +1814,7 @@
     });
     $('#progress-meta').textContent = progressMeta(ctx);
     renderMap(ctx);
+    applyGridFilter(true);
     renderAdvisory(ctx);
     const next = $('#next');
     renderNext(ctx);
@@ -1934,11 +1966,8 @@
       .filter(function (c) { return c.rank != null && Object.keys(c.codes).length; })
       .sort(function (a, b) { return a.rank - b.rank || a.at - b.at || a.s.raw.slot - b.s.raw.slot; });
   }
-  function planSnapshot(ctx) { return JSON.stringify(ctx.custom ? state.custom.slots : state.picks[ctx.key] || {}); }
   function suggestButtons(ctx) {
-    const canUndo = ui.autoUndo && ui.autoUndo.key === ctx.key && ui.autoUndo.after === planSnapshot(ctx);
-    return (canUndo ? '<button type="button" class="tbtn" data-action="suggest-undo">↶ Undo suggestions</button>' : '') +
-      (openChoices(ctx).length ? '<button type="button" class="tbtn tbtn-outline" data-action="suggest" title="Fill open choices with subjects that run in that session' + (state.campus ? ' at ' + esc(META.campuses[state.campus]) + ' or online' : ', online first') + '">Auto-suggest open slots</button>' : '');
+    return (openChoices(ctx).length ? '<button type="button" class="tbtn tbtn-outline" data-action="suggest" title="Fill open choices with subjects that run in that session' + (state.campus ? ' at ' + esc(META.campuses[state.campus]) + ' or online' : ', online first') + '">Auto-suggest open slots</button>' : '');
   }
   function prereqsMet(code, idx, ctx, placed) {
     return (REQ_GROUPS[code] || []).every(function (group) {
@@ -1950,7 +1979,6 @@
   }
   function autoSuggest() {
     const ctx = lastCtx;
-    const before = planSnapshot(ctx);
     const placed = {};
     const needs = {};
     ctx.slots.forEach(function (s) {
@@ -1992,40 +2020,89 @@
       count++;
     });
     if (!count) { toast('No subject fits the open slots with these settings. Try another campus or choose by hand.'); return; }
-    ui.autoUndo = { key: ctx.key, before: before, after: planSnapshot(ctx) };
+    noteChange('auto-suggested ' + plural(count, 'subject'));
     renderMoving();
     const left = open.length - count;
-    toast('Suggested ' + plural(count, 'subject') + (left ? ', ' + left + ' left open' : '') + '. A starting point only, so check them in the Handbook.', { action: 'suggest-undo', label: 'Undo' });
-  }
-  function undoSuggest() {
-    const u = ui.autoUndo;
-    if (!u) return;
-    const was = JSON.parse(u.before);
-    if (isCustom()) state.custom.slots = was;
-    else if (Object.keys(was).length) state.picks[u.key] = was;
-    else delete state.picks[u.key];
-    ui.autoUndo = null;
-    $('#toast').classList.remove('show');
-    renderMoving();
-    toast('Suggestions removed.');
+    toast('Suggested ' + plural(count, 'subject') + (left ? ', ' + left + ' left open' : '') + '. A starting point only, so check them in the Handbook.', { action: 'undo', label: 'Undo' });
   }
 
   // ======================================================================== drag between sessions
   // Custom plans at the full-time view only; Change or move stays as the way in for keyboards and phones.
+  // Over a session, a card moves there. Over a card in another session the two swap places, and over a
+  // card in its own session it changes order.
+  function offerIssue(ctx, s, sess) {
+    if (s.pending || !s.code) return '';
+    if (sess === 'Summer') return 'Check Handbook for Summer';
+    if (s.listSubject || s.custom) return 'Check Handbook';
+    const off = offerFor(ctx.deg, s.code, sess);
+    if (off && off.none) return 'Not offered in ' + sess;
+    if (off && off.tbc) return sess + ' TBC';
+    return '';
+  }
   function dropIssues(ctx, s, y, sess) {
     const issues = [];
-    if (!s.pending && s.code) {
-      if (sess === 'Summer') issues.push('Check Handbook for Summer');
-      else if (s.listSubject || s.custom) issues.push('Check Handbook');
-      else {
-        const off = offerFor(ctx.deg, s.code, sess);
-        if (off && off.none) issues.push('Not offered in ' + sess);
-        else if (off && off.tbc) issues.push(sess + ' TBC');
-      }
-    }
+    const offer = offerIssue(ctx, s, sess);
+    if (offer) issues.push(offer);
     const load = sumCP(ctx.slots.filter(function (o) { return o !== s && o.year === y && o.session === sess; })) + s.cp;
     if (load > LOAD_CP.FT) issues.push(load + ' CP, over the ' + LOAD_CP.FT + ' CP load');
     return issues;
+  }
+  // what a swap would do: each subject in the other's session, and the load of both sessions afterwards
+  function swapInfo(ctx, s, t) {
+    const inSession = function (x) { return ctx.slots.filter(function (o) { return o.year === x.year && o.session === x.session; }); };
+    const name = function (x) { return x.pending ? 'open slot' : x.code; };
+    const atT = sumCP(inSession(t)) - t.cp + s.cp;
+    const atS = sumCP(inSession(s)) - s.cp + t.cp;
+    const problems = [];
+    [[s, t.session], [t, s.session]].forEach(function (p) {
+      const issue = offerIssue(ctx, p[0], p[1]);
+      if (issue) problems.push(name(p[0]) + (/^Not offered/.test(issue) ? ' is not offered' + issue.slice(11) : ': ' + issue));
+    });
+    [[atT, t], [atS, s]].forEach(function (p) {
+      if (p[0] > LOAD_CP.FT) problems.push(where(p[1]) + ' would be ' + p[0] + ' CP');
+    });
+    const lead = 'Swap with ' + (t.pending ? 'this open slot' : t.code) + ': ';
+    const good = atT === atS ? 'keeps both sessions at ' + atT + ' CP' : where(t) + ' becomes ' + atT + ' CP and ' + where(s) + ' ' + atS + ' CP';
+    return { warn: problems.length > 0, problems: problems, text: lead + (problems.length ? problems.join(', ') : good) };
+  }
+  function swapCustomSlots(a, b) {
+    const slots = state.custom.slots;
+    const x = slots[a];
+    const y = slots[b];
+    const at = { y: x.y, s: x.s };
+    x.y = y.y;
+    x.s = y.s;
+    y.y = at.y;
+    y.s = at.s;
+    // each takes the other's exact place in its session, not just its session
+    slots[a] = y;
+    slots[b] = x;
+    return ['c' + b, 'c' + a];
+  }
+  function reorderCustomSlot(idx, targetIdx, after) {
+    const to = targetIdx + (after ? 1 : 0) - (idx < targetIdx ? 1 : 0);
+    if (to === idx) return null;
+    const slots = state.custom.slots;
+    const x = slots.splice(idx, 1)[0];
+    slots.splice(to, 0, x);
+    return 'c' + to;
+  }
+  function doSwap(s, t) {
+    const info = swapInfo(lastCtx, s, t);
+    const name = function (x) { return x.pending ? 'the open slot' : x.code; };
+    noteChange('swapped ' + name(s) + ' and ' + name(t));
+    const ids = swapCustomSlots(s.idx, t.idx);
+    if (ui.modal) closeModal(true);
+    renderMoving(function () { flashSlot(ids[0], true); flashSlot(ids[1], true); });
+    toast('Swapped ' + name(s) + ' into ' + where(t) + ' and ' + name(t) + ' into ' + where(s) + (info.problems.length ? '. Check: ' + info.problems.join(', ') : '') + '.', { action: 'undo', label: 'Undo' });
+  }
+  function doReorder(s, t, after) {
+    const id = reorderCustomSlot(s.idx, t.idx, after);
+    if (!id) return;
+    noteChange('reordered ' + where(s));
+    if (ui.modal) closeModal(true);
+    renderMoving(function () { flashSlot(id, true); });
+    toast('Reordered ' + where(s) + '.', { action: 'undo', label: 'Undo' });
   }
   function dropZone(el) { return el && el.closest ? el.closest('#grid .session, #grid .summer-add') : null; }
   function zoneTarget(zone) { return { y: +zone.dataset.y, s: zone.dataset.s || 'Summer' }; }
@@ -2042,11 +2119,58 @@
       if (zone.classList.contains('summer-add')) return;
       const badge = document.createElement('span');
       badge.className = 'drop-badge';
-      badge.textContent = issues.length ? issues.join(' · ') : (s.pending ? 'Fits' : 'Offered, fits load');
+      const full = issues.some(function (i) { return /over the/.test(i); });
+      badge.textContent = (issues.length ? issues.join(' · ') : (s.pending ? 'Fits' : 'Offered, fits load')) + (full && zone.querySelector('.subj') ? ' · drop on a card to swap' : '');
       zone.querySelector('.session-head').appendChild(badge);
     });
   }
+  // the card under the pointer decides a swap or a new order; anywhere else in a session is a plain move
+  function cardDrop(ev, zone) {
+    const ctx = lastCtx;
+    const s = ctx.byId[ui.drag];
+    const card = ev.target.closest ? ev.target.closest('.subj') : null;
+    if (card) {
+      if (card.dataset.slot === ui.drag) return null;
+      const t = ctx.byId[card.dataset.slot];
+      if (t.year !== s.year || t.session !== s.session) return { type: 'swap', t: t };
+      const r = card.getBoundingClientRect();
+      // a Summer session lays its cards out side by side on a wide screen
+      const sideways = zone.classList.contains('session-summer') && window.innerWidth > 760;
+      return { type: 'reorder', t: t, after: sideways ? ev.clientX > r.left + r.width / 2 : ev.clientY > r.top + r.height / 2 };
+    }
+    // the gaps between cards keep what was last shown, so the highlight does not flicker
+    const p = ui.dropPlan;
+    if (p && ev.target.closest && ev.target.closest('.slots') && p.t.year === +zone.dataset.y && p.t.session === zone.dataset.s) return p;
+    return null;
+  }
+  function clearDropPlan() {
+    ui.dropPlan = null;
+    ui.dropKey = '';
+    const grid = $('#grid');
+    grid.querySelectorAll('.swap-badge').forEach(function (b) { b.remove(); });
+    grid.querySelectorAll('.swap-ok, .swap-warn, .reorder-before, .reorder-after, .has-swap').forEach(function (el) {
+      el.classList.remove('swap-ok', 'swap-warn', 'reorder-before', 'reorder-after', 'has-swap');
+    });
+  }
+  function showDropPlan(plan) {
+    const key = plan ? plan.type + plan.t.id + (plan.after ? '+' : '') : '';
+    if (key === (ui.dropKey || '')) return;
+    clearDropPlan();
+    if (!plan) return;
+    ui.dropPlan = plan;
+    ui.dropKey = key;
+    const card = document.getElementById('slot-' + plan.t.id);
+    if (plan.type === 'reorder') { card.classList.add(plan.after ? 'reorder-after' : 'reorder-before'); return; }
+    const info = swapInfo(lastCtx, lastCtx.byId[ui.drag], plan.t);
+    card.classList.add(info.warn ? 'swap-warn' : 'swap-ok');
+    const badge = document.createElement('span');
+    badge.className = 'swap-badge';
+    badge.textContent = info.text;
+    card.appendChild(badge);
+    card.closest('.session').classList.add('has-swap');
+  }
   function clearDrag() {
+    clearDropPlan();
     ui.drag = '';
     const grid = $('#grid');
     grid.querySelectorAll('.drop-badge').forEach(function (b) { b.remove(); });
@@ -2069,11 +2193,13 @@
   document.addEventListener('dragover', function (ev) {
     if (!ui.drag) return;
     const zone = dropZone(ev.target);
-    $('#grid').querySelectorAll('.drop-over').forEach(function (z) { if (z !== zone) z.classList.remove('drop-over'); });
+    const plan = zone ? cardDrop(ev, zone) : null;
+    showDropPlan(plan);
+    $('#grid').querySelectorAll('.drop-over').forEach(function (z) { if (z !== zone || plan) z.classList.remove('drop-over'); });
     if (!zone) return;
     ev.preventDefault();
     ev.dataTransfer.dropEffect = 'move';
-    zone.classList.add('drop-over');
+    if (!plan) zone.classList.add('drop-over');
   });
   document.addEventListener('drop', function (ev) {
     if (!ui.drag) return;
@@ -2082,13 +2208,17 @@
     ev.preventDefault();
     const ctx = lastCtx;
     const s = ctx.byId[ui.drag];
+    const plan = cardDrop(ev, zone);
     const t = zoneTarget(zone);
     const issues = dropIssues(ctx, s, t.y, t.s);
     clearDrag();
+    if (plan && plan.type === 'swap') { doSwap(s, plan.t); return; }
+    if (plan) { doReorder(s, plan.t, plan.after); return; }
     if (s.year === t.y && s.session === t.s) return;
+    noteChange('moved ' + (s.pending ? 'an open slot' : s.code) + ' to Year ' + t.y + ' ' + t.s);
     const id = moveCustomSlot(s.idx, t.y, t.s);
     renderMoving(function () { flashSlot(id, true); });
-    toast((s.pending ? 'Open slot' : s.code) + ' moved to Year ' + t.y + ' ' + t.s + (issues.length ? '. Check: ' + issues.join(', ') : '') + '.');
+    toast((s.pending ? 'Open slot' : s.code) + ' moved to Year ' + t.y + ' ' + t.s + (issues.length ? '. Check: ' + issues.join(', ') : '') + '.', { action: 'undo', label: 'Undo' });
   });
   document.addEventListener('dragend', function () { if (ui.drag) clearDrag(); });
 
@@ -2127,6 +2257,7 @@
   function closeModal(now) {
     ui.modal = null;
     ui.picker = null;
+    ui.assign = null;
     ui.setupSummer = 0;
     ui.importFound = null;
     ui.progress = null;
@@ -2360,23 +2491,13 @@
         });
       });
     }
-    ui.deferUndo = undo;
+    noteChange('deferred ' + s.code);
     if (ui.modal) closeModal(true);
     const target = id;
     renderMoving(function () { flashSlot(target); });
     const over = lastCtx.risks.overload.filter(function (l) { const x = state.custom.slots[s.idx]; return l.year === x.y && l.session === x.s; })[0];
     toast((moved.length > 1 ? 'Deferred ' + moved[0] + ', and moved ' + moved.slice(1).join(', ') : 'Deferred ' + moved[0]) + '.' + (copied ? ' This is now your own copy of the pathway.' : '') +
-      (over ? ' That session is now ' + over.cp + ' CP.' : '') + (unsure ? ' Its sessions are unpublished, so check the Handbook.' : ''), { action: 'defer-undo', label: 'Undo' });
-  }
-  function undoDefer() {
-    const u = ui.deferUndo;
-    if (!u) return;
-    state.mode = u.mode;
-    state.custom = u.custom ? JSON.parse(u.custom) : null;
-    ui.deferUndo = null;
-    $('#toast').classList.remove('show');
-    renderMoving();
-    toast('Back to how your plan was.');
+      (over ? ' That session is now ' + over.cp + ' CP.' : '') + (unsure ? ' Its sessions are unpublished, so check the Handbook.' : ''), { action: 'undo', label: 'Undo' });
   }
 
   // ======================================================================== snapshot and compare
@@ -2530,10 +2651,235 @@
     renderGrid(ctx);
     renderDetails(ctx);
     renderFoot(ctx);
+    applyGridFilter();
     if (active && document.getElementById(active) && /^(sel-|cat-|custom-name)/.test(active)) document.getElementById(active).focus({ preventScroll: true });
     saveState();
     afterRender(ctx);
     if (ui.modal === 'export') renderExportPreview();
+  }
+
+  // ======================================================================== undo and redo
+  // Everything that changes a plan ends in saveState, so that is where a change is recorded: nothing can
+  // slip past the history, and handlers only have to say what the change was called.
+  const HISTORY_MAX = 30;
+  const undoStack = [];
+  const redoStack = [];
+  const MOD_KEY = /Mac|iPhone|iPad/.test(navigator.platform || '') ? 'Cmd' : 'Ctrl';
+  const UNDO_KEYS = MOD_KEY + '+Z';
+  const REDO_KEYS = MOD_KEY === 'Cmd' ? 'Cmd+Shift+Z' : 'Ctrl+Y';
+  let historyPlan = null;
+  let historyView = null;
+  let historyNote = '';
+  let historyMerge = '';
+  function planPart() { return JSON.stringify({ picks: state.picks, done: state.done, custom: state.custom }); }
+  // which plan was on screen travels with it, so an undo always shows the plan it changed
+  function viewPart() { return { mode: state.mode, degree: state.degree, majorFor: Object.assign({}, state.majorFor) }; }
+  function noteChange(label, merge) {
+    historyNote = label;
+    historyMerge = merge || '';
+  }
+  function recordHistory() {
+    const plan = planPart();
+    if (historyPlan !== null && plan !== historyPlan) {
+      const top = undoStack[undoStack.length - 1];
+      // typing a name is one change, not one for each letter
+      if (!(historyMerge && top && top.merge === historyMerge)) {
+        undoStack.push({ label: historyNote || 'your last change', plan: historyPlan, view: historyView, merge: historyMerge });
+        if (undoStack.length > HISTORY_MAX) undoStack.shift();
+      }
+      redoStack.length = 0;
+    }
+    historyPlan = plan;
+    historyView = viewPart();
+    historyNote = '';
+    historyMerge = '';
+    syncHistoryButtons();
+  }
+  function historyButtons() {
+    return '<button type="button" class="tbtn tbtn-history" data-action="undo" disabled>↶ Undo</button>' +
+      '<button type="button" class="tbtn tbtn-history" data-action="redo" disabled>↷ Redo</button>';
+  }
+  function syncHistoryButtons() {
+    const set = function (action, entry, word, keys) {
+      document.querySelectorAll('#section-tools [data-action="' + action + '"], #mini-bar [data-action="' + action + '"]').forEach(function (b) {
+        b.disabled = !entry;
+        b.title = entry ? word + ': ' + entry.label + ' (' + keys + ')' : 'Nothing to ' + word.toLowerCase() + ' yet';
+      });
+    };
+    set('undo', undoStack[undoStack.length - 1], 'Undo', UNDO_KEYS);
+    set('redo', redoStack[redoStack.length - 1], 'Redo', REDO_KEYS);
+  }
+  function stepHistory(back) {
+    const from = back ? undoStack : redoStack;
+    const to = back ? redoStack : undoStack;
+    const entry = from.pop();
+    if (!entry) { toast(back ? 'Nothing to undo.' : 'Nothing to redo.'); return; }
+    to.push({ label: entry.label, plan: historyPlan, view: viewPart() });
+    const plan = JSON.parse(entry.plan);
+    state.picks = plan.picks;
+    state.done = plan.done;
+    state.custom = plan.custom;
+    state.mode = entry.view.mode;
+    state.degree = entry.view.degree;
+    state.majorFor = Object.assign({}, entry.view.majorFor);
+    historyPlan = entry.plan;
+    // the control in use is rebuilt with the page: focus stays with it, or moves to its partner once it has nothing left to do
+    const a = document.activeElement;
+    const action = a && a.dataset ? a.dataset.action : '';
+    if (action === 'undo' || action === 'redo') {
+      const spent = action === 'undo' ? !undoStack.length : !redoStack.length;
+      focusBack = { action: spent ? (action === 'undo' ? 'redo' : 'undo') : action };
+    } else if (action && a.dataset.slot) focusBack = { action: action, slot: a.dataset.slot };
+    renderMoving();
+    toast((back ? 'Undid: ' : 'Redid: ') + entry.label + '.', { action: back ? 'redo' : 'undo', label: back ? 'Redo' : 'Undo' });
+  }
+  // text is typed into a search box or a name, but a tick is an input too, and undo must still work from one
+  function typingIn(el) {
+    if (!el || !el.tagName) return false;
+    if (el.isContentEditable || el.tagName === 'TEXTAREA') return true;
+    return el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|reset|file|range|color)$/i.test(el.type);
+  }
+
+  // ======================================================================== grid view and quick filter
+  // what the Action needed view shows, and what the advisory counts: nothing here is about a finished subject
+  function actionSlots(ctx) {
+    const out = {};
+    const r = ctx.risks;
+    const add = function (list) { list.forEach(function (s) { if (!s.done) out[s.id] = 1; }); };
+    [r.pending, r.tbc, r.notOffered, r.campus, r.summer, r.unlisted].forEach(add);
+    r.advisor.forEach(function (a) { if (a.flagSlot) add([a.flagSlot]); });
+    r.dupes.forEach(function (d) { add(d.slots); });
+    r.overload.forEach(function (l) { add(ctx.slots.filter(function (s) { return s.year === l.year && s.session === l.session; })); });
+    return out;
+  }
+  function slotMatches(s, q) {
+    const scored = function (code, title) { return searchScore({ code: code || '', title: title || '' }, q) > 0; };
+    if (scored(s.code, s.title)) return true;
+    return !!(s.raw && s.raw.options) && s.raw.options.some(function (o) { return scored(o.code, o.title); });
+  }
+  function markSlotText(el, s, q) {
+    if (!q && !el._marked) return;
+    el._marked = !!q;
+    el.querySelector('.subj-title').innerHTML = q ? hl(s.title, q) : esc(s.title);
+    if (!s.pending) el.querySelector('.code-pill').innerHTML = q ? hlCode(s.code, q) : esc(s.code);
+  }
+  // Applies the view and the filter to the cards on the page. Ticking passes keepFolds, so a year does
+  // not fold under a student's hand, and a card ticked a moment ago (.just-done) stays until the next render.
+  function applyGridFilter(keepFolds) {
+    const ctx = lastCtx;
+    const grid = $('#grid');
+    const view = state.view;
+    const q = normQ(ui.gridQ);
+    const action = actionSlots(ctx);
+    const marks = {};
+    const matches = [];
+    let hiddenHits = 0;
+    let shownCards = 0;
+    grid.classList.toggle('view-remaining', view === 'remaining');
+    grid.classList.toggle('view-action', view === 'action');
+    ui.yearInfo = {};
+    timeline(ctx, state.load).forEach(function (y) {
+      const box = document.getElementById('year-' + y.year);
+      if (!box) return;
+      const all = y.Autumn.concat(y.Spring, y.Summer);
+      const showDone = view === 'remaining' && ui.viewFold[y.year] === false;
+      ui.yearInfo[y.year] = { finished: all.length > 0 && all.every(function (s) { return s.done; }), action: all.some(function (s) { return action[s.id]; }) };
+      box.classList.toggle('show-done', showDone);
+      let yearShown = 0;
+      let yearHits = 0;
+      PLAN_SESSIONS.forEach(function (sess) {
+        const section = box.querySelector('.session[data-s="' + sess + '"]');
+        if (!section) return;
+        let shown = 0;
+        sortSlots(y[sess]).forEach(function (s) {
+          const el = document.getElementById('slot-' + s.id);
+          if (!el) return;
+          const just = el.classList.contains('just-done');
+          const visible = view === 'remaining' ? !s.done || just || showDone : view === 'action' ? !!action[s.id] || just : true;
+          const hit = !!q && slotMatches(s, q);
+          el.classList.toggle('is-action', !!action[s.id]);
+          el.classList.toggle('is-match', hit);
+          markSlotText(el, s, hit ? q : '');
+          if (visible) shown++;
+          if (hit) {
+            marks[s.id] = 1;
+            if (visible) { matches.push(s.id); yearHits++; } else hiddenHits++;
+          } else if (!q && view === 'action' && action[s.id]) marks[s.id] = 1;
+        });
+        yearShown += shown;
+        const clear = y[sess].length > 0 && !shown;
+        section.classList.toggle('view-clear', clear);
+        section.querySelector('.session-clear').textContent = clear ? (view === 'remaining' ? 'Everything in this session is done.' : 'Nothing in this session needs action.') : '';
+      });
+      shownCards += yearShown;
+      box.classList.toggle('view-none', view === 'action' && !yearShown);
+      box.classList.toggle('has-match', yearHits > 0);
+      if (!keepFolds) showYearFold(y.year);
+    });
+    grid.classList.toggle('is-filtering', matches.length > 0);
+    // the map marks where the matches are, as they may be far from the screen
+    const map = $('#dmap');
+    map.querySelectorAll('.dm-seg i').forEach(function (i) { i.classList.toggle('hit', !!marks[i.dataset.slot]); });
+    map.querySelectorAll('.dm-year').forEach(function (li) {
+      li.querySelectorAll('.dm-s').forEach(function (b) { b.classList.toggle('has-hit', !!b.querySelector('i.hit')); });
+      li.querySelector('.dm-y').classList.toggle('has-hit', !!li.querySelector('i.hit'));
+    });
+    $('#gv-remaining').textContent = ctx.slots.filter(function (s) { return !s.done; }).length;
+    $('#gv-action').textContent = Object.keys(action).length;
+    ui.matchIds = matches;
+    if (ui.matchAt >= matches.length) ui.matchAt = -1;
+    let status = '';
+    if (q) {
+      status = matches.length ? plural(matches.length, 'match', 'matches') + '<span class="wide-only">' + (matches.length > 1 ? ' · Enter for next' : ' · Enter to go there') + '</span>' : 'No match';
+      if (hiddenHits) status += ' · ' + hiddenHits + ' hidden';
+    }
+    $('#grid-status').innerHTML = status;
+    $('#grid-q').classList.toggle('no-match', !!q && !matches.length);
+    const empty = $('#grid-empty');
+    const none = view !== 'all' && !shownCards && ctx.slots.length > 0;
+    empty.hidden = !none;
+    if (none) empty.innerHTML = (view === 'remaining' ? '<b>Every subject in this plan is ticked off.</b>' : '<b>Nothing in this plan needs action right now.</b>') + ' <button type="button" class="linkish" data-action="grid-view" data-view="all">Show everything</button>';
+  }
+  function setGridView(view) {
+    state.view = view;
+    ui.viewFold = {};
+    document.querySelectorAll('.view-modes button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.view === view)); });
+    $('#grid').querySelectorAll('.just-done').forEach(function (el) { el.classList.remove('just-done'); });
+    applyGridFilter();
+    saveState();
+  }
+  // the bar joins the sticky stack only while the filter is in use, so it costs no height the rest of the time
+  function syncGridBar() {
+    const bar = $('#gridbar');
+    const on = document.activeElement === $('#grid-q') || !!ui.gridQ;
+    bar.classList.toggle('is-searching', on);
+    // on a phone only the search row needs to stay, so the view buttons above it slide off the top
+    const hide = window.innerWidth <= 760 ? $('.grid-search').offsetTop : 0;
+    const root = document.documentElement.style;
+    root.setProperty('--bar-hide', hide + 'px');
+    root.setProperty('--bar-h', on ? Math.max(0, bar.offsetHeight - hide) + 'px' : '0px');
+  }
+  function focusGridFilter() {
+    const q = $('#grid-q');
+    $('#gridbar').classList.add('is-searching');
+    const r = q.getBoundingClientRect();
+    q.focus({ preventScroll: r.top >= 0 && r.bottom <= window.innerHeight });
+    syncGridBar();
+    q.select();
+  }
+  function clearGridFilter() {
+    $('#grid-q').value = '';
+    ui.gridQ = '';
+    ui.matchAt = -1;
+    applyGridFilter(true);
+    syncGridBar();
+  }
+  function stepMatch(dir) {
+    const ids = ui.matchIds;
+    if (!ids.length) return;
+    ui.matchAt = (ui.matchAt + dir + ids.length) % ids.length;
+    flashSlot(ids[ui.matchAt]);
+    $('#grid-status').textContent = (ui.matchAt + 1) + ' of ' + ids.length;
   }
 
   // ======================================================================== mutations
@@ -2560,6 +2906,8 @@
     const el = document.getElementById('slot-' + id);
     if (!el) return;
     const home = el.closest('.year');
+    // a jump to a card that this view hides goes back to showing everything
+    if (state.view !== 'all' && (getComputedStyle(el).display === 'none' || (home && home.classList.contains('view-none')))) setGridView('all');
     if (home && home.classList.contains('is-folded')) setYearFold(+home.id.replace('year-', ''), false);
     if (!stay) el.scrollIntoView({ behavior: scrollMode(), block: 'center' });
     el.classList.remove('flash');
@@ -2582,6 +2930,114 @@
     t.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.classList.remove('show'); }, act ? 8000 : 2600);
+  }
+
+  // ======================================================================== assign from the catalogue
+  const SESS_SHORT = { Autumn: 'A', Spring: 'S', Summer: 'Su' };
+  // the year a slot shows under at the current load, as part-time spreads a plan over more years
+  function shownYear(ctx, s) {
+    if (!ctx.shownYears) {
+      ctx.shownYears = {};
+      timeline(ctx, state.load).forEach(function (y) {
+        PLAN_SESSIONS.forEach(function (sess) { y[sess].forEach(function (x) { ctx.shownYears[x.id] = y.year; }); });
+      });
+    }
+    return ctx.shownYears[s.id] || s.year;
+  }
+  function shownWhere(ctx, s) { return 'Year ' + shownYear(ctx, s) + ' ' + s.session; }
+  function planCell(ctx, code) {
+    const ids = ctx.used[code];
+    if (!ids) return '<td class="c-plan"><button type="button" class="assign-btn" data-action="assign-open" data-code="' + esc(code) + '" aria-label="Assign ' + esc(code) + ' to your plan">+ Assign</button></td>';
+    const s = ctx.byId[ids[0]];
+    return '<td class="c-plan"><button type="button" class="plan-badge" data-action="cat-jump" data-slot="' + s.id + '" data-code="' + esc(code) + '" title="Go to ' + esc(code) + ' in ' + shownWhere(ctx, s) + (s.done ? ', completed' : '') + '">In Plan (Y' + shownYear(ctx, s) + SESS_SHORT[s.session] + ') ↗</button></td>';
+  }
+  // whether a subject runs in the session of the slot on offer
+  function assignOffer(ctx, code, s) {
+    if (s.session === 'Summer') return { ok: false, label: 'Check the Handbook for Summer' };
+    const off = offerFor(ctx.deg, code, s.session);
+    if (!off) return { ok: false, label: 'No session data, so check the Handbook' };
+    if (off.none) return { ok: false, label: 'Not offered in ' + s.session };
+    if (off.tbc) return { ok: false, label: s.session + ' session TBC' };
+    const campuses = off.codes.join(', ');
+    if (state.campus && off.codes.indexOf(state.campus) < 0 && off.codes.indexOf('ON') < 0) return { ok: false, label: 'In ' + s.session + ' at ' + campuses + ', not ' + state.campus + ' or online' };
+    return { ok: true, label: 'Offered in ' + s.session + ': ' + campuses };
+  }
+  function assignRow(ctx, code, s, count) {
+    const o = assignOffer(ctx, code, s);
+    return '<button type="button" class="pick assign-slot" data-action="assign-to" data-slot="' + s.id + '"><span class="p-code">Y' + shownYear(ctx, s) + SESS_SHORT[s.session] + '</span>' +
+      '<span class="p-title">Year ' + shownYear(ctx, s) + ' · ' + sessionLabel(shownYear(ctx, s), s.session) + '</span>' +
+      '<span class="p-side"><span class="flag ' + (o.ok ? 'flag-done' : 'flag-tbc') + '">' + esc(o.label) + '</span></span>' +
+      '<span class="p-meta"><span>' + esc(s.title) + (count > 1 ? ' · ' + count + ' open' : '') + '</span></span></button>';
+  }
+  function offerSummary(ctx, code) {
+    const part = function (sess) {
+      const off = offerFor(ctx.deg, code, sess);
+      if (!off) return '';
+      return sess + ': ' + (off.none ? 'not offered' : off.tbc ? 'TBC' : off.codes.join(', '));
+    };
+    return [part('Autumn'), part('Spring')].filter(Boolean).join(' · ') || 'Sessions not listed, so check the Handbook';
+  }
+  function openAssign(code) {
+    const ctx = lastCtx;
+    const e = ctx.deg.byCode[code] || GLOBAL_BY_CODE[code] || EXTRA_BY_CODE[code];
+    if (!e) return;
+    ui.modal = 'assign';
+    ui.assign = { code: code };
+    const named = [];
+    const others = [];
+    ctx.slots.forEach(function (s) {
+      if (!s.pending || s.done) return;
+      const listed = !!choiceList(ctx, s).codes[code];
+      if (ctx.custom) (listed ? named : others).push(s);
+      else if (listed || s.kind === 'elective') named.push(s);
+    });
+    const order = function (list) {
+      return list.map(function (s) { return [s, assignOffer(ctx, code, s).ok ? 0 : 1]; }).sort(function (a, b) { return a[1] - b[1] || orderIdx(a[0].year, a[0].session) - orderIdx(b[0].year, b[0].session) || a[0].raw.slot - b[0].raw.slot; }).map(function (x) { return x[0]; });
+    };
+    const section = function (title, list) {
+      if (!list.length) return '';
+      const rows = {};
+      order(list).forEach(function (s) { const k = shownYear(ctx, s) + s.session + s.title; (rows[k] = rows[k] || []).push(s); });
+      return '<div class="pick-section"><h3><span>' + title + '</span><span>' + list.length + '</span></h3><div class="pick-list">' + Object.keys(rows).map(function (k) { return assignRow(ctx, code, rows[k][0], rows[k].length); }).join('') + '</div></div>';
+    };
+    let body = section(ctx.custom ? 'Open slots that list this subject' : 'Open slots that can take this subject', named) + section('Other open slots in your plan', others);
+    if (ctx.custom && state.load !== 'PT') {
+      const next = nextSession(ctx);
+      const at = next ? orderIdx(next.year, next.session) : 0;
+      const t = nextOffered(ctx.deg, code, at - 1, at);
+      if (t) body += '<div class="pick-section"><h3>Or make room for it</h3><div class="pick-list"><button type="button" class="pick assign-slot" data-action="assign-new" data-y="' + t.y + '" data-s="' + t.s + '"><span class="p-code">New slot</span><span class="p-title">Add a slot in Year ' + t.y + ' · ' + sessionLabel(t.y, t.s) + '</span><span class="p-meta"><span>' + (t.unsure ? 'Its sessions are not published, so check the Handbook' : 'The next session it runs in') + '</span></span></button></div></div>';
+    }
+    if (!named.length && !others.length && !ctx.custom) {
+      body += '<div class="pick-empty"><p>No open slot in this pathway can take ' + esc(code) + '. Every slot it could fill already has a subject, or the pathway has none for it.</p><p>Clear a choice first, or make your own copy of this pathway to add a slot for it.</p><button type="button" class="btn" data-action="custom-from-current">Customise this pathway →</button></div>';
+    }
+    showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="assign-h">' +
+      '<div class="modal-head"><div><h2 id="assign-h">Assign ' + esc(code) + '</h2><p>' + esc(e.title) + (e.cp != null ? ' · ' + e.cp + ' CP' : '') + ' · ' + esc(offerSummary(ctx, code)) + '</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
+      '<div class="modal-body">' + body + '</div>' +
+      '<div class="modal-foot"><span class="small muted">A session it does not run in stays open to you, so confirm it in the 2027 Handbook first.</span><button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button></div></div></div>');
+    lockScroll();
+  }
+  function assignSubject(slotId, code) {
+    const ctx = lastCtx;
+    const s = ctx.byId[slotId];
+    const g = GLOBAL_BY_CODE[code];
+    const x = EXTRA_BY_CODE[code];
+    const e = ctx.deg.byCode[code] || g || x;
+    if (!s || !e) return;
+    const place = shownWhere(ctx, s);
+    noteChange('assigned ' + code + ' to ' + place);
+    if (ctx.custom) setCustomSubject(s.idx, code, '', g ? g.cp : null);
+    else if (!g && x) setPick(s.id, { code: x.code, title: x.title, list: true });
+    else setPick(s.id, { code: e.code, title: e.title });
+    // the student stays in the catalogue, on the row they were using, to assign the next one
+    focusBack = null;
+    closeModal(true);
+    render();
+    const badge = document.querySelector('#cat-results .plan-badge[data-code="' + code + '"]');
+    if (badge) {
+      badge.focus({ preventScroll: true });
+      badge.classList.add('flash');
+    }
+    toast(code + ' assigned to ' + place + '.', { action: 'undo', label: 'Undo' });
   }
 
   // ======================================================================== picker modal
@@ -2725,6 +3181,7 @@
     const s = ctx.byId[ui.picker.slotId];
     const e = src === 'list' ? (EXTRA_BY_CODE[code] || GLOBAL_BY_CODE[code]) : poolEntries(ctx, s.raw).find(function (x) { return x.code === code; });
     if (!e) return;
+    noteChange('chose ' + e.code + ' for ' + where(s));
     if (s.kind === 'option' && code === s.raw.code) setPick(s.id, null);
     else if (src === 'list' && EXTRA_BY_CODE[code]) setPick(s.id, { code: e.code, title: e.title, list: true });
     else setPick(s.id, { code: e.code, title: e.title });
@@ -2777,6 +3234,23 @@
     for (let y = 1; y <= maxY; y++) {
       PLAN_SESSIONS.forEach(function (ss) { moveOpts += '<option value="' + y + '|' + ss + '"' + (y === s.year && ss === s.session ? ' selected' : '') + '>Year ' + y + ' · ' + ss + '</option>'; });
     }
+    let moveMore = '';
+    if (state.load !== 'PT') {
+      const named = function (o) { return (o.pending ? 'Open slot' : o.code + ' ' + o.title); };
+      const groups = {};
+      sortSlots(ctx.slots).forEach(function (o) {
+        if (o.year === s.year && o.session === s.session) return;
+        const k = 'Year ' + o.year + ' · ' + o.session;
+        groups[k] = (groups[k] || '') + '<option value="' + o.id + '">' + esc(named(o)) + '</option>';
+      });
+      const keys = Object.keys(groups);
+      if (keys.length) moveMore += '<div class="move-row"><label for="cp-swap">Swap with</label><div class="select-wrap"><select id="cp-swap"><option value="">Choose a slot</option>' + keys.map(function (k) { return '<optgroup label="' + k + '">' + groups[k] + '</optgroup>'; }).join('') + '</select></div></div>';
+      const here = sortSlots(ctx.slots.filter(function (o) { return o.year === s.year && o.session === s.session; }));
+      if (here.length > 1) {
+        const at = here.indexOf(s);
+        moveMore += '<div class="move-row"><span class="field-label">Order</span><button type="button" class="btn order-btn" data-action="creorder" data-dir="-1" aria-label="Move up in ' + where(s) + '"' + (at === 0 ? ' disabled' : '') + '>↑</button><button type="button" class="btn order-btn" data-action="creorder" data-dir="1" aria-label="Move down in ' + where(s) + '"' + (at === here.length - 1 ? ' disabled' : '') + '>↓</button></div>';
+      }
+    }
     const typedCP = s.custom ? s.cp : s.cp > 0 ? s.cp : 10;
     const custom = '<div class="pick-section"><h3>Not on the list? Enter it yourself</h3><form class="custom-form cf-cp" id="custom-form">' +
       '<div class="field"><label for="cu-code">Code</label><input class="input" id="cu-code" placeholder="e.g. HUMN 1052" maxlength="12" value="' + esc(s.custom ? s.code : '') + '"></div>' +
@@ -2787,7 +3261,7 @@
       '<div class="modal-head"><div><h2 id="picker-h">' + (s.pending ? 'Choose a subject' : 'Change or move this subject') + '</h2><p>' + where(s) + ' · ' + s.cp + ' CP · ' + esc(ctx.deg.title) + (s.replaced ? ' · template subject: ' + esc(s.replaced.code + ' ' + s.replaced.title) : '') + '</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
       '<div class="modal-tools">' + tools + toolsNote(areas, KEY_HINT) + '</div>' +
       '<div class="modal-body"><div id="pick-results"></div>' + custom + '</div>' +
-      '<div class="modal-foot"><div class="move-row"><label for="cp-move">Move to</label><div class="select-wrap"><select id="cp-move">' + moveOpts + '</select></div></div>' +
+      '<div class="modal-foot"><div class="move-rows"><div class="move-row"><label for="cp-move">Move to</label><div class="select-wrap"><select id="cp-move">' + moveOpts + '</select></div></div>' + moveMore + '</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' + (s.pending || s.done ? '' : '<button type="button" class="btn" data-action="defer" data-slot="' + s.id + '">Defer to next offered session</button>') + (s.pending ? '' : '<button type="button" class="btn" data-action="pick-clear">Clear subject</button>') +
       '<button type="button" class="btn" data-action="cremove" data-slot="' + s.id + '">Remove slot</button><button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button></div></div></div></div>');
     lockScroll();
@@ -2901,6 +3375,7 @@
     const s = lastCtx.byId[ui.picker.slotId];
     const g = GLOBAL_BY_CODE[code];
     if (!g && !EXTRA_BY_CODE[code]) return;
+    noteChange('chose ' + code + ' for ' + where(s));
     setCustomSubject(s.idx, code, '', g ? g.cp : null);
     closeModal();
     render();
@@ -3041,6 +3516,7 @@
     const began = +$('#cs-year').value;
     plan.start = began < START_YEAR ? began : 0;
     fitToCP(plan);
+    noteChange(summerY ? 'added Year ' + summerY + ' Summer' : start === 'keep' ? 'edited your custom plan' : 'started a new custom plan');
     const addSummer = summerY && plan.slots.length < MAX_SLOTS && !plan.slots.some(function (x) { return x.y === summerY && x.s === 'Summer'; });
     if (addSummer) plan.slots.push(emptyCSlot(summerY, 'Summer'));
     state.custom = plan;
@@ -3595,6 +4071,7 @@
   function applyProgress() {
     const p = ui.progress;
     if (!p) return;
+    noteChange('imported your progress');
     state.custom = p.plan;
     state.mode = 'custom';
     ui.folded = null;
@@ -3731,6 +4208,7 @@
         else { state.done[key] = state.done[key] || {}; state.done[key][s.id] = 1; }
       });
     });
+    noteChange('ticked off ' + plural(picked.length, 'subject') + ' from your results');
     closeModal();
     ui.folded = null;
     render();
@@ -4041,6 +4519,46 @@
     const a = el.dataset.action;
     const ctx = lastCtx;
     switch (a) {
+      case 'undo': stepHistory(true); break;
+      case 'redo': stepHistory(false); break;
+      case 'grid-view': {
+        const view = el.dataset.view;
+        transition(function () { setGridView(view); }, true);
+        break;
+      }
+      case 'assign-open': openAssign(el.dataset.code); break;
+      case 'assign-to': assignSubject(el.dataset.slot, ui.assign.code); break;
+      case 'assign-new': {
+        const code = ui.assign.code;
+        const id = addCustomSlot(+el.dataset.y, el.dataset.s);
+        if (!id) break;
+        lastCtx = buildContext();
+        assignSubject(id, code);
+        break;
+      }
+      case 'cat-jump': {
+        const s = ctx.byId[el.dataset.slot];
+        ui.catBack = s.id;
+        flashSlot(s.id);
+        toast(s.code + ' is in ' + shownWhere(ctx, s) + '.', { action: 'cat-back', label: 'Back to catalogue' });
+        break;
+      }
+      case 'cat-back': {
+        const row = document.querySelector('#cat-results [data-action="cat-jump"][data-slot="' + ui.catBack + '"]');
+        $('#toast').classList.remove('show');
+        if (row) {
+          row.scrollIntoView({ behavior: scrollMode(), block: 'center' });
+          row.focus({ preventScroll: true });
+        }
+        break;
+      }
+      case 'creorder': {
+        const s = ctx.byId[ui.picker.slotId];
+        const here = sortSlots(ctx.slots.filter(function (o) { return o.year === s.year && o.session === s.session; }));
+        const other = here[here.indexOf(s) + (+el.dataset.dir)];
+        if (other) doReorder(s, other, +el.dataset.dir > 0);
+        break;
+      }
       case 'top-menu': setTopMenu(!$('#top-actions').classList.contains('is-open')); break;
       case 'year-toggle': {
         const fold = el.getAttribute('aria-expanded') === 'true';
@@ -4049,9 +4567,11 @@
       }
       case 'map-jump': {
         const y = +el.dataset.y;
-        setYearFold(y, false);
         const box = document.getElementById('year-' + y);
         if (!box) break;
+        // this view may be hiding that year altogether
+        if (box.classList.contains('view-none')) setGridView('all');
+        setYearFold(y, false);
         const target = el.dataset.s ? box.querySelector('.session[data-s="' + el.dataset.s + '"]') : box;
         target.tabIndex = -1;
         target.focus({ preventScroll: true });
@@ -4072,6 +4592,7 @@
       case 'reset': {
         if (isCustom()) {
           if (!window.confirm('Start your custom plan again? This clears every subject and tick and rebuilds it from ' + (state.custom.tpl ? 'the ' + tplLabel(state.custom.tpl) + ' template.' : 'empty slots.'))) return;
+          noteChange('rebuilt your custom plan');
           rebuildCustom();
           ui.folded = null;
           render();
@@ -4080,6 +4601,7 @@
         }
         const key = currentKey();
         if (!window.confirm('Clear all choices and progress for ' + key.replace('|BASE', '') + '?')) return;
+        noteChange('reset this pathway');
         delete state.picks[key];
         delete state.done[key];
         ui.folded = null;
@@ -4122,6 +4644,7 @@
       case 'inline': {
         const s = ctx.byId[el.dataset.slot];
         const code = el.dataset.code;
+        noteChange(s.code === code && !s.pending && s.chosen ? 'cleared ' + code + ' from ' + where(s) : 'chose ' + code + ' for ' + where(s));
         if (s.code === code && !s.pending && s.chosen) setPick(s.id, null);
         else {
           const o = s.raw.options.find(function (x) { return x.code === code; });
@@ -4134,12 +4657,14 @@
         break;
       }
       case 'clear':
+        noteChange('cleared ' + ctx.byId[el.dataset.slot].code + ' from ' + where(ctx.byId[el.dataset.slot]));
         if (ctx.custom) clearCustomSlot(ctx.byId[el.dataset.slot].idx); else setPick(el.dataset.slot, null);
         renderMoving();
         break;
       case 'session-done': {
         const ids = el.dataset.ids.split(',');
         const all = ids.every(function (id) { return ctx.byId[id].done; });
+        noteChange((all ? 'unmarked ' : 'marked ') + where(ctx.byId[ids[0]]) + (all ? '' : ' done'));
         ids.forEach(function (id) { setDone(id, !all); });
         refreshDone(ids);
         break;
@@ -4153,7 +4678,6 @@
       }
       case 'suggest': autoSuggest(); break;
       case 'defer': deferSubject(el.dataset.slot); break;
-      case 'defer-undo': undoDefer(); break;
       case 'pin': pinPlan(); break;
       case 'pin-clear':
         ui.pin = null;
@@ -4174,7 +4698,6 @@
         pressArea('cat-area', ui.cat.area);
         renderCatalogueRows(ctx);
         break;
-      case 'suggest-undo': undoSuggest(); break;
       case 'mini-top': {
         window.scrollTo({ top: $('#dock-wrap').getBoundingClientRect().top + window.scrollY - 8, behavior: scrollMode() });
         const first = $('#sel-degree');
@@ -4201,6 +4724,7 @@
       case 'cpick': chooseCustom(el.dataset.code); break;
       case 'cremove': {
         const s = ctx.byId[el.dataset.slot];
+        noteChange('removed the ' + where(s) + ' slot');
         state.custom.slots.splice(s.idx, 1);
         if (ui.modal) closeModal(true);
         renderMoving();
@@ -4210,6 +4734,7 @@
       case 'cadd': {
         const id = addCustomSlot(+el.dataset.y, el.dataset.s);
         if (!id) break;
+        noteChange('added a slot to Year ' + el.dataset.y + ' ' + el.dataset.s);
         renderMoving(function () { flashSlot(id); });
         break;
       }
@@ -4224,6 +4749,7 @@
         if (!ctx.custom) { openSetup({ start: 'template', tpl: currentKey(), summerYear: y }); break; }
         const id = addCustomSlot(y, 'Summer');
         if (!id) break;
+        noteChange('added Year ' + y + ' Summer');
         renderMoving(function () { flashSlot(id); });
         toast('Year ' + y + ' Summer added. Choose a subject or bring one forward.');
         break;
@@ -4232,6 +4758,7 @@
         // the later subject moves into this Summer slot, and the empty Summer slot it fills is removed
         const target = ctx.byId[ui.picker.slotId];
         const from = ctx.byId[el.dataset.from];
+        noteChange('brought ' + from.code + ' forward to ' + where(target));
         const slots = state.custom.slots;
         const moved = slots[from.idx];
         moved.y = target.year;
@@ -4246,6 +4773,7 @@
       case 'cyear': {
         const y = addCustomYear();
         if (!y) break;
+        noteChange('added Year ' + y);
         render();
         const yr = document.getElementById('year-' + y);
         if (yr) yr.scrollIntoView({ behavior: scrollMode(), block: 'start' });
@@ -4260,6 +4788,7 @@
       case 'pick-ug': ui.picker.ugOnly = !ui.picker.ugOnly; el.setAttribute('aria-pressed', ui.picker.ugOnly); renderPickerResults(); break;
       case 'pick-clear': {
         const id = ui.picker.slotId;
+        noteChange('cleared ' + where(ctx.byId[id]));
         if (ui.picker.custom) clearCustomSlot(ctx.byId[id].idx); else setPick(id, null);
         closeModal();
         render();
@@ -4291,6 +4820,7 @@
     const title = $('#cu-title').value.trim();
     if (!code || !title) { toast('Enter both a subject code and a title.'); return; }
     const id = ui.picker.slotId;
+    noteChange('chose ' + code + ' for ' + where(lastCtx.byId[id]));
     if (ui.picker.custom) {
       const idx = lastCtx.byId[id].idx;
       const cp = +$('#cu-cp').value;
@@ -4321,10 +4851,15 @@
     else if (t.id === 'cp-move') {
       const v = t.value.split('|');
       const s = lastCtx.byId[ui.picker.slotId];
+      noteChange('moved ' + (s.pending ? 'an open slot' : s.code) + ' to Year ' + v[0] + ' ' + v[1]);
       const id = moveCustomSlot(s.idx, +v[0], v[1]);
       closeModal(true);
       renderMoving(function () { flashSlot(id); });
       toast((s.pending ? 'Open slot' : s.code) + ' moved to Year ' + v[0] + ' ' + v[1] + '.');
+    } else if (t.id === 'cp-swap') {
+      const s = lastCtx.byId[ui.picker.slotId];
+      const other = lastCtx.byId[t.value];
+      if (s && other) doSwap(s, other);
     } else if (t.name === 'import-pick') { updateImportCount(); }
     else if (t.id === 'progress-file') {
       if (t.files[0]) readPdf(t.files[0]);
@@ -4332,9 +4867,11 @@
     }
     else if (t.name === 'cs-start') { setupSync('start'); }
     else if (t.id === 'cs-tpl-deg') { $('#cs-tpl-major').innerHTML = tplMajorOptions(t.value, DEG[t.value].options[0]); setupSync('tpl'); }
-    else if (t.id === 'sel-major') { setMajor(t.value); renderEntering(); }
+    else if (t.id === 'sel-major') { noteChange('changed your major'); setMajor(t.value); renderEntering(); }
     else if (t.id === 'sel-campus') { state.campus = t.value; render(); }
     else if (t.dataset && t.dataset.action === 'done') {
+      const ticked = lastCtx.byId[t.dataset.slot];
+      noteChange((t.checked ? 'ticked ' : 'unticked ') + (ticked.pending ? 'the ' + where(ticked) + ' slot' : ticked.code));
       setDone(t.dataset.slot, t.checked);
       refreshDone([t.dataset.slot]);
     } else if (t.id === 'cat-comp') { ui.cat.comp = t.value; renderCatalogueRows(lastCtx); }
@@ -4350,10 +4887,12 @@
 
   document.addEventListener('input', function (ev) {
     const t = ev.target;
-    if (t.id === 'pick-q') { ui.picker.q = t.value; renderPickerResults(); }
+    if (t.id === 'grid-q') { ui.gridQ = t.value; ui.matchAt = -1; applyGridFilter(true); syncGridBar(); }
+    else if (t.id === 'pick-q') { ui.picker.q = t.value; renderPickerResults(); }
     else if (t.id === 'import-text') { renderImportResults(); }
     else if (t.id === 'cat-q') { ui.cat.q = t.value; renderCatalogueRows(lastCtx); }
     else if (t.id === 'custom-name' && isCustom()) {
+      noteChange('renamed your custom plan', 'name');
       state.custom.name = t.value.slice(0, 120);
       lastCtx = buildContext();
       renderHero(lastCtx);
@@ -4372,23 +4911,38 @@
 
   document.addEventListener('keydown', function (ev) {
     const el = ev.target;
+    const key = (ev.key || '').toLowerCase();
+    if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ui.modal) {
+      if (key === 'k' && !ev.shiftKey) { ev.preventDefault(); focusGridFilter(); return; }
+      if ((key === 'z' || key === 'y') && !typingIn(el)) {
+        ev.preventDefault();
+        stepHistory(key === 'z' && !ev.shiftKey);
+        return;
+      }
+    }
+    if (ev.key === 'Enter' && el.id === 'grid-q') { ev.preventDefault(); stepMatch(ev.shiftKey ? -1 : 1); return; }
     if (ev.key === 'Escape') {
       if ($('#top-actions').classList.contains('is-open')) { setTopMenu(false); $('.top-menu-btn').focus(); return; }
       if (ui.modal) { closeModal(); return; }
+      if (el.id === 'grid-q') {
+        if (el.value) clearGridFilter(); else el.blur();
+        return;
+      }
       if (ui.xrayPin) { ui.xrayPin = ''; ui.xrayHover = ''; xrayClear(); return; }
       if (el.id === 'cat-q' && el.value) { el.value = ''; ui.cat.q = ''; renderCatalogueRows(lastCtx); return; }
       xrayClear();
       return;
     }
     if (ev.key === 'Tab' && ui.modal) { trapTab(ev); return; }
-    if (ev.key === '/' && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && !el.isContentEditable) {
+    if (ev.key === '/' && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !typingIn(el) && el.tagName !== 'SELECT') {
       if (ui.modal === 'picker') { ev.preventDefault(); $('#pick-q').focus(); }
       else if (!ui.modal) {
         ev.preventDefault();
-        if (ui.tab !== 'catalogue') { ui.tab = 'catalogue'; renderDetails(lastCtx); }
+        // the catalogue's own search when it is the thing on screen, otherwise the filter on the plan
         const q = $('#cat-q');
-        q.scrollIntoView({ behavior: scrollMode(), block: 'center' });
-        q.focus({ preventScroll: true });
+        const r = q ? q.getBoundingClientRect() : null;
+        if (r && r.top >= 0 && r.bottom <= window.innerHeight) q.focus({ preventScroll: true });
+        else focusGridFilter();
       }
       return;
     }
@@ -4427,6 +4981,7 @@
     if (!opened) { toast(LINK_FAILED); return; }
     if (ui.modal) closeModal();
     ui.folded = null;
+    noteChange('opened a plan from a link');
     render();
     toast('Plan opened from the link.');
   });
@@ -4435,6 +4990,7 @@
     new ResizeObserver(function () {
       document.documentElement.style.setProperty('--dock-h', Math.ceil($('#dock-wrap').getBoundingClientRect().height) + 'px');
     }).observe($('#dock-wrap'));
+    new ResizeObserver(syncGridBar).observe($('#gridbar'));
   }
 
   // ======================================================================== phone progress bar
@@ -4447,6 +5003,10 @@
   // ======================================================================== boot
   const opened = applyHash();
   renderNotice();
+  document.querySelectorAll('.view-modes button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.view === state.view)); });
+  if (window.matchMedia('(hover: none)').matches) $('#grid-q').placeholder = 'Filter by code or title';
+  $('#grid-q').addEventListener('focus', syncGridBar);
+  $('#grid-q').addEventListener('blur', syncGridBar);
   render();
   if (opened === false) toast(LINK_FAILED);
 
@@ -4459,6 +5019,7 @@
     select: function (key) { const d = key.split('|')[0]; state.mode = 'guide'; state.degree = d; state.majorFor[d] = key; render(); },
     custom: function () { return state.custom ? JSON.parse(JSON.stringify(state.custom)) : null; },
     planUrl: function () { return planUrl(); },
+    history: function () { return { undo: undoStack.length, redo: redoStack.length, undoLabel: undoStack.length ? undoStack[undoStack.length - 1].label : '', redoLabel: redoStack.length ? redoStack[redoStack.length - 1].label : '' }; },
     linkText: function () { return encodeLink(); },
     unscramble: function (code) { return unscrambleCode(code); },
     buildPrintDoc: function (opts) { return buildPrintDoc(buildContext(), Object.assign({}, state.exp, opts || {})); },

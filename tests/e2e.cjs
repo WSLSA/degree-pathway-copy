@@ -493,6 +493,10 @@ async function renderPdf(page, key, mode, orient, file) {
   check(!/\b(D|H|C|P|NA)\b \(?10\)?|2025 Autumn, SC|\(10\)/.test(preview), 'the preview should show no grades, credit point columns or raw terms');
   await ip.click('#progress-apply');
   const dw = await planOf();
+  await ip.click('#section-tools [data-action="undo"]');
+  check(await ip.evaluate(() => !WSLSA.context().custom) && /Undid: imported your progress/.test(await ip.textContent('#toast')), 'an import should be undoable');
+  await ip.click('#section-tools [data-action="redo"]');
+  check(JSON.stringify(await planOf()) === JSON.stringify(dw), 'redo should bring the imported plan back');
   check(dw.start === 2025 && dw.cp === 400 && dw.total === 400, `the plan should start in 2025 and hold 400 CP, got start ${dw.start}, ${dw.total}/${dw.cp}`);
   const where = c => { const x = at(dw, c); return x.y + x.s + (x.done ? '+' : '-'); };
   check(['LAWS 1003', 'MATH 1030', 'ECON 2002', 'LAWS 1009', 'LAWS 2012', 'LAWS 2008'].map(where).join(' ') === '1Autumn+ 1Autumn+ 1Spring+ 1Spring+ 1Summer+ 2Spring-',
@@ -651,9 +655,9 @@ async function renderPdf(page, key, mode, orient, file) {
     return { n: chosen.length, bad: chosen.filter(s => s.offer.tbc || s.offer.none || (s.offer.codes.indexOf('PS') < 0 && s.offer.codes.indexOf('ON') < 0)).map(s => s.code), dupes: codes.length - new Set(codes).size };
   });
   check(await openNow() < openBefore && sug.n > 0 && !sug.bad.length && sug.dupes === 0, `suggestions should run in that session at the campus or online, with no repeats, got ${JSON.stringify(sug)}`);
-  check(/Suggested/.test(await ux.textContent('#toast')) && !!(await ux.$('#section-tools [data-action="suggest-undo"]')), 'suggesting should offer an undo');
-  await ux.click('#section-tools [data-action="suggest-undo"]');
-  check(await openNow() === openBefore && !(await ux.$('#section-tools [data-action="suggest-undo"]')), 'undo should restore the open slots');
+  check(/Suggested/.test(await ux.textContent('#toast')) && !!(await ux.$('#toast [data-action="undo"]')), 'suggesting should offer an undo');
+  await ux.click('#section-tools [data-action="undo"]');
+  check(await openNow() === openBefore, 'undo should restore the open slots');
   await ux.selectOption('#sel-campus', '');
 
   // ---------------------------------------------------------------- drag between sessions in a custom plan
@@ -704,7 +708,12 @@ async function renderPdf(page, key, mode, orient, file) {
   // ---------------------------------------------------------------- catalogue search states
   await ux.evaluate(() => { document.activeElement.blur(); });
   await ux.keyboard.press('/');
-  check(await ux.evaluate(() => document.activeElement.id === 'cat-q'), '/ should go to the catalogue search');
+  check(await ux.evaluate(() => document.activeElement.id === 'grid-q'), '/ should go to the filter on the plan');
+  await ux.keyboard.press('Escape');
+  await ux.click('[data-action="tab"][data-tab="catalogue"]');
+  await ux.evaluate(() => { document.activeElement.blur(); document.getElementById('cat-q').scrollIntoView({ block: 'center' }); });
+  await ux.keyboard.press('/');
+  check(await ux.evaluate(() => document.activeElement.id === 'cat-q'), '/ should go to the catalogue search when the catalogue is on screen');
   await ux.fill('#cat-q', 'zzzzqqqq');
   check(!!(await ux.$('#cat-results .pick-empty [data-action="cat-reset"]')), 'an empty catalogue search should offer Clear filters');
   await ux.click('[data-action="cat-reset"]');
@@ -770,6 +779,15 @@ async function renderPdf(page, key, mode, orient, file) {
   await mo.click(`#slot-${glide} [data-action="clear"]`);
   await mo.waitForFunction(() => !document.documentElement.classList.contains('vt-cards'));
   check(await mo.evaluate(id => !!document.querySelector('#slot-' + id + '.is-pending'), glide), 'a change inside a view transition should still land');
+  await mo.click('[data-action="grid-view"][data-view="action"]');
+  await mo.waitForFunction(() => !document.documentElement.classList.contains('vt-cards') && document.getElementById('grid').classList.contains('view-action'));
+  check(await mo.$$eval('#grid .subj', c => c.filter(x => x.getClientRects().length).every(x => x.classList.contains('is-action'))), 'changing the view inside a view transition should still land');
+  await mo.click('[data-action="grid-view"][data-view="all"]');
+  await mo.waitForFunction(() => !document.documentElement.classList.contains('vt-cards') && !document.getElementById('grid').classList.contains('view-action'));
+  await mo.click('#section-tools [data-action="undo"]');
+  await mo.waitForFunction(() => !document.documentElement.classList.contains('vt-cards') && /Undid/.test(document.getElementById('toast').textContent));
+  await mo.click('#section-tools [data-action="redo"]');
+  await mo.waitForFunction(() => !document.documentElement.classList.contains('vt-cards') && /Redid/.test(document.getElementById('toast').textContent));
   await mo.click('#year-2 [data-action="year-toggle"]');
   await mo.waitForFunction(() => !document.documentElement.classList.contains('vt-cards') && document.getElementById('year-2').classList.contains('is-folded'));
   check(await mo.isHidden('#year-2-body'), 'folding a year inside a view transition should still land');
@@ -879,8 +897,8 @@ async function renderPdf(page, key, mode, orient, file) {
     const afterDep = await place('ACCT 3011');
     check(await pt.evaluate(() => WSLSA.context().custom && WSLSA.custom().tpl === '2785|BASE'), 'deferring from a pathway should make an editable copy');
     check(afterPre.i > prereq.i && !afterPre.none && afterDep.i > afterPre.i && !afterDep.none, `deferring should move the subject to an offered session and cascade what needs it, got ${JSON.stringify({ afterPre, afterDep })}`);
-    check(/Deferred ACCT 2001 to .*moved ACCT 3011/.test(await pt.textContent('#toast')) && !!(await pt.$('#toast [data-action="defer-undo"]')), `the toast should sum up the moves and offer Undo, got "${await pt.textContent('#toast')}"`);
-    await pt.click('#toast [data-action="defer-undo"]');
+    check(/Deferred ACCT 2001 to .*moved ACCT 3011/.test(await pt.textContent('#toast')) && !!(await pt.$('#toast [data-action="undo"]')), `the toast should sum up the moves and offer Undo, got "${await pt.textContent('#toast')}"`);
+    await pt.click('#toast [data-action="undo"]');
     check(await pt.evaluate(() => !WSLSA.context().custom && WSLSA.custom() === null) && (await place('ACCT 2001')).i === prereq.i, 'Undo should go back to the pathway as it was');
     // a subject with unpublished sessions still moves, and says to check; a passed one and the part-time view have no button
     await pt.click(`#slot-${await idOf('LAWS 3099')} [data-action="defer"]`);
@@ -1131,6 +1149,438 @@ async function renderPdf(page, key, mode, orient, file) {
   check(phoneJump.map === 0 && phoneJump.year >= phoneJump.bottom && phoneJump.year < phoneJump.bottom + 40, `a year on the phone map should land under the map stuck to the top, got ${JSON.stringify(phoneJump)}`);
   check(ph.errors.length === 0, 'phone console errors: ' + ph.errors.join('; '));
   await ph.close();
+
+  // ---------------------------------------------------------------- undo and redo
+  const hi = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  hi.on('dialog', d => d.accept());
+  await hi.goto(APP);
+  await hi.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
+  const hist = () => hi.evaluate(() => WSLSA.history());
+  const undoBtn = '#section-tools [data-action="undo"]';
+  const redoBtn = '#section-tools [data-action="redo"]';
+  const codeSlot = (p, code) => p.evaluate(c => WSLSA.context().slots.find(s => s.code === c).id, code);
+  const slotDone = id => hi.evaluate(i => WSLSA.context().byId[i].done, id);
+  check(await hi.isDisabled(undoBtn) && await hi.isDisabled(redoBtn), 'Undo and Redo should start disabled');
+  await hi.click('[data-action="load"][data-load="PT"]');
+  await hi.click('[data-action="load"][data-load="FT"]');
+  await hi.selectOption('#sel-campus', 'PS');
+  await hi.selectOption('#sel-campus', '');
+  await hi.click('[data-action="tab"][data-tab="admission"]');
+  await hi.click('[data-action="tab"][data-tab="structure"]');
+  await hi.selectOption('#sel-degree', '2848');
+  await hi.selectOption('#sel-degree', '2785');
+  await hi.click('[data-action="grid-view"][data-view="action"]');
+  await hi.click('[data-action="grid-view"][data-view="all"]');
+  check((await hist()).undo === 0, 'changing what is on screen should not count as a change to the plan');
+  // from a tick, which is an input but not for typing
+  const firstTick = await codeSlot(hi, 'LAWS 1003');
+  await hi.click(`#slot-${firstTick} .tick`);
+  check(await slotDone(firstTick) && await hi.isEnabled(undoBtn) && /ticked LAWS 1003/.test(await hi.getAttribute(undoBtn, 'title')), 'ticking should enable Undo and name the change');
+  await hi.keyboard.press('Control+z');
+  check(!(await slotDone(firstTick)) && /Undid: ticked LAWS 1003/.test(await hi.textContent('#toast')) && !!(await hi.$('#toast [data-action="redo"]')), `Ctrl+Z should undo from a tick and say what it undid, got "${await hi.textContent('#toast')}"`);
+  check(await hi.evaluate(i => document.activeElement.dataset.action === 'done' && document.activeElement.dataset.slot === i, firstTick) && await hi.isDisabled(undoBtn) && await hi.isEnabled(redoBtn), 'focus should stay on the tick, with Redo now available');
+  await hi.keyboard.press('Control+y');
+  check(await slotDone(firstTick) && /Redid: ticked LAWS 1003/.test(await hi.textContent('#toast')), 'Ctrl+Y should redo');
+  await hi.keyboard.press('Control+z');
+  await hi.keyboard.press('Control+Shift+Z');
+  check(await slotDone(firstTick), 'Ctrl+Shift+Z should redo');
+  await hi.keyboard.press('Meta+z');
+  check(!(await slotDone(firstTick)), 'Cmd+Z should undo');
+  await hi.keyboard.press('Meta+Shift+Z');
+  check(await slotDone(firstTick), 'Cmd+Shift+Z should redo');
+  await hi.click(`#slot-${firstTick} .tick`);
+  // a session in one step
+  const beforeSession = (await hist()).undo;
+  await hi.click('#year-1 .session[data-s="Autumn"] [data-action="session-done"]');
+  check((await hist()).undo === beforeSession + 1 && /marked Year 1 Autumn done/.test((await hist()).undoLabel), 'marking a session done should be one step');
+  await hi.click(undoBtn);
+  check(/^0 \/ 400/.test((await hi.textContent('#progress-num')).trim()), 'Undo should unmark the whole session');
+  check(await hi.evaluate(() => document.activeElement.dataset.action === 'undo' || document.activeElement.dataset.action === 'redo'), 'focus should stay on the undo controls');
+  // a new change clears what could be redone
+  check((await hist()).redo === 1, 'Undo should make the change redoable');
+  await hi.click(`#slot-${firstTick} .tick`);
+  check((await hist()).redo === 0 && await hi.isDisabled(redoBtn), 'a new change should clear Redo');
+  // typing and windows keep the keys to themselves
+  const typingBefore = (await hist()).undo;
+  await hi.click('#grid-q');
+  await hi.keyboard.type('x');
+  await hi.keyboard.press('Control+z');
+  check((await hist()).undo === typingBefore && await slotDone(firstTick), 'Ctrl+Z in a text box should not undo the plan');
+  await hi.fill('#grid-q', '');
+  await hi.keyboard.press('Escape');
+  await hi.click('[data-action="export-open"]');
+  await hi.keyboard.press('Control+z');
+  check((await hist()).undo === typingBefore && await slotDone(firstTick), 'Ctrl+Z with a window open should not undo the plan');
+  await hi.keyboard.press('Escape');
+  // choosing, and a reset that takes everything with it
+  const openAlt = await hi.evaluate(() => WSLSA.context().slots.find(s => s.kind === 'llb' && s.pending).id);
+  await hi.click(`#slot-${openAlt} [data-action="picker-open"]`);
+  await hi.click('#pick-results .pick:not([disabled])');
+  const chosenAlt = await hi.evaluate(i => WSLSA.context().byId[i].code, openAlt);
+  check(new RegExp('chose ' + chosenAlt).test((await hist()).undoLabel), 'choosing a subject should be named in the history');
+  await hi.click('[data-action="reset"]');
+  check(await hi.evaluate(i => WSLSA.context().byId[i].pending, openAlt) && !(await slotDone(firstTick)) && /reset this pathway/.test((await hist()).undoLabel), 'Reset should clear the plan and be named in the history');
+  await hi.click(undoBtn);
+  check(await hi.evaluate(i => WSLSA.context().byId[i].code, openAlt) === chosenAlt && await slotDone(firstTick), 'undoing Reset should bring back choices and ticks');
+  // an undo shows the plan it changed
+  await hi.selectOption('#sel-degree', '2848');
+  await hi.click(undoBtn);
+  check(await hi.evaluate(() => WSLSA.state().degree) === '2785' && await hi.evaluate(i => WSLSA.context().byId[i].pending, openAlt), 'undo should go back to the plan the change was made in');
+  // thirty steps at most
+  await hi.evaluate(() => { const box = document.querySelector('#grid .tick input'); for (let i = 0; i < 35; i++) box.click(); });
+  check((await hist()).undo === 30, `the history should hold 30 steps, got ${(await hist()).undo}`);
+  // custom plans: making one, slots, and a name typed letter by letter
+  await hi.evaluate(() => { localStorage.clear(); WSLSA.select('2848|BASE'); });
+  await hi.click('[data-action="custom-from-current"]');
+  await hi.click('button[type=submit][form=setup-form]');
+  check(await hi.evaluate(() => WSLSA.context().custom) && /started a new custom plan/.test((await hist()).undoLabel), 'making a custom plan should be in the history');
+  await hi.click(undoBtn);
+  check(await hi.evaluate(() => !WSLSA.context().custom && WSLSA.custom() === null), 'undoing it should go back to the pathway');
+  await hi.click(redoBtn);
+  check(await hi.evaluate(() => WSLSA.context().custom && WSLSA.custom().slots.length === 32), 'redoing it should bring the custom plan back');
+  const slotCount = () => hi.evaluate(() => WSLSA.custom().slots.length);
+  await hi.click('#year-1 .session[data-s="Autumn"] [data-action="cadd"]');
+  check(await slotCount() === 33 && /added a slot to Year 1 Autumn/.test((await hist()).undoLabel), 'adding a slot should be in the history');
+  await hi.click(undoBtn);
+  check(await slotCount() === 32, 'undo should remove the added slot');
+  const nameBefore = (await hist()).undo;
+  await hi.click('#custom-name');
+  await hi.keyboard.type('abc');
+  check((await hist()).undo === nameBefore + 1, 'typing a plan name should count as one change');
+  await hi.keyboard.press('Control+z');
+  check((await hist()).undo === nameBefore + 1, 'Ctrl+Z in the name box should stay with the text');
+  await hi.click(undoBtn);
+  check(await hi.evaluate(() => !/abc/.test(WSLSA.custom().name)), 'Undo should restore the plan name');
+  check(hi.errors.length === 0, 'undo console errors: ' + hi.errors.join('; '));
+  await hi.close();
+
+  // ---------------------------------------------------------------- assign from the catalogue
+  const as = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  await as.goto(APP);
+  await as.evaluate(() => { localStorage.clear(); WSLSA.select('2848|BASE'); });
+  await as.click('[data-action="tab"][data-tab="catalogue"]');
+  const catRow = code => `#cat-results tbody tr:has(td.c-code:text-is("${code}"))`;
+  check(await as.$$eval('#cat-results tbody tr', rs => rs.every(r => r.querySelector('td.c-plan .plan-badge, td.c-plan .assign-btn'))), 'every catalogue row should have a plan action');
+  check(await as.textContent(catRow('LAWS 1003') + ' .plan-badge') === 'In Plan (Y1A) ↗', `a subject in the plan should say where, got "${await as.textContent(catRow('LAWS 1003') + ' .plan-badge')}"`);
+  await as.$eval(catRow('LAWS 1003'), r => r.scrollIntoView({ block: 'center' }));
+  await as.click(catRow('LAWS 1003') + ' .plan-badge');
+  const inPlanSlot = await codeSlot(as, 'LAWS 1003');
+  check(await as.$eval(`#slot-${inPlanSlot}`, e => { const r = e.getBoundingClientRect(); return e.classList.contains('flash') && r.top >= 0 && r.bottom <= innerHeight; }), 'the badge should scroll to and flash the card');
+  check(/is in Year 1 Autumn/.test(await as.textContent('#toast')), 'the toast should say where it is');
+  await as.click('#toast [data-action="cat-back"]');
+  check(await as.evaluate(() => document.activeElement.classList.contains('plan-badge') && document.activeElement.dataset.code === 'LAWS 1003'), 'Back to catalogue should return to the row');
+  // an alternate that runs in only one of the two sessions, with open slots in both
+  const alt = await as.evaluate(() => {
+    const c = WSLSA.context();
+    const has = s => c.slots.some(x => x.kind === 'llb' && x.pending && x.session === s);
+    const none = v => !v || v === '—';
+    const e = c.deg.byComp[c.deg.llbComponent].find(x => !c.used[x.code] && !none(x.autumn) && x.autumn !== 'TBC' && none(x.spring)) || null;
+    return { code: e && e.code, both: has('Autumn') && has('Spring') };
+  });
+  check(!!alt.code && alt.both, 'the check needs an alternate offered in Autumn only');
+  await as.$eval(catRow(alt.code), r => r.scrollIntoView({ block: 'center' }));
+  const tableTop = await as.$eval('#cat-results .table-scroll', t => t.scrollTop);
+  await as.click(catRow(alt.code) + ' .assign-btn');
+  const assignRows = await as.$$eval('.modal .assign-slot', rs => rs.map(r => ({ id: r.dataset.slot, flag: r.querySelector('.flag').textContent, ok: r.querySelector('.flag').classList.contains('flag-done') })));
+  const openLlb = await as.evaluate(() => { const seen = {}; let all = 0; WSLSA.context().slots.forEach(s => { if (s.pending && (s.kind === 'llb' || s.kind === 'elective')) { seen[s.year + s.session + s.title] = 1; all++; } }); return { rows: Object.keys(seen).length, all }; });
+  check(assignRows.length === openLlb.rows && await as.$eval('.modal .pick-section h3 span:last-child', c => +c.textContent) === openLlb.all && /\d open/.test(await as.textContent('.modal .pick-list')), `the window should list every open slot that can take it, identical ones as one row, got ${assignRows.length} rows for ${JSON.stringify(openLlb)}`);
+  check(assignRows.some(r => r.ok && /^Offered in Autumn: /.test(r.flag)) && assignRows.some(r => !r.ok && r.flag === 'Not offered in Spring'), `each slot should say whether its session runs the subject, got ${JSON.stringify(assignRows.slice(0, 4))}`);
+  const firstBad = assignRows.findIndex(r => !r.ok);
+  check(firstBad > 0 && assignRows.slice(firstBad).every(r => !r.ok), 'slots in a session it runs in should come first');
+  check((await headingSkips(as, '#modal-root')).length === 0, 'the window headings should not skip a level');
+  await as.click(`.modal .assign-slot[data-slot="${assignRows[0].id}"]`);
+  check(await as.evaluate(i => WSLSA.context().byId[i].code, assignRows[0].id) === alt.code && !(await as.$('.modal')), 'choosing a slot should put the subject there and close the window');
+  check(/^In Plan \(Y\d[AS]u?\) ↗$/.test(await as.textContent(catRow(alt.code) + ' .plan-badge')) && await as.evaluate(c => document.activeElement.dataset && document.activeElement.dataset.code === c, alt.code), 'the row should change to In Plan, with focus still on it');
+  check(await as.$eval('#cat-results .table-scroll', t => t.scrollTop) === tableTop, 'assigning should leave the catalogue list where it was');
+  check(/assigned to Year/.test(await as.textContent('#toast')) && !!(await as.$('#toast [data-action="undo"]')), 'the toast should confirm and offer Undo');
+  await as.click('#toast [data-action="undo"]');
+  check(await as.evaluate(i => WSLSA.context().byId[i].pending, assignRows[0].id) && !!(await as.$(catRow(alt.code) + ' .assign-btn')), 'Undo should take the subject back out');
+  // a subject from the WSU list can only fill an elective
+  await as.selectOption('#cat-comp', '__extra__');
+  const extraCode = await as.textContent('#cat-results tr.extra td.c-code');
+  await as.click('#cat-results tr.extra .assign-btn');
+  const extraRows = await as.$$eval('.modal .assign-slot', rs => rs.map(r => r.dataset.slot));
+  check(extraRows.length > 0 && await as.evaluate(ids => ids.every(i => WSLSA.context().byId[i].kind === 'elective'), extraRows), 'a WSU list subject should be offered only the elective slots');
+  check(/No session data/.test(await as.textContent('.modal .assign-slot .flag')), 'a subject with no session data should say so');
+  await as.click(`.modal .assign-slot[data-slot="${extraRows[0]}"]`);
+  check(await as.evaluate(i => WSLSA.context().byId[i].listSubject, extraRows[0]) && await as.evaluate(i => WSLSA.context().byId[i].code, extraRows[0]) === extraCode, 'it should go in as a WSU list subject');
+  await as.selectOption('#cat-comp', '');
+  // a pathway with nowhere to put it says so, and offers a way forward
+  const noElective = await as.evaluate(keys => keys.find(k => { WSLSA.select(k); return !WSLSA.context().slots.some(s => s.kind === 'elective'); }), await as.evaluate(() => WSLSA.keys()));
+  await as.evaluate(k => WSLSA.select(k), noElective);
+  await as.selectOption('#cat-comp', '__extra__');
+  await as.click('#cat-results tr.extra .assign-btn');
+  check(!(await as.$('.modal .assign-slot')) && /No open slot/.test(await as.textContent('.modal .pick-empty')) && !!(await as.$('.modal [data-action="custom-from-current"]')), 'a pathway with no slot for it should say so and offer its own copy');
+  await as.keyboard.press('Escape');
+  await as.selectOption('#cat-comp', '');
+  // a custom plan takes anything, says which slots list it, and can make room
+  await as.evaluate(() => { WSLSA.select('2848|BASE'); });
+  await as.click('[data-action="custom-from-current"]');
+  await as.click('button[type=submit][form=setup-form]');
+  await as.click('[data-action="tab"][data-tab="catalogue"]');
+  const customAlt = await as.evaluate(() => { const c = WSLSA.context(); return c.tdeg.byComp[c.tdeg.llbComponent].find(x => !c.used[x.code]).code; });
+  await as.click(catRow(customAlt) + ' .assign-btn');
+  const heads = await as.$$eval('.modal .pick-section h3', h => h.map(x => x.textContent));
+  check(/Open slots that list this subject/.test(heads[0]) && heads.some(h => /Or make room for it/.test(h)), `a custom plan should separate the slots, got ${JSON.stringify(heads)}`);
+  const customSlots = await as.evaluate(() => WSLSA.custom().slots.length);
+  await as.click('.modal [data-action="assign-new"]');
+  check(await as.evaluate(() => WSLSA.custom().slots.length) === customSlots + 1 && await as.evaluate(c => WSLSA.custom().slots[WSLSA.custom().slots.length - 1].code === c, customAlt), 'making room should add a slot with the subject in it');
+  check((await smallTargets(as)).length === 0, 'catalogue actions should be at least 24 px: ' + (await smallTargets(as)).join('; '));
+  check(as.errors.length === 0, 'assign console errors: ' + as.errors.join('; '));
+  await as.close();
+
+  // ---------------------------------------------------------------- drag to swap and reorder
+  const sw = await newPage(browser, { viewport: { width: 1440, height: 1500 } });
+  await sw.goto(APP);
+  await sw.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
+  await sw.click('[data-action="custom-from-current"]');
+  await sw.click('button[type=submit][form=setup-form]');
+  await sw.evaluate(() => { const t = document.getElementById('year-1').getBoundingClientRect().top + scrollY; window.scrollTo(0, t - 150); });
+  const dragOver = async (fromSel, toSel, part) => {
+    const f = await (await sw.$(fromSel)).boundingBox();
+    await sw.mouse.move(f.x + 10, f.y + 5);
+    await sw.mouse.down();
+    await sw.mouse.move(f.x + 40, f.y + 30, { steps: 4 });
+    await sw.waitForTimeout(120);
+    const box = await (await sw.$(toSel)).boundingBox();
+    const y = box.y + box.height * (part == null ? 0.5 : part);
+    await sw.mouse.move(box.x + box.width / 2, y, { steps: 6 });
+    await sw.mouse.move(box.x + box.width / 2 + 2, y + 1);
+    await sw.waitForTimeout(80);
+  };
+  const y1 = await sw.evaluate(() => {
+    const c = WSLSA.context();
+    const off = v => v && v !== '—' && v !== 'TBC';
+    const both = x => { const e = c.deg.byCode[x.code]; return !x.pending && e && off(e.autumn) && off(e.spring); };
+    const a = c.slots.filter(s => s.year === 1 && s.session === 'Autumn');
+    const b = c.slots.filter(s => s.year === 1 && s.session === 'Spring');
+    return { a: a.filter(both)[0], b: b.filter(both)[0], warn: b.find(x => { const e = c.deg.byCode[x.code]; return !x.pending && e && !off(e.autumn); }), list: a.map(s => s.id) };
+  });
+  check(!!y1.a && !!y1.b && !!y1.warn, 'the check needs subjects that run in both sessions, and one that does not');
+  const placeOf = code => sw.evaluate(c => { const x = WSLSA.custom().slots.find(s => s.code === c); return x.y + x.s; }, code);
+  const sessionCP = (y, s) => sw.evaluate(([yy, ss]) => WSLSA.custom().slots.filter(x => x.y === yy && x.s === ss).reduce((n, x) => n + x.cp, 0), [y, s]);
+  // both offered in each other's sessions
+  await dragOver(`#slot-${y1.a.id} .subj-title`, `#slot-${y1.b.id} .subj-title`);
+  const okBadge = await sw.$eval(`#slot-${y1.b.id}`, c => ({ cls: c.className, text: (c.querySelector('.swap-badge') || {}).textContent, over: !!document.querySelector('.drop-over') }));
+  check(/swap-ok/.test(okBadge.cls) && okBadge.text === `Swap with ${y1.b.code}: keeps both sessions at 40 CP` && !okBadge.over, `a swap both ways should say so, got ${JSON.stringify(okBadge)}`);
+  await sw.mouse.up();
+  check(await placeOf(y1.a.code) === '1Spring' && await placeOf(y1.b.code) === '1Autumn', 'dropping on a card should swap the two sessions');
+  check(await sessionCP(1, 'Autumn') === 40 && await sessionCP(1, 'Spring') === 40, 'a swap should keep both sessions at 40 CP');
+  check(/Swapped/.test(await sw.textContent('#toast')) && !(await sw.$('.swap-badge, .swap-ok, .swap-warn, .has-swap, .drop-ok, .drop-warn')), 'the toast should confirm and the highlights should clear');
+  check(await sw.evaluate(() => /swapped/.test(WSLSA.history().undoLabel)), 'a swap should be one step in the history');
+  await sw.click('#toast [data-action="undo"]');
+  check(await placeOf(y1.a.code) === '1Autumn' && await placeOf(y1.b.code) === '1Spring', 'Undo should swap them back');
+  // one of them is not offered there
+  const warnFrom = await sw.evaluate(() => WSLSA.context().slots.find(s => s.year === 1 && s.session === 'Autumn' && !s.pending).id);
+  await dragOver(`#slot-${warnFrom} .subj-title`, `#slot-${y1.warn.id} .subj-title`);
+  const warnBadge = await sw.$eval(`#slot-${y1.warn.id}`, c => ({ cls: c.className, text: (c.querySelector('.swap-badge') || {}).textContent }));
+  check(/swap-warn/.test(warnBadge.cls) && warnBadge.text === `Swap with ${y1.warn.code}: ${y1.warn.code} is not offered in Autumn`, `an offering problem should warn, got ${JSON.stringify(warnBadge)}`);
+  // leaving the card goes back to a plain move
+  const head = await (await sw.$('#year-1 .session[data-s="Spring"] .session-head')).boundingBox();
+  await sw.mouse.move(head.x + 30, head.y + 8, { steps: 4 });
+  await sw.mouse.move(head.x + 34, head.y + 9);
+  await sw.waitForTimeout(80);
+  check(!(await sw.$('.swap-badge')) && !!(await sw.$('#year-1 .session[data-s="Spring"].drop-over')), 'over the session itself it should be a plain move');
+  await sw.keyboard.press('Escape');
+  await sw.mouse.up();
+  await sw.evaluate(() => { const u = WSLSA.history(); return u; });
+  if (await sw.evaluate(() => /moved/.test(WSLSA.history().undoLabel))) await sw.click('#section-tools [data-action="undo"]');
+  // within a session
+  const order = () => sw.evaluate(() => { const c = WSLSA.context(); return c.slots.filter(s => s.year === 1 && s.session === 'Autumn').map(s => s.code); });
+  const startOrder = await order();
+  const orderIds = await sw.evaluate(() => WSLSA.context().slots.filter(s => s.year === 1 && s.session === 'Autumn').map(s => s.id));
+  await dragOver(`#slot-${orderIds[0]} .subj-title`, `#slot-${orderIds[2]}`, 0.8);
+  check(!!(await sw.$(`#slot-${orderIds[2]}.reorder-after`)) && !(await sw.$('.swap-badge')), 'over a card in its own session it should show where it would land');
+  await sw.mouse.up();
+  const newOrder = await order();
+  check(JSON.stringify(newOrder) === JSON.stringify([startOrder[1], startOrder[2], startOrder[0], startOrder[3]]), `dropping should reorder the session, got ${newOrder.join(', ')}`);
+  check(await sw.$$eval('#year-1 .session[data-s="Autumn"] .subj .code-pill', p => p.map(x => x.textContent)).then(t => JSON.stringify(t) === JSON.stringify(newOrder)), 'the page should show the new order');
+  check(!(await sw.$('.reorder-after, .reorder-before')), 'the marker should clear');
+  await sw.click('#toast [data-action="undo"]');
+  check(JSON.stringify(await order()) === JSON.stringify(startOrder), 'Undo should restore the order');
+  await dragOver(`#slot-${orderIds[3]} .subj-title`, `#slot-${orderIds[0]}`, 0.2);
+  check(!!(await sw.$(`#slot-${orderIds[0]}.reorder-before`)), 'the top half of a card should mean before it');
+  await sw.mouse.up();
+  check((await order())[0] === startOrder[3], 'dropping before the first card should put it first');
+  // without dragging, as a keyboard or a phone must
+  await sw.click(`#slot-${await codeSlot(sw, startOrder[1])} [data-action="picker-open"]`);
+  check(await sw.isDisabled('[data-action="creorder"][data-dir="-1"]') === false, 'Change or move should offer the order');
+  await sw.click('[data-action="creorder"][data-dir="-1"]');
+  check((await order()).indexOf(startOrder[1]) < newOrder.length && !(await sw.$('.modal')), 'the order buttons should work without dragging');
+  const swapPair = await sw.evaluate(() => { const c = WSLSA.context(); return { a: c.slots.find(s => s.year === 2 && s.session === 'Autumn' && !s.pending), b: c.slots.find(s => s.year === 2 && s.session === 'Spring' && !s.pending) }; });
+  await sw.click(`#slot-${swapPair.a.id} [data-action="picker-open"]`);
+  await sw.selectOption('#cp-swap', swapPair.b.id);
+  check(await placeOf(swapPair.a.code) === '2Spring' && await placeOf(swapPair.b.code) === '2Autumn' && !(await sw.$('.modal')), 'Swap with should work without dragging');
+  // order and swaps survive a share link
+  const planAll = p => p.evaluate(() => WSLSA.custom().slots.map(x => x.y + x.s + x.code + (x.done ? '+' : '')));
+  const swapLink = await sw.evaluate(() => WSLSA.planUrl());
+  const swOpen = await newPage(browser);
+  await swOpen.goto(swapLink);
+  check(JSON.stringify(await planAll(swOpen)) === JSON.stringify(await planAll(sw)), 'a share link should keep the order and swaps');
+  await swOpen.close();
+  check(sw.errors.length === 0, 'swap console errors: ' + sw.errors.join('; '));
+  await sw.close();
+
+  // ---------------------------------------------------------------- grid view and quick filter
+  const fi = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  await fi.goto(APP);
+  await fi.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
+  await fi.evaluate(() => document.fonts.ready);
+  const pressed = () => fi.$eval('.view-modes [aria-pressed="true"]', b => b.dataset.view);
+  const shownCards = () => fi.$$eval('#grid .subj', cs => cs.filter(c => c.getClientRects().length).map(c => c.dataset.slot));
+  check(await pageTop(fi, '#gridbar') < await pageTop(fi, '#dmap') && await pressed() === 'all', 'the bar should sit above the map, on All');
+  check(await pageTop(fi, '#grid .subj') < 1000, `the bar should not push the plan down, first subject at ${await pageTop(fi, '#grid .subj')}`);
+  check(await fi.textContent('#gv-remaining') === '40' && +await fi.textContent('#gv-action') > 0, 'the views should show their counts');
+  for (const [y, s] of [[1, 'Autumn'], [1, 'Spring'], [2, 'Autumn']]) await fi.click(`#year-${y} .session[data-s="${s}"] [data-action="session-done"]`);
+  check(await fi.textContent('#gv-remaining') === '28', 'ticking should update the count');
+  check(!(await fi.$('#year-1.is-folded')), 'on All, ticking should fold nothing');
+  // remaining only
+  await fi.click('[data-action="grid-view"][data-view="remaining"]');
+  check(await pressed() === 'remaining' && !!(await fi.$('#year-1.is-folded')) && await fi.isHidden('#year-1-body'), 'Remaining only should fold a finished year');
+  const remainingCards = await shownCards();
+  check(remainingCards.length === 28 && await fi.evaluate(ids => ids.every(i => !WSLSA.context().byId[i].done), remainingCards), `Remaining only should hide finished subjects, got ${remainingCards.length}`);
+  check(/Everything in this session is done/.test(await fi.textContent('#year-2 .session[data-s="Autumn"] .session-clear')) && await fi.isVisible('#year-2 .session[data-s="Autumn"] .session-clear') && await fi.isVisible('#year-2 .session[data-s="Spring"] .subj'), 'a finished session should say so beside the one still to do');
+  await fi.click('#year-1 [data-action="year-toggle"]');
+  check(await fi.isVisible('#year-1-body') && await fi.isVisible('#year-1 .subj.is-done'), 'opening a finished year should show its subjects');
+  await fi.click('#year-1 [data-action="year-toggle"]');
+  check(await fi.isHidden('#year-1-body'), 'it should close again');
+  // ticking in this view leaves the card, and the year, where they are until the page next changes
+  const tickNow = await fi.evaluate(() => WSLSA.context().slots.find(s => s.year === 2 && s.session === 'Spring').id);
+  await fi.click(`#slot-${tickNow} .tick`);
+  check(await fi.isVisible(`#slot-${tickNow}`) && await fi.textContent('#gv-remaining') === '27', 'a card just ticked should stay in view');
+  await fi.click('#year-2 .session[data-s="Spring"] [data-action="session-done"]');
+  check(!(await fi.$('#year-2.is-folded')) && await fi.isVisible(`#slot-${tickNow}`), 'finishing a year should not fold it under the student');
+  await fi.evaluate(() => WSLSA.select('2785|BASE'));
+  check(await fi.isHidden(`#slot-${tickNow}`) && !!(await fi.$('#year-2.is-folded')), 'the next change to the page should tidy them away');
+  await fi.reload();
+  await fi.evaluate(() => document.fonts.ready);
+  check(await pressed() === 'remaining' && !!(await fi.$('#grid.view-remaining')), 'the view should survive a reload');
+  // what a view opened in one plan does not carry over to another
+  await fi.click('#year-1 [data-action="year-toggle"]');
+  check(await fi.isVisible('#year-1-body'), 'a finished year should open in this view');
+  await fi.selectOption('#sel-degree', '2848');
+  await fi.selectOption('#sel-degree', '2785');
+  check(await fi.isHidden('#year-1-body'), 'going to another plan and back should forget what the view had opened');
+  // a jump to something this view hides goes back to everything
+  await fi.click('[data-action="tab"][data-tab="catalogue"]');
+  const doneInCat = 'LAWS 1003';
+  await fi.$eval(`#cat-results tbody tr:has(td.c-code:text-is("${doneInCat}"))`, r => r.scrollIntoView({ block: 'center' }));
+  await fi.click(`#cat-results tbody tr:has(td.c-code:text-is("${doneInCat}")) .plan-badge`);
+  const doneSlot = await codeSlot(fi, doneInCat);
+  check(await pressed() === 'all' && await fi.isVisible(`#slot-${doneSlot}`), 'jumping to a hidden card should show everything');
+  await fi.click('[data-action="tab"][data-tab="structure"]');
+  // action needed
+  await fi.click('[data-action="grid-view"][data-view="action"]');
+  const actionCards = await shownCards();
+  const actionNow = +await fi.textContent('#gv-action');
+  check(actionCards.length === actionNow && actionNow > 0 && await fi.$$eval('#grid .subj', cs => cs.filter(c => c.getClientRects().length).every(c => c.classList.contains('is-action'))), `Action needed should show exactly the flagged cards, got ${actionCards.length} of ${actionNow}`);
+  check((await fi.$$('#dmap .dm-seg i.hit')).length === actionNow && !!(await fi.$('#dmap .dm-s.has-hit')), 'the map should mark where they are');
+  check(await fi.evaluate(ids => { const c = WSLSA.context(); return ids.every(i => { const s = c.byId[i]; return !s.done && (s.pending || c.risks.tbc.indexOf(s) >= 0 || c.risks.advisor.some(a => a.flagSlot && a.flagSlot.id === i)); }); }, actionCards), 'they should be open choices, unpublished sessions or prerequisite notes');
+  await fi.selectOption('#sel-campus', 'PS');
+  check(+await fi.textContent('#gv-action') > actionNow, 'a campus adds its mismatches to Action needed');
+  await fi.selectOption('#sel-campus', '');
+  check(await fi.isHidden('#year-1'), 'a year with nothing to do should leave the view');
+  await fi.click('#dmap .dm-s[data-y="1"][data-s="Autumn"]');
+  check(await pressed() === 'all' && await fi.isVisible('#year-1 .session[data-s="Autumn"]'), 'pressing a hidden year on the map should show everything');
+  // nothing left
+  await fi.evaluate(() => document.querySelectorAll('#grid [data-action="session-done"]').forEach(b => { if (b.textContent !== 'Unmark all') b.click(); }));
+  await fi.click('[data-action="grid-view"][data-view="action"]');
+  check(await fi.isVisible('#grid-empty') && /Nothing in this plan needs action/.test(await fi.textContent('#grid-empty')), 'an empty view should say so');
+  await fi.click('#grid-empty [data-action="grid-view"]');
+  check(await pressed() === 'all' && await fi.isHidden('#grid-empty'), 'it should offer the way back');
+  await fi.evaluate(() => { localStorage.clear(); });
+  await fi.click('[data-action="reset"]').catch(() => {});
+  // the quick filter
+  const fi2 = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  await fi2.goto(APP);
+  await fi2.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
+  await fi2.evaluate(() => document.fonts.ready);
+  await fi2.evaluate(() => document.activeElement.blur());
+  await fi2.keyboard.press('/');
+  check(await fi2.evaluate(() => document.activeElement.id === 'grid-q') && await fi2.getAttribute('#grid-q', 'placeholder') === 'Press / to filter grid', '/ should go to the filter');
+  await fi2.keyboard.type('torts');
+  const tortsSlot = await codeSlot(fi2, 'LAWS 2013');
+  check(!!(await fi2.$(`#slot-${tortsSlot}.is-match`)) && (await fi2.$$('#grid .subj.is-match')).length === 1 && /Torts/i.test(await fi2.textContent(`#slot-${tortsSlot} .subj-title mark`)), 'typing should highlight the matching card and words');
+  check(await fi2.$eval('#grid .subj:not(.is-match)', c => getComputedStyle(c).opacity) === '0.38', 'other cards should step back');
+  check((await fi2.$$('#dmap .dm-seg i.hit')).length === 1 && !!(await fi2.$('#dmap .dm-s.has-hit[data-y="1"][data-s="Spring"]')) && !!(await fi2.$('#dmap .dm-y.has-hit[data-y="1"]')), 'the map should mark its year and session');
+  check(/^1 match/.test(await fi2.textContent('#grid-status')), 'the count should say how many');
+  await fi2.fill('#grid-q', 'laws1003');
+  check(await fi2.textContent(`#slot-${await codeSlot(fi2, 'LAWS 1003')} .code-pill mark`) === 'LAWS 1003', 'a code should match without its space');
+  await fi2.fill('#grid-q', 'zzzz');
+  check(/No match/.test(await fi2.textContent('#grid-status')) && !(await fi2.$('#grid.is-filtering')), 'no match should leave the cards alone and say so');
+  await fi2.fill('#grid-q', 'financial');
+  const hits = await fi2.$$eval('#grid .subj.is-match', c => c.map(x => x.dataset.slot));
+  check(hits.length > 1, 'the check needs more than one match');
+  await fi2.keyboard.press('Enter');
+  check(await fi2.$eval(`#slot-${hits[0]}`, c => c.classList.contains('flash')) && /^1 of /.test(await fi2.textContent('#grid-status')) && await fi2.evaluate(() => document.activeElement.id === 'grid-q'), 'Enter should go to the first match and keep typing focus');
+  await fi2.keyboard.press('Enter');
+  check(await fi2.$eval(`#slot-${hits[1]}`, c => c.classList.contains('flash')), 'Enter again should go to the next');
+  await fi2.keyboard.press('Shift+Enter');
+  check(/^1 of /.test(await fi2.textContent('#grid-status')), 'Shift+Enter should go back');
+  // it stays on screen while in use, without moving the page
+  const stack = () => fi2.evaluate(() => { const r = id => document.getElementById(id).getBoundingClientRect(); return { dock: Math.round(r('dock-wrap').bottom), barTop: Math.round(r('gridbar').top), barBottom: Math.round(r('gridbar').bottom), mapTop: Math.round(r('dmap').top), y: Math.round(scrollY) }; });
+  await fi2.evaluate(() => window.scrollTo(0, document.getElementById('year-4').getBoundingClientRect().top + scrollY));
+  await fi2.waitForTimeout(100);
+  const deep = await stack();
+  check(Math.abs(deep.barTop - deep.dock) <= 2 && Math.abs(deep.mapTop - deep.barBottom) <= 2, `the bar should stick under the dock and the map under it, got ${JSON.stringify(deep)}`);
+  await fi2.keyboard.press('Escape');
+  check(await fi2.inputValue('#grid-q') === '' && !(await fi2.$('#grid .subj.is-match')) && !(await fi2.$('#grid.is-filtering')) && !(await fi2.$('#dmap i.hit')) && !(await fi2.$('.subj-title mark')), 'Esc should clear the filter and every mark');
+  await fi2.keyboard.press('Escape');
+  check(await fi2.evaluate(() => document.activeElement.id !== 'grid-q') && !(await fi2.$('#gridbar.is-searching')), 'Esc again should leave the box, and the bar should stop sticking');
+  const beforeKey = await fi2.evaluate(() => Math.round(scrollY));
+  await fi2.keyboard.press('Control+k');
+  const keyStack = await stack();
+  check(await fi2.evaluate(() => document.activeElement.id === 'grid-q') && keyStack.y === beforeKey && Math.abs(keyStack.barTop - keyStack.dock) <= 2 && Math.abs(keyStack.mapTop - keyStack.barBottom) <= 2, `Ctrl+K deep in the plan should bring the filter to the screen without moving the page, got ${JSON.stringify(keyStack)} from ${beforeKey}`);
+  await fi2.keyboard.press('Escape');
+  check(await fi2.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--bar-h').trim()) === '0px', 'the map should go back up once the filter is out of use');
+  // a match in a folded year shows on its bar, and Enter opens it
+  await fi2.click('#year-3 [data-action="year-toggle"]');
+  const inY3 = await fi2.evaluate(() => { const c = WSLSA.context(); return c.slots.find(s => s.year === 3 && !s.pending && c.slots.filter(x => x.title === s.title).length === 1); });
+  await fi2.fill('#grid-q', inY3.code);
+  check(!!(await fi2.$('#year-3.has-match.is-folded')) && await fi2.isHidden('#year-3-body'), 'typing should not open a folded year, but its bar should show the match');
+  await fi2.focus('#grid-q');
+  await fi2.keyboard.press('Enter');
+  check(await fi2.isVisible(`#slot-${inY3.id}`), 'Enter should open the folded year');
+  await fi2.fill('#grid-q', '');
+  // a filter that still has text stays on screen after leaving the box
+  await fi2.fill('#grid-q', 'torts');
+  await fi2.evaluate(() => document.activeElement.blur());
+  check(!!(await fi2.$('#gridbar.is-searching')), 'a filter with text should stay on screen');
+  check((await smallTargets(fi2)).length === 0, 'filter controls should be at least 24 px: ' + (await smallTargets(fi2)).join('; '));
+  await fi2.fill('#grid-q', '');
+  // the PDF is not affected by what is on screen
+  const pdfBefore = await fi2.evaluate(() => WSLSA.buildPrintDoc({ mode: 'A' }).replace(/pd-plan">[^<]*</, ''));
+  await fi2.click('[data-action="grid-view"][data-view="action"]');
+  await fi2.fill('#grid-q', 'torts');
+  check(await fi2.evaluate(() => WSLSA.buildPrintDoc({ mode: 'A' }).replace(/pd-plan">[^<]*</, '')) === pdfBefore, 'the PDF should ignore the view and the filter');
+  check(fi.errors.length === 0 && fi2.errors.length === 0, 'filter console errors: ' + fi.errors.concat(fi2.errors).join('; '));
+  await fi.close();
+  await fi2.close();
+
+  // on a phone: only the search row stays, the map under it, and undo is in the bar at the bottom
+  const pf = await newPage(browser, { viewport: { width: 390, height: 844 } });
+  await pf.goto(APP);
+  await pf.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
+  await pf.evaluate(() => document.fonts.ready);
+  check(await pf.evaluate(() => document.documentElement.scrollWidth <= 390), 'the bar should not cause sideways scrolling on a phone');
+  check((await smallTargets(pf)).length === 0, 'phone filter controls should be at least 24 px: ' + (await smallTargets(pf)).join('; '));
+  check(await pageTop(pf, '#grid .subj') < 1500, `the bar should not push the plan down on a phone, first subject at ${await pageTop(pf, '#grid .subj')}`);
+  await pf.fill('#grid-q', 'torts');
+  await pf.evaluate(() => window.scrollTo(0, document.getElementById('year-2').getBoundingClientRect().top + scrollY));
+  await pf.waitForTimeout(120);
+  const phoneStack = await pf.evaluate(() => { const r = s => document.querySelector(s).getBoundingClientRect(); return { input: Math.round(r('#grid-q').top), buttons: Math.round(r('.view-modes').bottom), bar: Math.round(r('#gridbar').bottom), map: Math.round(r('#dmap').top) }; });
+  check(phoneStack.input >= 0 && phoneStack.input < 20 && phoneStack.buttons <= 2 && Math.abs(phoneStack.map - phoneStack.bar) <= 2, `on a phone the search row should stick to the top with the map under it, got ${JSON.stringify(phoneStack)}`);
+  await pf.fill('#grid-q', '');
+  await pf.evaluate(() => document.activeElement.blur());
+  await pf.evaluate(() => window.scrollTo(0, document.getElementById('year-2').getBoundingClientRect().top + scrollY));
+  await pf.waitForTimeout(150);
+  check(await pf.isDisabled('#mini-bar [data-action="undo"]'), 'the phone bar undo should start disabled');
+  await pf.click('#grid .subj:not(.is-pending) .tick');
+  check(await pf.isEnabled('#mini-bar [data-action="undo"]') && await pf.evaluate(() => WSLSA.context().doneCP) === 10, 'ticking should enable the phone bar undo');
+  await pf.click('#mini-bar [data-action="undo"]');
+  check(await pf.evaluate(() => WSLSA.context().doneCP) === 0 && await pf.isDisabled('#mini-bar [data-action="undo"]'), 'the phone bar undo should work');
+  check(pf.errors.length === 0, 'phone filter console errors: ' + pf.errors.join('; '));
+  await pf.close();
 
   // ---------------------------------------------------------------- mobile layout
   const m = await newPage(browser, { viewport: { width: 390, height: 844 } });

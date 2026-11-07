@@ -80,9 +80,21 @@
         </div>
         <div class="section-tools" id="section-tools"></div>
       </div>
-      <section class="micro-legend" id="legend" aria-label="Legend"></section>
       <div class="plan-body">
+        <section class="gridbar" id="gridbar" aria-label="Filter your plan">
+          <div class="segmented view-modes" role="group" aria-label="What to show in your plan">
+            <button type="button" data-action="grid-view" data-view="all" aria-pressed="true">All</button>
+            <button type="button" data-action="grid-view" data-view="remaining" aria-pressed="false" title="Hide finished subjects and fold finished years">Remaining<span class="wide-only"> only</span><span class="gv-count" id="gv-remaining"></span></button>
+            <button type="button" data-action="grid-view" data-view="action" aria-pressed="false" title="Show only open choices, unpublished sessions, campus mismatches, prerequisite notes and offering warnings">Action<span class="wide-only"> needed</span><span class="gv-count" id="gv-action"></span></button>
+          </div>
+          <div class="grid-search">
+            <input class="input" id="grid-q" type="search" placeholder="Press / to filter grid" aria-label="Filter your plan by subject code or title" autocomplete="off">
+            <span class="grid-status" id="grid-status" role="status"></span>
+          </div>
+          <section class="micro-legend" id="legend" aria-label="Legend"></section>
+        </section>
         <nav class="dmap" id="dmap" aria-label="Jump to a year or session in your plan"></nav>
+        <div class="plan-empty" id="grid-empty" hidden></div>
         <section class="grid" id="grid" aria-label="Recommended pathway"></section>
       </div>
       <section class="drawer" id="details" aria-label="Degree details"></section>
@@ -91,10 +103,11 @@
 
   <footer class="site-footer" id="site-foot"></footer>
 
-  <div class="mini-bar" id="mini-bar" role="group" aria-label="Your credit point progress">
+  <div class="mini-bar" id="mini-bar" role="region" aria-label="Your credit point progress">
     <button type="button" class="mini-toggle" data-action="mini-toggle" aria-expanded="true" aria-controls="mini-track" aria-label="Collapse progress bar"></button>
     <span class="mini-num" id="mini-num"></span>
     <span class="bar" id="mini-track" role="progressbar" aria-valuemin="0" aria-label="Credit points completed"><span id="mini-fill"></span></span>
+    <button type="button" class="mini-undo" data-action="undo" aria-label="Undo" disabled>↶</button>
     <button type="button" class="mini-top" data-action="mini-top">Controls ↑</button>
   </div>
 </div>
