@@ -31,8 +31,8 @@ function check(cond, msg) {
 async function newPage(browser, opts) {
   // reduced motion by default: updates are then instant, so checks can read the page straight after a click
   const page = await browser.newPage(Object.assign({ viewport: { width: 1360, height: 900 }, reducedMotion: 'reduce' }, opts || {}));
-  // a returning student: no tour prompt, and the Law Enquiry box as a pill. The tour and box checks set up their own pages.
-  await page.addInitScript(() => { try { localStorage.setItem('wslsa-2027-tour-dismissed', '1'); if (!localStorage.getItem('wslsa-2027-enquiry')) localStorage.setItem('wslsa-2027-enquiry', 'min'); } catch (e) { /* about:blank */ } });
+  // a returning student: no tour prompt. The tour checks set up their own pages.
+  await page.addInitScript(() => { try { localStorage.setItem('wslsa-2027-tour-dismissed', '1'); } catch (e) { /* about:blank */ } });
   page.errors = [];
   page.on('pageerror', e => page.errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') page.errors.push(m.text()); });
@@ -52,6 +52,30 @@ async function renderPdf(page, key, mode, orient, file) {
 
 (async () => {
   const browser = await chromium.launch();
+  // a student reaches a control in a menu by opening the menu first, so a click does too
+  const probe = await browser.newPage();
+  const pageProto = Object.getPrototypeOf(probe);
+  await probe.close();
+  const plainClick = pageProto.click;
+  pageProto.clickRaw = plainClick;
+  pageProto.click = async function (selector, options) {
+    await this.evaluate(s => {
+      let el = null;
+      try { el = document.querySelector(s); } catch (e) { return; }
+      if (!el) return;
+      const top = el.closest('#top-actions');
+      const menu = document.querySelector('.top-menu-btn');
+      if (top && menu.offsetParent && !top.classList.contains('is-open')) menu.click();
+      const pop = el.closest('.pop-menu');
+      if (pop && pop.hidden && pop.previousElementSibling.offsetParent) pop.previousElementSibling.click();
+    }, selector).catch(() => {});
+    await plainClick.call(this, selector, options);
+    // with subjects ticked the dock asks how much to switch; these checks are about the whole plan's view, as before
+    if (/data-action="load"/.test(selector) && await this.$('#rp-form')) {
+      await this.check('input[name="rp-scope"][value="whole"]');
+      await plainClick.call(this, '#rp-apply');
+    }
+  };
   const page = await newPage(browser);
   await page.goto(APP);
   await page.evaluate(() => localStorage.clear());
@@ -64,7 +88,7 @@ async function renderPdf(page, key, mode, orient, file) {
     return {
       key: k, degree: ctx.deg.code, cp: ctx.deg.cp, totalCP: ctx.totalCP, slots: ctx.slots.length,
       domSlots: document.querySelectorAll('#grid .subj').length,
-      gridText: document.getElementById('grid').textContent + document.getElementById('advisory').textContent + document.getElementById('hero-meta').textContent + document.getElementById('facts').textContent,
+      gridText: document.getElementById('grid').textContent + document.getElementById('advisory').textContent + document.getElementById('hero-meta').textContent,
       majorOptions: Array.from(document.querySelectorAll('#sel-major option')).map(o => o.value),
       locked: !!document.getElementById('major-locked'),
       degOptions: ctx.deg.options,
@@ -360,7 +384,7 @@ async function renderPdf(page, key, mode, orient, file) {
   // ---------------------------------------------------------------- School of Law notice and Law Enquiry contact
   const LAW_ENQUIRY = 'lawenquiry@westernsydney.edu.au';
   check(await page.$eval('#enquiry-box a[href="mailto:' + LAW_ENQUIRY + '"]', a => a.textContent.trim()) === LAW_ENQUIRY, 'the Law Enquiry box should link the Law Enquiry Team email');
-  check(/2026 Handbook/.test(await page.textContent('#notice')), 'the notice should point current students to the 2026 Handbook');
+  check(/2026 Handbook/.test(await page.textContent('.hero-note')), 'the first screen should point current students to the 2026 Handbook');
   check(docB.includes(LAW_ENQUIRY), 'the PDF disclaimer should carry the Law Enquiry email');
   const notEndorsed = /not endorsed by the School of Law of Western Sydney University/i;
   const stuck = /If you get stuck, contact .*lawenquiry@westernsydney\.edu\.au.* or your Academic Program Advisor/;
@@ -422,10 +446,10 @@ async function renderPdf(page, key, mode, orient, file) {
   const pp = await newPage(browser);
   await pp.goto(APP);
   await pp.evaluate(() => { localStorage.clear(); WSLSA.select('2848|BASE'); });
-  check(/Spring 2030/.test(await pp.textContent('#facts')), '2848 full-time should finish in Spring 2030');
+  check(/Spring 2030/.test(await pp.textContent('#hero-meta')), '2848 full-time should finish in Spring 2030');
   check(JSON.stringify(await pp.$$eval('.year-bar h2 small', s => s.map(x => x.textContent))) === JSON.stringify(['2027', '2028', '2029', '2030']), 'year bars should show calendar years from 2027');
   await pp.click('[data-action="load"][data-load="PT"]');
-  check(/Spring 2034/.test(await pp.textContent('#facts')), '2848 part-time should finish in Spring 2034');
+  check(/Spring 2034/.test(await pp.textContent('#hero-meta')), '2848 part-time should finish in Spring 2034');
   await pp.click('[data-action="load"][data-load="FT"]');
   // next to enrol: the first session with anything left, codes ready to copy
   const y1a = await pp.evaluate(() => WSLSA.context().slots.filter(s => s.year === 1 && s.session === 'Autumn' && !s.pending).map(s => s.code).join(', '));
@@ -455,7 +479,7 @@ async function renderPdf(page, key, mode, orient, file) {
     await pp.click(`#slot-${id} [data-action="picker-open"]`);
     await pp.click('.modal [data-action="cremove"]');
   }
-  check(/Autumn 2030/.test(await pp.textContent('#facts')), 'removing Year 4 Spring should bring the finish forward to Autumn 2030');
+  check(/Autumn 2030/.test(await pp.textContent('#hero-meta')), 'removing Year 4 Spring should bring the finish forward to Autumn 2030');
   check(pp.errors.length === 0, 'progress tools console errors: ' + pp.errors.join('; '));
   await pp.close();
 
@@ -512,7 +536,7 @@ async function renderPdf(page, key, mode, orient, file) {
   check(at(dw, 'ECON 2002').replaced === 'FINC 2003' && at(dw, 'MATH 1030').kind === 'Choice' && at(dw, 'LAWS 2012').kind === 'LLB Alternate', 'history should be tied to the pathway slots it fills');
   check(where('LAWS 2015') === '3Autumn-' && where('LAWS 3018') === '3Autumn-' && where('LAWS 2013') === '3Spring-', `what is still needed should start in Autumn 2027, phase-out subjects first and each in its session, got ${['LAWS 2015', 'LAWS 3018', 'LAWS 2013'].map(where).join(' ')}`);
   check(dw.slots.filter(x => !x.code && x.kind === 'LLB Alternate').length === 2 && !dw.slots.some(x => ['LAWS 3001', 'JUST 2013', 'NOAW 0004', 'FINC 2003'].indexOf(x.code) >= 0), 'a list to choose from should become open LLB Alternate slots, with no listed code placed');
-  check(JSON.stringify(await ip.$$eval('.year-bar h2 small', s => s.slice(0, 3).map(x => x.textContent))) === JSON.stringify(['2025', '2026', '2027']) && /started 2025/i.test(await ip.textContent('#facts')), 'year bars and facts should show the real calendar years');
+  check(JSON.stringify(await ip.$$eval('.year-bar h2 small', s => s.slice(0, 3).map(x => x.textContent))) === JSON.stringify(['2025', '2026', '2027']) && /started 2025/i.test(await ip.getAttribute('.hp-finish', 'title')) && /started 2025/.test(await ip.textContent('#details')), 'year bars and facts should show the real calendar years');
   check(/Next to enrol/.test(await ip.textContent('#next')) && /Autumn 2027/.test(await ip.textContent('#next')), `Next to enrol should pass over sessions that have begun, got ${(await ip.textContent('#next')).slice(0, 80)}`);
   check(!/TBC|2026 data|Summer/.test(await ip.textContent('#advisory summary')), 'completed subjects should raise no session or Summer warnings');
   const finishedFolded = await ip.$$eval('#grid .year', ys => ys.filter(y => { const c = y.querySelectorAll('.subj'); return c.length && Array.from(c).every(x => x.classList.contains('is-done')); }).map(y => y.classList.contains('is-folded')));
@@ -974,7 +998,7 @@ async function renderPdf(page, key, mode, orient, file) {
     await an.waitForTimeout(100);
     const ids = await an.evaluate(() => WSLSA.context().slots.filter(s => s.year === 1 && s.session === 'Autumn').map(s => s.id));
     await an.click(`#slot-${ids[0]} .tick`);
-    check(!(await an.$('#next.is-changed')) && !/LAWS 1003/.test(await an.textContent('#next .chiplist')), 'ticking within the same session should update Next to enrol without animating it');
+    check(!(await an.$('#next.is-changed')) && !/LAWS 1003/.test(await an.$eval('[data-action="copy-codes"]', b => b.dataset.codes)), 'ticking within the same session should update Next to enrol without animating it');
     for (const i of ids.slice(1)) await an.click(`#slot-${i} .tick`);
     check(!!(await an.$('#next.is-changed')) && /Spring 2027/.test(await an.textContent('#next')), 'finishing the session should animate Next to enrol to the new one');
     check(an.errors.length === 0, 'next to enrol animation console errors: ' + an.errors.join('; '));
@@ -998,7 +1022,7 @@ async function renderPdf(page, key, mode, orient, file) {
   const smallTargets = p => p.evaluate(() => {
     const out = new Set();
     document.querySelectorAll('#app a[href], #app button, #app select, #app summary, #app label.tick, #app [role="button"], #modal-root a[href], #modal-root button, #modal-root select').forEach(el => {
-      if (!el.getClientRects().length || el.matches('p a, li a') || el.closest('#preview-stage')) return;
+      if (!el.getClientRects().length || el.matches('p a, li a, p .hero-link') || el.closest('#preview-stage')) return;
       const r = el.getBoundingClientRect();
       if (r.width < 24 || r.height < 24) out.add((el.className || el.tagName) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height));
     });
@@ -1023,10 +1047,10 @@ async function renderPdf(page, key, mode, orient, file) {
   check(await lay.evaluate(() => document.activeElement.id === 'plan-heading' && !location.hash), 'the skip link should move focus to the plan, without changing the address');
   await lay.evaluate(() => window.scrollTo(0, 0));
   // the School of Law advice stays in view, and its detail opens from it
-  check(/2026 Handbook/.test(await lay.textContent('.notice-lead')) && await lay.isVisible('.notice-lead') && await lay.isHidden('#enquiry-box .phase-grid'), 'the notice should show its advice with the detail closed');
-  await lay.click('.notice-cta');
+  check(/2026 Handbook/.test(await lay.textContent('.hero-note')) && await lay.isVisible('.hero-note') && await lay.isHidden('#enquiry-box .phase-grid'), 'the first screen should show the advice with the detail closed');
+  await lay.clickRaw('.hero-note .hero-link');
   await lay.click('.enq-more > summary');
-  check(await lay.isVisible('#enquiry-box .phase-grid') && await lay.isVisible('#enquiry-box .enq-to a'), 'the notice should open the box, with the phase-out subjects and contact');
+  check(await lay.isVisible('#enquiry-box .phase-grid') && await lay.isVisible('#enquiry-box .enq-to a'), 'the link should open the box, with the phase-out subjects and contact');
   await lay.click('.enq-pill');
   // the legend keeps its colours in view, and stays open across a re-render once opened
   check(await lay.isHidden('#legend .lg-body') && await lay.isVisible('#legend .lg-sw'), 'the legend should start closed with its colours showing');
@@ -1092,10 +1116,11 @@ async function renderPdf(page, key, mode, orient, file) {
   check(await lay.isHidden('#year-2-body'), 'a folded year should stay folded across a re-render');
   await lay.click('#dmap .dm-y[data-y="2"]');
   check(await lay.isVisible('#year-2-body') && await lay.getAttribute('#year-2 [data-action="year-toggle"]', 'aria-expanded') === 'true', 'jumping from the map should open a folded year');
-  await lay.click('#year-1 [data-action="year-toggle"]');
-  await lay.click('#next .chipbtn');
-  check(await lay.isVisible('#year-1-body'), 'jumping to a subject should open its folded year');
-  await lay.evaluate(() => window.scrollTo(0, 0));
+  await lay.click('#year-5 [data-action="year-toggle"]');
+  await lay.evaluate(() => { document.getElementById('advisory-box').open = true; });
+  await lay.click('#advisory-box .chipbtn');
+  check(await lay.isVisible('#year-5-body'), 'jumping to a subject should open its folded year');
+  await lay.evaluate(() => { document.getElementById('advisory-box').open = false; window.scrollTo(0, 0); });
   await lay.click('#year-1 .session[data-s="Spring"] [data-action="session-done"]');
   check(!(await lay.$('#year-1.is-folded')), 'finishing a year should not fold it under the student');
   const doneCard = await lay.$eval('#year-1 .subj.is-done', c => ({ opacity: getComputedStyle(c).opacity, tick: getComputedStyle(c.querySelector('.tick-box')).backgroundColor, title: getComputedStyle(c.querySelector('.subj-title')).color }));
@@ -1133,7 +1158,6 @@ async function renderPdf(page, key, mode, orient, file) {
   await ph.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
   await ph.evaluate(() => document.fonts.ready);
   check(await pageTop(ph, '#grid .subj') < 1500, `the plan should start within two phone screens, first subject at ${await pageTop(ph, '#grid .subj')}`);
-  check(await pageTop(ph, '#facts') > await pageTop(ph, '#grid') && await pageTop(ph, '#facts') < await pageTop(ph, '#details'), 'degree facts should follow the plan on a phone');
   check((await smallTargets(ph)).length === 0, 'phone controls should be at least 24 px: ' + (await smallTargets(ph)).join('; '));
   check(await ph.isHidden('[data-action="print"]') && await ph.isVisible('[data-action="top-menu"]'), 'the masthead actions should sit in a menu on a phone');
   await ph.click('[data-action="top-menu"]');
@@ -1232,8 +1256,11 @@ async function renderPdf(page, key, mode, orient, file) {
   check(await hi.evaluate(i => WSLSA.context().byId[i].code, openAlt) === chosenAlt && await slotDone(firstTick), 'undoing Reset should bring back choices and ticks');
   // an undo shows the plan it changed
   await hi.selectOption('#sel-degree', '2848');
+  check(/carried your subjects/.test((await hist()).undoLabel), 'carrying subjects into a new degree should be named in the history');
   await hi.click(undoBtn);
-  check(await hi.evaluate(() => WSLSA.state().degree) === '2785' && await hi.evaluate(i => WSLSA.context().byId[i].pending, openAlt), 'undo should go back to the plan the change was made in');
+  check(await hi.evaluate(() => WSLSA.state().degree) === '2785' && !(await hi.evaluate(i => WSLSA.context().byId[i].pending, openAlt)), 'undo should go back to the plan the change was made in');
+  await hi.click(undoBtn);
+  check(await hi.evaluate(i => WSLSA.context().byId[i].pending, openAlt), 'the next undo should take back the choice made there');
   // thirty steps at most
   await hi.evaluate(() => { const box = document.querySelector('#grid .tick input'); for (let i = 0; i < 35; i++) box.click(); });
   check((await hist()).undo === 30, `the history should hold 30 steps, got ${(await hist()).undo}`);
@@ -1711,7 +1738,7 @@ async function renderPdf(page, key, mode, orient, file) {
     if (i === 6) check(await t6.$eval('.subj.tour-target .chain-btn, .subj.tour-target .defer-btn', b => getComputedStyle(b).opacity) === '1', 'the cards step should show the tools it describes');
     if (i === 0) check(await t6.isDisabled('[data-action="tour-back"]'), 'there is nothing before the first step');
     if (i === 8) {
-      check(await t6.textContent('[data-action="tour-next"]') === 'Finish' && !!(await t6.$('#tour .tour-clone')) && await t6.$eval('#tour .tour-clone', c => { const a = c.getBoundingClientRect(); const b = document.querySelector('.topbar [data-action="export-open"]').getBoundingClientRect(); return Math.abs(a.left - b.left) < 2 && Math.abs(a.top - b.top) < 2; }), 'the last step should finish, and show the PDF button too');
+      check(await t6.textContent('[data-action="tour-next"]') === 'Finish' && !!(await t6.$('#tour .tour-clone')) && await t6.$eval('#tour .tour-clone', c => { const a = c.getBoundingClientRect(); const b = document.querySelector('.topbar [data-action="print"]').getBoundingClientRect(); return Math.abs(a.left - b.left) < 2 && Math.abs(a.top - b.top) < 2; }), 'the last step should finish, and show the PDF button too');
       break;
     }
     await t6.click('[data-action="tour-next"]');
@@ -1766,9 +1793,10 @@ async function renderPdf(page, key, mode, orient, file) {
   const b0 = await box();
   check(b0.position === 'fixed' && b0.right === 16 && b0.bottom === 16 && b0.z === '48', `the box should sit bottom right, got ${JSON.stringify(b0)}`);
   check(/Law Enquiry · 2027 Help/.test(await en.textContent('.enq-pill')) && await en.textContent('#enq-badge') === '< 80 Law CP' && await en.isHidden('#enq-card') && await en.getAttribute('.enq-pill', 'aria-expanded') === 'false', 'the pill should show its label and status');
-  check(await en.textContent('#notice .notice-cta') === 'View details' && !(await en.$('#notice details')), 'the top notice should be one line');
-  await en.click('#notice .notice-cta');
-  check(await en.isVisible('#enq-card') && await en.evaluate(() => document.activeElement.id === 'enq-card') && await en.getAttribute('.enq-pill', 'aria-expanded') === 'true', 'the notice should open the box and move to it');
+  await en.clickRaw('.hero-note .hero-link');
+  check(await en.isVisible('#enq-card') && await en.evaluate(() => document.activeElement.id === 'enq-card') && await en.getAttribute('.enq-pill', 'aria-expanded') === 'true', 'the link in the banner should open the box and move to it');
+  await en.clickRaw('.hero-note .hero-link');
+  check(await en.isVisible('#enq-card'), 'pressing the link again should leave the box open');
   const enqRect = await en.$eval('#enq-card', c => { const r = c.getBoundingClientRect(); return r.top >= 0 && r.left >= 0 && r.right <= innerWidth; });
   check(enqRect, 'the open box should fit on screen');
   check(/2026 Handbook/.test(await en.textContent('#enq-card')) && /under 80 CP/.test(await en.textContent('#enq-status')), 'the box should give the School\'s advice and where the student stands');
@@ -1806,15 +1834,24 @@ async function renderPdf(page, key, mode, orient, file) {
   await en.click('.enq-pill');
   const altCode = await en.evaluate(i => WSLSA.context().byId[i].code, altSlot);
   check(new RegExp('Chosen alternates: ' + altCode).test((await draftHref()).body), 'the email should name the chosen alternates');
-  // its state is remembered
-  check(await en.evaluate(() => localStorage.getItem('wslsa-2027-enquiry')) === 'open', 'open should be remembered');
+  // it always starts as a pill, and goes back to one when the student goes elsewhere
   await en.reload();
-  check(await en.isVisible('#enq-card'), 'it should reopen as it was');
+  check(await en.isHidden('#enq-card'), 'it should start minimised, even when it was left open');
+  await en.clickRaw('.enq-pill');
   await en.focus('[data-action="enq-copy"]');
   await en.keyboard.press('Escape');
-  check(await en.isHidden('#enq-card') && await en.evaluate(() => document.activeElement.classList.contains('enq-pill') && localStorage.getItem('wslsa-2027-enquiry') === 'min'), 'Esc inside it should minimise it and remember');
-  await en.reload();
-  check(await en.isHidden('#enq-card'), 'it should stay minimised');
+  check(await en.isHidden('#enq-card') && await en.evaluate(() => document.activeElement.classList.contains('enq-pill')), 'Esc inside it should minimise it and return to the pill');
+  await en.clickRaw('.enq-pill');
+  await en.mouse.click(8, 500);
+  check(await en.isHidden('#enq-card'), 'pressing outside it should minimise it');
+  await en.clickRaw('.enq-pill');
+  await en.evaluate(() => document.activeElement.blur());
+  await en.keyboard.press('Escape');
+  check(await en.isHidden('#enq-card'), 'Esc from anywhere should minimise it');
+  await en.clickRaw('.enq-pill');
+  await en.clickRaw('.enq-more > summary');
+  check(await en.isVisible('#enq-card'), 'pressing inside it should leave it open');
+  await en.clickRaw('.enq-pill');
   check((await smallTargets(en)).length === 0, 'the box should have targets of at least 24 px: ' + (await smallTargets(en)).join('; '));
   await en.click('.enq-pill');
   await en.click('.enq-more > summary');
@@ -1835,27 +1872,19 @@ async function renderPdf(page, key, mode, orient, file) {
   await en.$eval(`#slot-${chainSlot} .chain-btn`, b => b.click());
   check(en.errors.length === 0, 'enquiry console errors: ' + en.errors.join('; '));
   await en.close();
-  // first visits: open on a wide screen until the student scrolls, a pill on a phone
+  // first visits: always a pill
   const e1 = await firstVisit(APP);
-  check(await e1.isVisible('#enq-card'), 'a first visit on a wide screen should show the box open');
-  check(await e1.evaluate(() => document.getElementById('enq-card').getBoundingClientRect().top >= document.getElementById('dock-wrap').getBoundingClientRect().bottom), 'open on a first visit, the box should leave the degree controls clear');
+  check(await e1.isHidden('#enq-card') && await e1.isVisible('.enq-pill'), 'a first visit on a wide screen should show the pill');
   await e1.waitForSelector('#tour-prompt:not([hidden])');
-  check(!(await overlapIn(e1, '#tour-prompt', '#enq-card')) && !(await overlapIn(e1, '#tour-prompt', '.enq-pill')), 'the tour prompt and the open box should not overlap');
+  check(!(await overlapIn(e1, '#tour-prompt', '.enq-pill')), 'the tour prompt and the pill should not overlap');
+  await e1.clickRaw('.enq-pill');
+  check(!(await overlapIn(e1, '#tour-prompt', '#enq-card')), 'the tour prompt and the open box should not overlap');
+  await e1.clickRaw('.enq-pill');
   const firstChain = await e1.evaluate(() => { const b = document.querySelector('#grid .chain-btn'); b.scrollIntoView({ block: 'center' }); return b.dataset.slot; });
   await e1.$eval(`#slot-${firstChain} .chain-btn`, b => b.click());
   check(await e1.isVisible('#xray-note') && !(await overlapIn(e1, '#xray-note', '#tour-prompt')), 'the chain note and the tour prompt should not overlap');
   await e1.$eval(`#slot-${firstChain} .chain-btn`, b => b.click());
-  await e1.evaluate(() => { const c = document.getElementById('enq-card'); if (!c.hidden) c.closest('#enquiry-box').querySelector('.enq-pill').click(); c.closest('#enquiry-box').querySelector('.enq-pill').click(); });
-  check(await e1.evaluate(() => getComputedStyle(document.getElementById('enq-card')).getPropertyValue('--enq-room').trim() === ''), 'once the student opens it, the box should use its full height');
-  await e1.evaluate(() => { localStorage.removeItem('wslsa-2027-enquiry'); window.scrollTo(0, 0); });
-  await e1.reload();
-  await e1.evaluate(() => window.scrollTo(0, 600));
-  await e1.waitForFunction(() => document.getElementById('enq-card').hidden);
-  check(await e1.evaluate(() => localStorage.getItem('wslsa-2027-enquiry')) === 'min', 'left alone, it should tuck itself away once the student scrolls');
   await e1.context().close();
-  const e0 = await firstVisit(APP, null, { viewport: { width: 1366, height: 650 } });
-  check(await e0.isHidden('#enq-card') && await e0.isVisible('.enq-pill'), 'a short laptop screen should start with the pill, as open it would cover the degree controls');
-  await e0.context().close();
   const e2 = await firstVisit(APP, null, { viewport: { width: 390, height: 844 } });
   check(await e2.isHidden('#enq-card') && await e2.isVisible('.enq-pill'), 'a phone should start with the pill');
   await e2.waitForSelector('#tour-prompt:not([hidden])');
@@ -1984,6 +2013,350 @@ async function renderPdf(page, key, mode, orient, file) {
   check(await m.evaluate(() => document.documentElement.scrollWidth <= 390), 'the phone bar should not cause sideways scrolling');
   check(m.errors.length === 0, 'mobile console errors: ' + m.errors.join('; '));
   await m.close();
+
+  // ---------------------------------------------------------------- visual calm: the first screen
+  const calm = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  await calm.goto(APP);
+  await calm.evaluate(() => { localStorage.clear(); WSLSA.setNow('2026-11-07'); WSLSA.select('2785|BASE'); });
+  await calm.evaluate(() => document.fonts.ready);
+  check(!(await calm.$('#notice')) && !(await calm.$('#facts')) && !(await calm.$('.ribbon')), 'the top notice and the facts ribbon should be gone');
+  const heroFacts = await calm.textContent('#hero-meta');
+  check(/400 CP/.test(heroFacts) && /Finish Spring 2031/.test(heroFacts) && /5 yrs full-time/.test(heroFacts) && /2027 Handbook/.test(heroFacts), `the banner should hold the key facts, got ${heroFacts}`);
+  check(await calm.getAttribute('#hero-meta a.hero-pill', 'href') === await calm.evaluate(() => WSLSA.context().deg.handbook) && await calm.getAttribute('#hero-meta a.hero-pill', 'target') === '_blank', 'the Handbook pill should open the degree\'s Handbook page');
+  const tab1 = await calm.textContent('#details');
+  check(/Finish/.test(tab1) && /Intake/.test(tab1) && /Campuses/.test(tab1) && /Campbelltown/.test(tab1) && !!(await calm.$('#details a[href*="studenthandbook"]')), 'Tab 01 should keep the full course facts');
+  const heroSize = await calm.evaluate(() => { const g = getComputedStyle(document.querySelector('.hero-grid')); const c = document.querySelector('.hero-crest').getBoundingClientRect(); return { top: g.paddingTop, bottom: g.paddingBottom, w: Math.round(c.width), h: Math.round(c.height) }; });
+  check(heroSize.top === '14px' && heroSize.bottom === '12px' && heroSize.w === 150 && heroSize.h === 78, `the banner should be a slim masthead, got ${JSON.stringify(heroSize)}`);
+  for (const key of ['2848|BASE', '2785|BASE', '2788|T046', '2843|BASE']) {
+    await calm.evaluate(k => WSLSA.select(k), key);
+    await calm.waitForTimeout(40);
+    const firstAt = await pageTop(calm, '#grid .subj');
+    check(firstAt < 660, `Year 1 should be above the fold on a laptop in ${key}, first subject at ${firstAt}`);
+  }
+  await calm.setViewportSize({ width: 1366, height: 768 });
+  await calm.evaluate(() => WSLSA.select('2785|BASE'));
+  await calm.waitForTimeout(40);
+  check(await pageTop(calm, '#grid .subj') < 660, `Year 1 should start near the top of a small laptop, first subject at ${await pageTop(calm, '#grid .subj')}`);
+  await calm.setViewportSize({ width: 1440, height: 900 });
+  // the advisory goes quiet when nothing needs doing
+  check(!!(await calm.$('#advisory-box.adv-warn')) && !!(await calm.$('#advisory-box .adv-icon path[d^="M12 3"]')), 'a plan with things to check should keep its warning triangle');
+  await calm.evaluate(() => {
+    const s = WSLSA.state();
+    s.mode = 'custom';
+    s.custom = { name: 'Short plan', code: '', cp: 10, tpl: '', start: 0, slots: [{ y: 1, s: 'Autumn', code: 'LAWS 1003', title: '', cp: 10, o: '', done: false }] };
+    localStorage.setItem('wslsa-2027-pathway-explorer:v1', JSON.stringify(s));
+  });
+  await calm.reload();
+  const okBar = await calm.$eval('#advisory-box > summary', b => { const c = getComputedStyle(b); return { padding: c.paddingTop + ' ' + c.paddingLeft, size: c.fontSize, circle: !!b.querySelector('.adv-icon circle'), triangle: !!b.querySelector('.adv-icon path[d^="M12 3"]'), bold: getComputedStyle(b.querySelector('.adv-counts b')).color, back: c.backgroundColor }; });
+  check(!!(await calm.$('#advisory-box.adv-ok')) && okBar.padding === '6px 14px' && okBar.size === '13px' && okBar.circle && !okBar.triangle, `a plan with nothing flagged should get a slim bar with a tick, got ${JSON.stringify(okBar)}`);
+  check(okBar.bold !== okBar.back && okBar.bold !== 'rgb(255, 255, 255)', `the numbers in the slim bar should show on its pale background, got ${JSON.stringify(okBar)}`);
+  await calm.evaluate(() => { localStorage.clear(); });
+  await calm.reload();
+  await calm.evaluate(() => { WSLSA.select('2848|BASE'); });
+  check(!!(await calm.$('#advisory-box.adv-warn')), 'open slots alone should not count as nothing to check');
+  // masthead
+  const shownTop = await calm.$$eval('#top-actions > .tbtn, #top-actions .pop-btn', b => b.filter(x => x.offsetParent).map(x => x.textContent.trim()));
+  check(JSON.stringify(shownTop) === JSON.stringify(['Tour', 'Dark mode', 'Copy Share Link', 'More', 'Print / Save PDF →']), `the masthead should show only the main actions, got ${shownTop.join(', ')}`);
+  check(await calm.isHidden('#top-actions [data-action="export-open"]') && await calm.isHidden('#top-actions [data-action="reset"]') && await calm.isHidden('#top-actions [data-action="backup-save"]') && await calm.isHidden('#top-actions .top-link'), 'the rest should wait in More');
+  const moreBtn = '[aria-controls="top-more-menu"]';
+  await calm.clickRaw(moreBtn);
+  check(await calm.isVisible('#top-actions [data-action="export-open"]') && await calm.isVisible('#top-actions [data-action="reset"]') && await calm.isVisible('#top-actions [data-action="backup-save"]') && await calm.isVisible('#top-actions .top-link') && await calm.getAttribute(moreBtn, 'aria-expanded') === 'true', 'More should open');
+  await calm.keyboard.press('Escape');
+  check(await calm.isHidden('#top-more-menu') && await calm.getAttribute(moreBtn, 'aria-expanded') === 'false' && await calm.evaluate(() => document.activeElement.getAttribute('aria-controls') === 'top-more-menu'), 'Esc should close More and return to its button');
+  await calm.clickRaw(moreBtn);
+  await calm.mouse.click(8, 500);
+  check(await calm.isHidden('#top-more-menu'), 'pressing elsewhere should close More');
+  await calm.clickRaw(moreBtn);
+  await calm.clickRaw('#top-actions [data-action="export-open"]');
+  check(!!(await calm.$('.modal')) && await calm.isHidden('#top-more-menu'), 'an item in More should run and close it');
+  await calm.keyboard.press('Escape');
+  await calm.waitForTimeout(20);
+  check(await calm.evaluate(() => document.activeElement.getAttribute('aria-controls') === 'top-more-menu'), 'closing that window should return to More');
+  const dlBtn = calm.waitForEvent('download');
+  await calm.click('#top-actions [data-action="backup-save"]');
+  check(/^wslsa-plan-backup-/.test((await dlBtn).suggestedFilename()), 'Download Backup should work from More');
+  // plan toolbar
+  const toolsShown = await calm.$$eval('#section-tools button', b => b.filter(x => x.offsetParent).map(x => x.textContent.trim()));
+  check(JSON.stringify(toolsShown) === JSON.stringify(['↶ Undo', '↷ Redo', 'Re-Pace / Switch Load', 'Plan Tools']), `the plan toolbar should show only four things, got ${toolsShown.join(', ')}`);
+  const toolsBtn = '[aria-controls="plan-tools-menu"]';
+  await calm.clickRaw(toolsBtn);
+  const toolItems = await calm.$$eval('#plan-tools-menu .pop-item', b => b.map(x => x.textContent.trim()));
+  check(['Auto-fill Open Slots', 'Pin Snapshot', 'Simulate Degree Transfer', 'Customise This Pathway', 'Build My Own', 'Reset Plan'].every(t => toolItems.indexOf(t) >= 0), `Plan Tools should hold the rest, got ${toolItems.join(', ')}`);
+  check(await calm.$eval('#plan-tools-menu', m => { const r = m.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; }), 'Plan Tools should fit on screen');
+  await calm.keyboard.press('Escape');
+  check((await smallTargets(calm)).length === 0, 'the first screen should have targets of at least 24 px: ' + (await smallTargets(calm)).join('; '));
+  // a phone holds everything in its Menu
+  const calmPhone = await newPage(browser, { viewport: { width: 390, height: 844 } });
+  await calmPhone.goto(APP);
+  await calmPhone.clickRaw('[data-action="top-menu"]');
+  check(await calmPhone.isVisible('#top-actions [data-action="export-open"]') && await calmPhone.isVisible('#top-actions [data-action="reset"]') && await calmPhone.isVisible('#top-actions [data-action="backup-save"]') && await calmPhone.isVisible('#top-actions .top-link') && await calmPhone.isHidden(moreBtn), 'the phone Menu should list everything, with no More inside it');
+  await calmPhone.keyboard.press('Escape');
+  await calmPhone.$eval('#section-tools', e => e.scrollIntoView({ block: 'center' }));
+  await calmPhone.clickRaw(toolsBtn);
+  check(await calmPhone.$eval('#plan-tools-menu', m => { const r = m.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; }) && await calmPhone.evaluate(() => document.documentElement.scrollWidth <= 390), 'Plan Tools should fit a phone');
+  check(calmPhone.errors.length === 0, 'phone menu console errors: ' + calmPhone.errors.join('; '));
+  await calmPhone.close();
+  check(calm.errors.length === 0, 'first screen console errors: ' + calm.errors.join('; '));
+  await calm.close();
+
+  // ---------------------------------------------------------------- Re-Pace: switching load mid-degree
+  const rp = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  await rp.goto(APP);
+  await rp.evaluate(() => { localStorage.clear(); WSLSA.setNow('2026-11-07'); WSLSA.select('2785|BASE'); });
+  const rpOpen = () => rp.$('#rp-form');
+  // with nothing ticked the dock's buttons are the plain view, as before
+  await rp.clickRaw('[data-action="load"][data-load="PT"]');
+  check(!(await rpOpen()) && await rp.evaluate(() => WSLSA.state().load) === 'PT', 'with nothing ticked, Part-time should just change the view');
+  await rp.clickRaw('[data-action="load"][data-load="FT"]');
+  await rp.evaluate(() => { WSLSA.context().slots.filter(s => s.year <= 2).forEach(s => document.querySelector('#slot-' + s.id + ' .tick input').click()); });
+  await rp.clickRaw('[data-action="load"][data-load="FT"]');
+  check(!(await rpOpen()), 'pressing the load already in use should do nothing');
+  await rp.clickRaw('[data-action="load"][data-load="PT"]');
+  check(!!(await rpOpen()) && await rp.isChecked('input[name="rp-scope"][value="remaining"]') && await rp.getAttribute('[data-action="rp-load"][data-v="20"]', 'aria-pressed') === 'true', 'with subjects ticked, Part-time should open Re-Pace, set to the remaining subjects');
+  const rpWanted = 'Years 1–2 kept Full-Time · Remaining 240 CP re-paced to Part-Time (20 CP/session) → Finishes Spring 2034';
+  check(await rp.textContent('.rp-summary') === rpWanted, `it should say exactly what changes, got ${await rp.textContent('.rp-summary')}`);
+  check(/From Spring 2031 to Spring 2034 · 6 sessions later/.test(await rp.textContent('.rp-change')), `it should show the change in graduation, got ${await rp.textContent('.rp-change')}`);
+  check((await headingSkips(rp, '#modal-root')).length === 0 && (await smallTargets(rp)).length === 0, 'the window should have ordered headings and targets of at least 24 px: ' + (await smallTargets(rp)).join('; '));
+  const beforeRepace = await rp.evaluate(() => { const c = WSLSA.context(); return c.slots.filter(s => s.done).map(s => s.code + '@' + s.year + s.session).sort(); });
+  await rp.clickRaw('#rp-apply');
+  await rp.waitForFunction(() => !document.getElementById('rp-form'));
+  const afterRepace = await rp.evaluate(() => {
+    const c = WSLSA.context();
+    const by = {};
+    c.slots.filter(s => !s.done).forEach(s => { const k = s.year + s.session; by[k] = (by[k] || 0) + s.cp; });
+    return { pace: c.plan.pace, mode: WSLSA.state().mode, load: WSLSA.state().load, kept: c.slots.filter(s => s.done).map(s => s.code + '@' + s.year + s.session).sort(), by: by, notOffered: c.risks.notOffered.map(s => s.code), finish: document.querySelector('.hp-finish').textContent, pressed: document.querySelector('[data-action="load"][aria-pressed="true"]').textContent, meta: document.getElementById('progress-meta').textContent, note: document.querySelector('.pt-note').textContent, slots: c.plan.slots.length };
+  });
+  check(afterRepace.pace === 20 && afterRepace.mode === 'custom' && afterRepace.load === 'FT', `applying should make the student's own copy at that pace, got ${JSON.stringify(afterRepace).slice(0, 200)}`);
+  check(JSON.stringify(afterRepace.kept) === JSON.stringify(beforeRepace), 'completed subjects should stay exactly where they were');
+  check(Object.keys(afterRepace.by).every(k => afterRepace.by[k] <= 20) && Object.keys(afterRepace.by).every(k => +k[0] >= 3), `the rest should run at 20 CP a session from Year 3, got ${JSON.stringify(afterRepace.by)}`);
+  check(afterRepace.notOffered.length === 0, `no subject should land in a session it is not offered in, got ${afterRepace.notOffered.join(', ')}`);
+  check(/Spring 2034/.test(afterRepace.finish) && afterRepace.pressed === 'Part-time' && /12 sessions PT/.test(afterRepace.meta) && /Re-paced plan/.test(afterRepace.note), `the page should show the new pace, got ${JSON.stringify(afterRepace).slice(0, 300)}`);
+  check(/Years 1–2 kept Full-Time/.test(await rp.textContent('#toast')) && /re-paced/.test(await rp.evaluate(() => WSLSA.history().undoLabel)), 'it should say what happened and be named in the history');
+  // the link keeps the pace
+  const pacedLink = await rp.evaluate(() => WSLSA.planUrl());
+  const rp2 = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  await rp2.goto(pacedLink);
+  check(await rp2.evaluate(() => { const c = WSLSA.custom(); return c.pace === 20 && c.slots.filter(x => x.done).length === 16; }) && await rp2.textContent('[data-action="load"][aria-pressed="true"]') === 'Part-time', 'a share link should keep the pace and the ticks');
+  await rp2.close();
+  // undo
+  await rp.keyboard.press('Control+z');
+  await rp.waitForTimeout(40);
+  check(await rp.evaluate(() => WSLSA.state().mode === 'guide' && WSLSA.context().doneCP === 160) && await rp.textContent('.hp-finish') !== afterRepace.finish, 'Undo should bring back the plan as it was');
+  // the whole plan, from Year 1: the view, as before
+  await rp.clickRaw('[data-action="load"][data-load="PT"]');
+  await rp.check('input[name="rp-scope"][value="whole"]');
+  check(/Whole plan at Part-Time/.test(await rp.textContent('.rp-summary')) && /Spring 2036/.test(await rp.textContent('.rp-summary')), `the whole plan should say what it does, got ${await rp.textContent('.rp-summary')}`);
+  await rp.clickRaw('#rp-apply');
+  check(await rp.evaluate(() => WSLSA.state().load === 'PT' && WSLSA.state().mode === 'guide' && WSLSA.context().doneCP === 160), 'switching the whole plan should keep the pathway and the ticks');
+  await rp.clickRaw('[data-action="load"][data-load="FT"]');
+  await rp.check('input[name="rp-scope"][value="whole"]');
+  await rp.clickRaw('#rp-apply');
+  check(await rp.evaluate(() => WSLSA.state().load) === 'FT', 'and back');
+  // a three-subject load and a session off
+  await rp.clickRaw('[data-action="repace-open"]');
+  await rp.clickRaw('[data-action="rp-load"][data-v="30"]');
+  await rp.check('#rp-loa');
+  check(/3-Unit Load \(30 CP\/session\)/.test(await rp.textContent('.rp-summary')), `the 30 CP load should be named, got ${await rp.textContent('.rp-summary')}`);
+  check(await rp.$eval('.rp-rows .ps-row', r => /Autumn 2029/.test(r.textContent) && /Leave of Absence/.test(r.textContent)), 'the session off should show as the first thing after Year 2');
+  await rp.clickRaw('#rp-apply');
+  await rp.waitForFunction(() => !document.getElementById('rp-form'));
+  const thirty = await rp.evaluate(() => { const c = WSLSA.context(); const by = {}; c.slots.filter(s => !s.done).forEach(s => { by[s.year + s.session] = (by[s.year + s.session] || 0) + s.cp; }); return { by: by, gap: c.slots.some(s => s.year === 3 && s.session === 'Autumn'), pressed: document.querySelector('[data-action="repace-open"][aria-pressed="true"]') ? document.querySelector('[data-action="repace-open"][aria-pressed="true"]').textContent : '', empty: !!document.querySelector('#year-3 .session[data-s="Autumn"] .slot-empty') }; });
+  check(!thirty.gap && thirty.empty && Object.keys(thirty.by).every(k => thirty.by[k] <= 30) && thirty.pressed === '30 CP', `30 CP with a session off should leave that session empty and show in the dock, got ${JSON.stringify(thirty)}`);
+  // on a re-paced plan, the dock's buttons go through Re-Pace too
+  await rp.clickRaw('[data-action="load"][data-load="FT"]');
+  check(!!(await rpOpen()) && await rp.getAttribute('[data-action="rp-load"][data-v="40"]', 'aria-pressed') === 'true', 'on a re-paced plan, Full-time should open Re-Pace');
+  await rp.clickRaw('#rp-apply');
+  await rp.waitForFunction(() => !document.getElementById('rp-form'));
+  check(await rp.textContent('[data-action="load"][aria-pressed="true"]') === 'Full-time' && await rp.evaluate(() => WSLSA.custom().pace) === 40, 're-pacing back to full-time should say so in the dock');
+  check(rp.errors.length === 0, 'Re-Pace console errors: ' + rp.errors.join('; '));
+  await rp.close();
+
+  // ---------------------------------------------------------------- Re-Pace: every pathway, at every load, keeps the rules
+  const sweep = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  await sweep.goto(APP);
+  const sweepProblems = await sweep.evaluate(() => {
+    localStorage.clear();
+    WSLSA.setNow('2026-11-07');
+    const problems = [];
+    WSLSA.keys().forEach(key => {
+      WSLSA.select(key);
+      const deg = WSLSA.context().deg;
+      const canSpring = deg.intakeList.indexOf('Spring') >= 0;
+      [20, 30, 40].forEach(load => {
+        ['Autumn', 'Spring'].forEach(intake => {
+          if (intake === 'Spring' && !canSpring) return;
+          [false, true].forEach(ticked => {
+            const r = WSLSA.pace({ scope: ticked ? 'remaining' : 'whole', load: load, intake: intake }, ticked ? 2 : 0);
+            const label = key + ' ' + load + ' ' + intake + (ticked ? ' ticked' : '');
+            if (r.unplaced || r.forced.length) problems.push(label + ': unplaced ' + r.unplaced + ', forced ' + r.forced.join(' '));
+            const at = {};
+            const per = {};
+            r.rows.forEach(x => { if (x.code) at[x.code] = x.done ? -1 : x.k; per[x.k] = (per[x.k] || 0) + (x.locked ? 0 : x.cp); });
+            r.rows.filter(x => !x.locked).forEach(x => {
+              const sess = ['Autumn', 'Spring', 'Summer'][x.k % 3];
+              if (sess === 'Summer') problems.push(label + ': ' + x.code + ' in Summer without Fast-Track');
+              if (x.list.indexOf(sess) < 0) problems.push(label + ': ' + x.code + ' in ' + sess + ', runs in ' + x.list.join(' '));
+              (r.groups[x.code] || []).forEach(g => {
+                const known = g.filter(p => at[p] != null);
+                if (known.length && !known.some(p => at[p] < x.k)) problems.push(label + ': ' + x.code + ' at ' + x.k + ' before ' + g.join('/'));
+              });
+            });
+            Object.keys(per).forEach(k => { if (per[k] > load && r.rows.filter(x => !x.locked && x.k === +k).length > 1) problems.push(label + ': ' + per[k] + ' CP at ' + k); });
+            if (intake === 'Spring' && !ticked && r.rows.some(x => x.k === 0)) problems.push(label + ': something in Year 1 Autumn');
+          });
+        });
+      });
+    });
+    return problems;
+  });
+  check(sweepProblems.length === 0, `every pathway should re-pace within its rules, got ${sweepProblems.length}: ${sweepProblems.slice(0, 12).join(' | ')}`);
+  check(sweep.errors.length === 0, 'sweep console errors: ' + sweep.errors.join('; '));
+  await sweep.close();
+
+  // ---------------------------------------------------------------- Spring start
+  const sp1 = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  await sp1.goto(APP);
+  await sp1.evaluate(() => { localStorage.clear(); WSLSA.setNow('2026-11-07'); WSLSA.select('2743|' + WSLSA.keys().find(k => k.indexOf('2743|') === 0).split('|')[1]); });
+  await sp1.clickRaw('[data-action="repace-open"]');
+  check(await sp1.isDisabled('[data-action="rp-intake"][data-v="Spring"]') && /Autumn intake only/.test(await sp1.textContent('#rp-form')), 'a degree with an Autumn intake only should not offer Spring');
+  await sp1.keyboard.press('Escape');
+  await sp1.waitForFunction(() => !document.getElementById('rp-form'));
+  await sp1.evaluate(() => WSLSA.select('2848|BASE'));
+  await sp1.clickRaw('[data-action="repace-open"]');
+  check(await sp1.isChecked('input[name="rp-scope"][value="whole"]') && await sp1.getAttribute('[data-action="rp-intake"][data-v="Autumn"]', 'aria-pressed') === 'true', 'with nothing ticked it should start on the whole plan and the plan\'s own intake');
+  await sp1.clickRaw('[data-action="rp-load"][data-v="40"]');
+  await sp1.clickRaw('[data-action="rp-intake"][data-v="Spring"]');
+  check(/Spring 2027/.test(await sp1.textContent('.rp-rows .ps-row')), 'a Spring start should begin in Spring 2027');
+  await sp1.clickRaw('#rp-apply');
+  await sp1.waitForFunction(() => !document.getElementById('rp-form'));
+  const spring = await sp1.evaluate(() => {
+    const c = WSLSA.context();
+    return { y1a: c.slots.filter(s => s.year === 1 && s.session === 'Autumn').length, y1s: c.slots.filter(s => s.year === 1 && s.session === 'Spring').length, y2a: c.slots.filter(s => s.year === 2 && s.session === 'Autumn').length, notOffered: c.risks.notOffered.map(s => s.code + ' ' + s.session), note: document.querySelector('#year-1 .session[data-s="Autumn"] .slot-empty').textContent, next: document.getElementById('next').textContent, cp: c.totalCP };
+  });
+  check(spring.y1a === 0 && spring.y1s > 0 && spring.y2a > 0 && spring.cp === 320, `Year 1 should run in Spring, then Autumn of the next year, got ${JSON.stringify(spring).slice(0, 200)}`);
+  check(spring.notOffered.length === 0, `every subject should run in its session, got ${spring.notOffered.join(', ')}`);
+  check(/starts in Spring/.test(spring.note) && /Spring 2027/.test(spring.next), 'the plan should say it starts in Spring');
+  await sp1.keyboard.press('Control+z');
+  await sp1.waitForTimeout(40);
+  check(await sp1.evaluate(() => WSLSA.state().mode) === 'guide', 'Undo should reverse a Spring start');
+  // a Spring starter with subjects ticked: what they completed moves with the start
+  await sp1.evaluate(() => { WSLSA.context().slots.filter(s => s.year === 1 && s.session === 'Autumn').forEach(s => document.querySelector('#slot-' + s.id + ' .tick input').click()); });
+  await sp1.clickRaw('[data-action="repace-open"]');
+  await sp1.clickRaw('[data-action="rp-load"][data-v="40"]');
+  await sp1.clickRaw('[data-action="rp-intake"][data-v="Spring"]');
+  await sp1.clickRaw('#rp-apply');
+  await sp1.waitForFunction(() => !document.getElementById('rp-form'));
+  check(await sp1.evaluate(() => { const c = WSLSA.context(); return c.slots.filter(s => s.done).every(s => s.year === 1 && s.session === 'Spring') && c.slots.filter(s => !s.done).every(s => s.year >= 2); }), 'completed subjects should move to the Spring start, and the rest should follow them');
+  // the start year
+  await sp1.evaluate(() => { localStorage.clear(); });
+  await sp1.reload();
+  await sp1.evaluate(() => { WSLSA.setNow('2026-11-07'); WSLSA.select('2848|BASE'); });
+  await sp1.evaluate(() => { WSLSA.context().slots.filter(s => s.year === 1).forEach(s => document.querySelector('#slot-' + s.id + ' .tick input').click()); });
+  await sp1.clickRaw('[data-action="repace-open"]');
+  await sp1.selectOption('#rp-start', '2025');
+  check(/Finishes/.test(await sp1.textContent('.rp-summary')) && /Autumn 2027/.test(await sp1.textContent('.rp-rows .ps-row')), `a 2025 start should plan from the next session that has not begun, got ${await sp1.textContent('.rp-rows .ps-row')}`);
+  await sp1.keyboard.press('Escape');
+  check(sp1.errors.length === 0, 'Spring start console errors: ' + sp1.errors.join('; '));
+  await sp1.close();
+
+  // ---------------------------------------------------------------- Fast-Track
+  const ft = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  await ft.goto(APP);
+  await ft.evaluate(() => { localStorage.clear(); WSLSA.setNow('2026-11-07'); WSLSA.select('2785|BASE'); });
+  await ft.evaluate(() => { WSLSA.context().slots.filter(s => s.year <= 2).forEach(s => document.querySelector('#slot-' + s.id + ' .tick input').click()); });
+  await ft.clickRaw('[data-action="repace-open"]');
+  await ft.clickRaw('[data-action="rp-fast"]');
+  check(await ft.getAttribute('[data-action="rp-load"][data-v="40"]', 'aria-pressed') === 'true' && await ft.isVisible('#rp-summer') && await ft.isVisible('#rp-over'), 'Fast-Track should set the full load and show what it may use');
+  const fastText = await ft.textContent('.rp-fast-result');
+  check(/Fast-Track finishes \d sessions? earlier/.test(fastText) && /no Summer data/.test(fastText) && /needs approval/.test(fastText) && /sessions? earlier/.test(await ft.textContent('.rp-change')), `it should say what it found and what to check, got ${fastText}`);
+  check((await ft.$$eval('.rp-rows .ps-when', w => w.filter(x => /Summer/.test(x.textContent)).length)) > 0, 'it should show the Summer sessions it uses');
+  await ft.uncheck('#rp-summer');
+  await ft.uncheck('#rp-over');
+  check(!(await ft.$('.rp-fast-result')) && /no earlier finish/.test(await ft.textContent('.rp-preview')), 'with both options off it should say it found nothing');
+  await ft.check('#rp-summer');
+  await ft.check('#rp-over');
+  await ft.clickRaw('#rp-apply');
+  await ft.waitForFunction(() => !document.getElementById('rp-form'));
+  const fastPlan = await ft.evaluate(() => {
+    const c = WSLSA.context();
+    const per = {};
+    c.slots.forEach(s => { const k = s.year + s.session; per[k] = (per[k] || 0) + s.cp; });
+    return { per: per, summers: c.slots.filter(s => s.session === 'Summer').map(s => s.kind === 'cslot' ? s.raw.kind : s.kind), notOffered: c.risks.notOffered.map(s => s.code), overload: c.risks.overload.length, summerFlag: /in Summer to check/.test(document.querySelector('#advisory summary').textContent) || c.risks.pending.length > 0, advisory: document.querySelector('#advisory summary').textContent };
+  });
+  check(fastPlan.summers.length > 0 && fastPlan.summers.every(k => k === 'llb' || k === 'elective'), `only LLB Alternates and electives should go to Summer, got ${fastPlan.summers.join(', ')}`);
+  check(Object.keys(fastPlan.per).every(k => fastPlan.per[k] <= (/Summer/.test(k) ? 20 : 50)), `no session should pass 50 CP, or a Summer 20 CP, got ${JSON.stringify(fastPlan.per)}`);
+  check(fastPlan.notOffered.length === 0, `Fast-Track should keep subjects in sessions they run in, got ${fastPlan.notOffered.join(', ')}`);
+  await ft.keyboard.press('Control+z');
+  await ft.waitForTimeout(40);
+  // a trailing short final session is the plain case: 2843 ends on 20 CP
+  await ft.evaluate(() => { localStorage.clear(); WSLSA.select('2843|BASE'); });
+  await ft.clickRaw('[data-action="repace-open"]');
+  await ft.clickRaw('[data-action="rp-load"][data-v="40"]');
+  await ft.clickRaw('[data-action="rp-fast"]');
+  check(/Fast-Track finishes/.test(await ft.textContent('.rp-preview')), `a trailing 20 CP session should be cleared, got ${await ft.textContent('.rp-preview')}`);
+  await ft.keyboard.press('Escape');
+  check(ft.errors.length === 0, 'Fast-Track console errors: ' + ft.errors.join('; '));
+  await ft.close();
+
+  // ---------------------------------------------------------------- degree transfer
+  const tr = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  await tr.goto(APP);
+  await tr.evaluate(() => { localStorage.clear(); WSLSA.setNow('2026-11-07'); WSLSA.select('2785|BASE'); });
+  // nothing ticked: nothing to carry, and the simulator says so
+  await tr.selectOption('#sel-degree', '2848');
+  check(await tr.evaluate(() => WSLSA.context().doneCP) === 0 && await tr.evaluate(() => WSLSA.history().undo) === 0 && await tr.isHidden('#credit-offer'), 'with nothing ticked, changing degree should change nothing else');
+  await tr.click('[data-action="transfer-open"]');
+  check(/Tick off the subjects/.test(await tr.textContent('#tr-body')) && await tr.isDisabled('#tr-apply'), 'the simulator should ask for completed subjects first');
+  await tr.keyboard.press('Escape');
+  await tr.waitForFunction(() => !document.querySelector('.modal'));
+  await tr.selectOption('#sel-degree', '2785');
+  const lawDone = ['LAWS 1003', 'LAWS 1010', 'LAWS 2018', 'LAWS 2013'];
+  await tr.evaluate(() => { WSLSA.context().slots.filter(s => s.year <= 2).forEach(s => document.querySelector('#slot-' + s.id + ' .tick input').click()); });
+  const fromDone = await tr.evaluate(() => WSLSA.context().slots.filter(s => s.done).map(s => s.code));
+  // switching degree carries them over by itself
+  await tr.selectOption('#sel-degree', '2848');
+  const carried = await tr.evaluate(() => { const c = WSLSA.context(); return { done: c.slots.filter(s => s.done).map(s => s.code), cp: c.doneCP, toast: document.getElementById('toast').textContent, degree: WSLSA.state().degree, undo: WSLSA.history().undoLabel }; });
+  check(lawDone.every(x => carried.done.indexOf(x) >= 0) && carried.done.every(x => /^LAWS /.test(x)) && carried.cp === carried.done.length * 10, `matching Law subjects should tick off in the new degree, got ${carried.done.join(', ')}`);
+  check(new RegExp('Carried over ' + carried.done.length + ' completed subjects \\(' + carried.cp + ' CP\\) from 2785\\. ' + carried.cp + ' of 320 CP of 2848 finished').test(carried.toast) && /carried your subjects/.test(carried.undo), `it should say what it did, got ${carried.toast}`);
+  check(await tr.isVisible('#credit-offer') && /completed non-law subjects from 2785/.test(await tr.textContent('#credit-offer')) && /WSU decides credit/.test(await tr.textContent('#credit-offer')), 'moving into 2848 should offer the electives credit');
+  const nonLawDone = fromDone.filter(x => !/^LAWS /.test(x));
+  await tr.clickRaw('[data-action="credit-electives"]');
+  const credited = await tr.evaluate(() => { const c = WSLSA.context(); return { electives: c.slots.filter(s => s.kind === 'elective').map(s => ({ code: s.code, done: s.done, pending: s.pending })), cp: c.doneCP, toast: document.getElementById('toast').textContent, bar: document.getElementById('progress-num').textContent }; });
+  const filledElectives = credited.electives.filter(e => !e.pending);
+  check(filledElectives.length === 8 && filledElectives.every(e => e.done && nonLawDone.indexOf(e.code) >= 0), `up to 8 non-law subjects should fill the electives, ticked, got ${JSON.stringify(filledElectives)}`);
+  check(credited.cp === carried.cp + 80 && new RegExp(credited.cp + ' of 320 CP of 2848 finished').test(credited.toast) && new RegExp('^' + credited.cp).test(credited.bar.trim()), `the progress should show at once, got ${JSON.stringify(credited).slice(0, 240)}`);
+  check(await tr.isHidden('#credit-offer'), 'the offer should go once taken');
+  await tr.keyboard.press('Control+z');
+  await tr.waitForTimeout(40);
+  check(await tr.evaluate(() => WSLSA.context().slots.filter(s => s.kind === 'elective' && !s.pending).length) === 0 && await tr.evaluate(() => WSLSA.context().doneCP) === carried.cp, 'Undo should take the electives back out');
+  await tr.keyboard.press('Control+z');
+  await tr.waitForTimeout(40);
+  check(await tr.evaluate(() => WSLSA.state().degree === '2785' && WSLSA.context().doneCP === 160), 'Undo again should go back to the first degree');
+  // a double degree has no electives to offer
+  await tr.selectOption('#sel-degree', '2766');
+  check(await tr.isHidden('#credit-offer') && await tr.evaluate(() => WSLSA.context().doneCP) >= carried.cp, 'a degree with no electives should still carry subjects, with no offer');
+  await tr.selectOption('#sel-degree', '2785');
+  // the simulator shows it first, and can credit in one step
+  await tr.click('[data-action="transfer-open"]');
+  check(await tr.$eval('#tr-deg', s => s.value) === '2848' && /would already be finished/.test(await tr.textContent('.tr-score')) && await tr.isChecked('#tr-credit'), 'the simulator should start on 2848 with the credit on');
+  const sim = await tr.textContent('.tr-score b');
+  check(new RegExp((carried.cp + 80) + ' of 320 CP').test(sim), `the simulator should count the credited electives, got ${sim}`);
+  check(await tr.$$eval('#tr-body .pick-section h3 span:first-child', s => s.map(x => x.textContent).join('|')).then(t => /Credited as electives/.test(t)), 'it should list what goes where');
+  await tr.clickRaw('#tr-credit');
+  check(new RegExp(carried.cp + ' of 320 CP').test(await tr.textContent('.tr-score b')), 'unticking the credit should take it off the count');
+  await tr.clickRaw('#tr-credit');
+  check((await headingSkips(tr, '#modal-root')).length === 0, 'the simulator headings should not skip a level');
+  await tr.clickRaw('#tr-apply');
+  await tr.waitForFunction(() => !document.querySelector('.modal'));
+  check(await tr.evaluate(() => WSLSA.state().degree === '2848' && WSLSA.context().slots.filter(s => s.kind === 'elective' && s.done).length === 8) && /Switched to 2848/.test(await tr.textContent('#toast')), 'applying should switch degree with everything ticked');
+  // a change of major carries subjects too
+  await tr.evaluate(() => { localStorage.clear(); WSLSA.select('2788|T046'); });
+  await tr.evaluate(() => { WSLSA.context().slots.filter(s => s.year === 1).forEach(s => document.querySelector('#slot-' + s.id + ' .tick input').click()); });
+  const majorFrom = await tr.evaluate(() => WSLSA.context().slots.filter(s => s.done).map(s => s.code));
+  await tr.selectOption('#sel-major', '2788|T039');
+  check(await tr.evaluate(() => WSLSA.context().slots.filter(s => s.done).map(s => s.code)).then(d => d.length > 0 && d.every(x => majorFrom.indexOf(x) >= 0)), 'changing major should keep the subjects both majors share ticked');
+  check(tr.errors.length === 0, 'transfer console errors: ' + tr.errors.join('; '));
+  await tr.close();
 
   // ---------------------------------------------------------------- PDFs (optional)
   if (args.has('--pdf') || args.has('--samples')) {

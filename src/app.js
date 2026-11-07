@@ -241,7 +241,7 @@
   const STORE_KEY = 'wslsa-2027-pathway-explorer:v1';
   const DEFAULT_EXPORT = { mode: 'A', orient: 'portrait', ticks: true, llbSession: 'all', llbCampus: false, llbTbc: true };
   let state = sanitise(readStore());
-  const ui = { tab: 'structure', cat: { q: '', comp: '', session: '', inPlan: false, area: '' }, modal: null, picker: null, assign: null, whyOpen: false, advisoryOpen: false, gridQ: '', viewFold: {}, yearInfo: {}, matchIds: [], matchAt: -1, enqOpen: false, enqTopic: 'transition', tour: null };
+  const ui = { tab: 'structure', cat: { q: '', comp: '', session: '', inPlan: false, area: '' }, modal: null, picker: null, assign: null, whyOpen: false, advisoryOpen: false, gridQ: '', viewFold: {}, yearInfo: {}, matchIds: [], matchAt: -1, enqOpen: false, enqTopic: 'transition', tour: null, repace: null, transfer: null, credit: null };
 
   function readStore() {
     try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; }
@@ -301,6 +301,8 @@
       name: str(c.name, 120), code: str(c.code, 16).trim(), cp: clampCP(c.cp), tpl: tpl,
       // the calendar year of Year 1 in a plan imported from results; 0 for the 2027 intake
       start: start >= 2000 && start <= 2100 ? start : 0,
+      // the load the rest of the plan runs at after Re-Pace; 0 for a plan that has not been re-paced
+      pace: [20, 30, 40].indexOf(+c.pace) >= 0 ? +c.pace : 0,
       slots: (Array.isArray(c.slots) ? c.slots : []).slice(0, MAX_SLOTS).map(function (x) { return sanitiseCSlot(x, tpl); }).filter(Boolean),
     };
   }
@@ -403,6 +405,7 @@
     if (plan.code !== (tdeg ? tdeg.code : '')) parts.push('k=' + enc(plan.code));
     if (!tdeg || plan.cp !== tdeg.cp) parts.push('cp=' + plan.cp);
     if (plan.start) parts.push('st=' + plan.start);
+    if (plan.pace) parts.push('pc=' + plan.pace);
     const items = [];
     let run = null;
     const flush = function () { if (run) items.push(run[0] === run[1] ? String(run[0]) : run[0] + '-' + run[1]); run = null; };
@@ -516,7 +519,7 @@
     return sanitiseCustom({
       name: 'n' in f ? dec(f.n) : tdeg ? tdeg.title : '',
       code: 'k' in f ? dec(f.k) : tdeg ? tdeg.code : '',
-      cp: f.cp ? +f.cp : tdeg ? tdeg.cp : 10, tpl: tpl, start: +f.st || 0, slots: slots,
+      cp: f.cp ? +f.cp : tdeg ? tdeg.cp : 10, tpl: tpl, start: +f.st || 0, pace: +f.pc || 0, slots: slots,
     });
   }
   function applyLink(s) {
@@ -881,15 +884,14 @@
     }
     if (load !== 'PT') {
       ctx.slots.forEach(function (s) { slotIn(s.year, s.session, s); });
-    } else if (ctx.custom && ctx.plan.start) {
-      // A plan with past years keeps every session that has begun as it is, and lays out the rest at
-      // 20 CP a session from the next one, each subject in the session type it is planned for.
-      const open = firstOpenIdx(ctx.plan.start);
+    } else if (ctx.custom) {
+      // A custom plan keeps every session that has begun as it is, and lays out the rest at 20 CP a session,
+      // each subject in the session type it is planned for and never earlier than it is planned.
+      const open = ctx.plan.start ? firstOpenIdx(ctx.plan.start) : 0;
       const load = {};
       ctx.slots.slice().sort(function (a, b) { return orderIdx(a.year, a.session) - orderIdx(b.year, b.session) || a.idx - b.idx; }).forEach(function (s) {
         let k = orderIdx(s.year, s.session);
         if (k < open) { slotIn(s.year, s.session, s); return; }
-        k = open;
         while (PLAN_SESSIONS[k % 3] !== s.session || (load[k] && load[k] + s.cp > LOAD_CP.PT)) k++;
         load[k] = (load[k] || 0) + s.cp;
         slotIn(Math.floor(k / 3) + 1, s.session, s);
@@ -980,6 +982,7 @@
       (offer.y2026 ? '<span class="pill pill-y2026" data-tip="2027 session not yet published: 2026 session shown">2026</span>' : '');
   }
   const LOCK_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+  const OK_ICON = '<svg class="adv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="m7.8 12.3 2.9 2.9 5.5-6"/></svg>';
   const ALERT_ICON = '<svg class="adv-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2.5 20h19L12 3Z"/><path d="M12 10v4.5M12 17.2v.3" stroke-linecap="round"/></svg>';
 
   function builtInMajor(deg) {
@@ -1031,6 +1034,24 @@
       (ctx.tdeg ? ' This plan started from the ' + esc(tplLabel(ctx.plan.tpl)) + ' pathway, and anything you change or choose turns gold.' : '') +
       ' A custom plan is not a WSLSA recommendation, so confirm it with the Academic Program Advisor before you enrol.';
   }
+  // the finish replaces a plain duration: it moves with the load and with subjects taken over Summer
+  function finishText(ctx) {
+    const end = finishOf(ctx);
+    if (!end) return { at: 'No subjects yet', how: '' };
+    const pace = ctx.custom ? ctx.plan.pace : 0;
+    const pt = state.load === 'PT';
+    return {
+      at: sessionLabel(end.year, end.session),
+      how: pace ? PACE_NAME[pace] : fmt(pt ? ctx.deg.ptYears : ctx.deg.ftYears) + ' yrs ' + (pt ? 'part-time' : 'full-time'),
+    };
+  }
+  function heroPills(ctx) {
+    const f = finishText(ctx);
+    const began = (planStart() < START_YEAR ? 'Started ' : 'Starting ') + planStart();
+    return '<span class="hero-pill hp-cp" title="Credit points the degree requires"><span class="num">' + ctx.deg.cp + '</span> CP</span>' +
+      '<span class="hero-pill hp-finish" title="' + esc(began) + '">Finish ' + esc(f.at) + (f.how ? ' <small>· ' + esc(f.how) + '</small>' : '') + '</span>' +
+      '<a class="hero-pill hp-link" href="' + esc(ctx.deg.handbook) + '" target="_blank" rel="noopener">' + (ctx.custom && !ctx.tdeg ? 'WSU Handbook ↗' : '2027 Handbook ↗') + '</a>';
+  }
   function renderHero(ctx) {
     const d = ctx.deg;
     const o = ctx.opt;
@@ -1038,7 +1059,7 @@
       $('#hero-title').innerHTML = titleHTML(d.title);
       $('#hero-meta').innerHTML = '<span class="course" title="Course code">' + esc(ctx.plan.code || 'Custom') + '</span>' +
         '<span class="major">' + (ctx.tdeg ? 'Based on ' + esc(tplLabel(ctx.plan.tpl)) : 'Built from scratch') + '</span>' +
-        '<span class="pbadge">Custom pathway</span>' +
+        '<span class="pbadge">Custom pathway</span>' + heroPills(ctx) +
         '<button type="button" class="why-btn" data-action="why" aria-expanded="' + !!ui.whyOpen + '" aria-controls="why-text">' + (ui.whyOpen ? 'Hide explanation ▴' : 'About custom plans ▾') + '</button>' +
         '<p class="why-text" id="why-text"' + (ui.whyOpen ? '' : ' hidden') + '>' + customWhy(ctx) + '</p>';
       document.title = 'WSLSA 2027 · ' + (ctx.plan.code ? ctx.plan.code + ' ' : '') + d.title + ' (custom)';
@@ -1046,16 +1067,19 @@
     }
     $('#hero-title').innerHTML = titleHTML(d.title);
     $('#hero-meta').innerHTML = '<span class="course" title="Course code">' + d.code + '</span>' +
-      '<span class="major">' + esc(selectionLabel(ctx)) + '</span>' +
-      '<span class="pbadge">' + (o.groupLetter ? 'Pathway ' + o.groupLetter : 'Single pathway') + '</span>' +
+      '<span class="major">' + esc(o.majorCode === 'BASE' && !builtInMajor(d) ? 'Fixed structure' : selectionLabel(ctx)) + '</span>' +
+      '<span class="pbadge">' + (o.groupLetter ? 'Pathway ' + o.groupLetter : 'Single pathway') + '</span>' + heroPills(ctx) +
       '<button type="button" class="why-btn" data-action="why" aria-expanded="' + !!ui.whyOpen + '" aria-controls="why-text">' + (ui.whyOpen ? 'Hide explanation ▴' : 'Why this pathway? ▾') + '</button>' +
       '<p class="why-text" id="why-text"' + (ui.whyOpen ? '' : ' hidden') + '>' + pathwayWhy(ctx) + '</p>';
     document.title = 'WSLSA 2027 · ' + d.code + ' ' + d.title;
   }
 
+  // the load a plan runs at now: its re-paced load, or the view chosen in the dock
+  function paceNow(ctx) { return ctx.custom && ctx.plan.pace && state.load === 'FT' ? ctx.plan.pace : LOAD_CP[state.load]; }
   function progressMeta(ctx) {
     const remaining = Math.max(ctx.deg.cp - ctx.doneCP, 0);
-    return remaining ? remaining + ' CP to go · ≈ ' + plural(Math.ceil(remaining / LOAD_CP[state.load]), 'session') + ' ' + (state.load === 'FT' ? 'FT' : 'PT') : 'All ' + ctx.deg.cp + ' CP complete';
+    const pace = paceNow(ctx);
+    return remaining ? remaining + ' CP to go · ≈ ' + plural(Math.ceil(remaining / pace), 'session') + ' ' + (pace === 40 ? 'FT' : pace === 20 ? 'PT' : 'at ' + pace + ' CP') : 'All ' + ctx.deg.cp + ' CP complete';
   }
   function renderDock(ctx) {
     const deg = ctx.deg;
@@ -1091,8 +1115,9 @@
       (home.length ? '<optgroup label="This degree\'s campuses">' + home.map(campOpt).join('') + '</optgroup>' : '') +
       '<optgroup label="' + (home.length ? 'Other campuses' : 'Campuses') + '">' + others.map(campOpt).join('') + '</optgroup></select></div>';
     const load = '<div class="segmented" role="group" aria-label="Enrolment load">' +
-      '<button type="button" data-action="load" data-load="FT" aria-pressed="' + (state.load === 'FT') + '" title="40 CP per session">Full-time</button>' +
-      '<button type="button" data-action="load" data-load="PT" aria-pressed="' + (state.load === 'PT') + '" title="20 CP per session (indicative)">Part-time</button></div>';
+      '<button type="button" data-action="load" data-load="FT" aria-pressed="' + (paceNow(ctx) === 40) + '" title="40 CP per session">Full-time</button>' +
+      '<button type="button" data-action="load" data-load="PT" aria-pressed="' + (paceNow(ctx) === 20) + '" title="20 CP per session (indicative)">Part-time</button>' +
+      (paceNow(ctx) === 30 ? '<button type="button" data-action="repace-open" aria-pressed="true" title="30 CP per session, set in Re-Pace">30 CP</button>' : '') + '</div>';
 
     const total = deg.cp;
     const done = ctx.doneCP;
@@ -1109,35 +1134,10 @@
       '<div class="field"><span class="field-label">Load</span>' + load + '</div>' + progress;
   }
 
-  function renderFacts(ctx) {
-    const d = ctx.deg;
-    const item = function (label, value, cls) { return '<div><span class="rb-l">' + label + '</span><span class="rb-v' + (cls ? ' ' + cls : '') + '">' + value + '</span></div>'; };
-    // the finish replaces a plain duration: it moves with the load and with subjects taken over Summer
-    const end = finishOf(ctx);
-    const pt = state.load === 'PT';
-    const finish = item('Finish · ' + (planStart() < START_YEAR ? 'started ' : 'starting ') + planStart(), end ? sessionLabel(end.year, end.session) + ' <small>· ' + fmt(pt ? d.ptYears : d.ftYears) + ' yrs ' + (pt ? 'part-time' : 'full-time') + '</small>' : '<small>No subjects yet</small>');
-    if (ctx.custom) {
-      const open = ctx.risks.pending.length;
-      $('#facts').innerHTML =
-        item('Credit points required', '<span class="num">' + d.cp + '</span> CP', 'big') +
-        item('Placed so far', ctx.placedCP + ' CP <small>· ' + plural(open, 'open slot') + '</small>') +
-        finish +
-        item('Starting point', ctx.tdeg ? esc(ctx.tdeg.code) + ' <small>' + esc(selectionLabel({ deg: ctx.tdeg, opt: ctx.topt })) + '</small>' : 'Blank plan') +
-        '<div><a class="tbtn tbtn-outline handbook" href="' + esc(d.handbook) + '" target="_blank" rel="noopener">' + (ctx.tdeg ? 'Official 2027 Handbook →' : 'WSU Student Handbook →') + '</a></div>';
-      return;
-    }
-    $('#facts').innerHTML =
-      item('Credit points', '<span class="num">' + d.cp + '</span> CP', 'big') +
-      finish +
-      item('Intake', esc(d.intake) + (d.intakeList.length === 1 ? ' <small>only</small>' : '')) +
-      item('Campuses', esc(d.campuses)) +
-      '<div><a class="tbtn tbtn-outline handbook" href="' + esc(d.handbook) + '" target="_blank" rel="noopener">Official 2027 Handbook →</a></div>';
-  }
-
   function renderAdvisory(ctx) {
     const r = ctx.risks;
     const sev = r.advisor.length || r.dupes.length || (ctx.custom && r.notOffered.length) ? 'adv-crit'
-      : (r.tbc.length || r.campus.length || r.notOffered.length || r.overload.length || r.cpShort || r.cpOver || r.summer.length) ? 'adv-warn' : 'adv-ok';
+      : (r.tbc.length || r.campus.length || r.notOffered.length || r.overload.length || r.cpShort || r.cpOver || r.summer.length || r.pending.length) ? 'adv-warn' : 'adv-ok';
     const parts = [];
     if (ctx.custom) parts.push('<b>' + ctx.placedCP + ' / ' + ctx.plan.cp + '</b> CP placed');
     if (r.advisor.length) parts.push('<b>' + plural(r.advisor.length, 'prerequisite note') + '</b>');
@@ -1194,7 +1194,7 @@
     if (checks.length) secs.push('<section class="adv-sec"><h3><span class="idx">' + idx() + '</span>' + (ctx.custom ? 'Campus &amp; session checks' : 'Campus &amp; choice checks') + '</h3>' + checks.join('') + '</section>');
 
     setHTML($('#advisory'), '<h2 class="sr-only">Pathway advisory</h2><details class="advisory ' + sev + '" id="advisory-box"' + (ui.advisoryOpen ? ' open' : '') + '>' +
-      '<summary>' + ALERT_ICON + '<span class="adv-label">Pathway Advisory</span><span class="adv-counts">' + parts.join(' · ') + '</span><span class="adv-cta">View details</span></summary>' +
+      '<summary>' + (sev === 'adv-ok' ? OK_ICON : ALERT_ICON) + '<span class="adv-label">Pathway Advisory</span><span class="adv-counts">' + parts.join(' · ') + '</span><span class="adv-cta">View details</span></summary>' +
       '<div class="adv-body">' + secs.join('') + '</div></details>');
   }
 
@@ -1218,14 +1218,17 @@
     const codes = todo.filter(function (s) { return !s.pending; }).map(function (s) { return s.code; });
     const choices = todo.filter(function (s) { return s.pending; }).length;
     const started = ctx.slots.some(function (s) { return s.done; });
+    // when these cards are the first thing below, they do not need listing here as well
+    const years = timeline(ctx, state.load);
+    const folded = foldedYears(ctx, years);
+    const listed = years.some(function (y) { return y.year < next.year && !folded[y.year]; });
     setHTML($('#next'), '<div class="next-card"><div class="next-head">' +
       '<p class="kicker">' + (started ? 'Next to enrol' : 'Your first session') + '</p>' +
-      '<h2>' + sessionLabel(next.year, next.session) + ' <small>Year ' + next.year + (state.load === 'PT' ? ' · part-time' : '') + '</small></h2></div>' +
+      '<h2>' + sessionLabel(next.year, next.session) + ' <small>Year ' + next.year + (state.load === 'PT' ? ' · part-time' : '') + '</small>' + (choices ? ' <small class="next-note">· ' + plural(choices, 'choice') + '</small>' : '') + '</h2></div>' +
       side(codes) +
-      '<div class="chiplist next-chips">' + todo.map(function (s) {
+      (!listed ? '' : '<div class="chiplist next-chips">' + todo.map(function (s) {
         return '<button type="button" class="chipbtn' + (s.pending ? ' is-open' : '') + '" data-action="jump" data-slot="' + s.id + '" title="' + esc((s.pending ? '' : s.code + ' ') + s.title) + ', ' + s.cp + ' CP" aria-label="' + esc((s.pending ? 'Choose: ' : s.code + ' ') + s.title) + ', ' + s.cp + ' CP"><code>' + esc(s.pending ? 'Choose' : s.code) + '</code><span class="cb-t">' + esc(s.title) + '</span></button>';
-      }).join('') + '</div>' +
-      (choices ? '<p class="next-note">' + plural(choices, 'choice') + ' to make before you enrol.</p>' : '') + '</div>');
+      }).join('') + '</div>') + '</div>');
   }
 
   function renderLegend(ctx) {
@@ -1431,7 +1434,8 @@
   function renderGrid(ctx) {
     const years = timeline(ctx, state.load);
     const pt = state.load === 'PT';
-    let html = pt ? '<p class="pt-note"><b>Part-time view (indicative).</b> ' + (ctx.custom && ctx.plan.start ? 'Sessions that have begun stay as they are, and the rest is laid out at 20 CP a session, keeping every subject in the session type it is planned for.' : 'Each full-time session is split into two 20 CP sessions, keeping every subject in the session type it is offered in.') + ' This lengthens the pathway to about ' + fmt(ctx.deg.ptYears) + ' years and can shift prerequisite timing, so confirm your sequence with the Academic Program Advisor.' + (ctx.custom ? ' Switch to Full-time to add, remove or move slots.' : '') + '</p>' : '';
+    let html = pt ? '<p class="pt-note"><b>Part-time view (indicative).</b> ' + (ctx.custom && ctx.plan.start ? 'Sessions that have begun stay as they are, and the rest is laid out at 20 CP a session, keeping every subject in the session type it is planned for.' : 'Each full-time session is split into two 20 CP sessions, keeping every subject in the session type it is offered in.') + ' This lengthens the pathway to about ' + fmt(ctx.deg.ptYears) + ' years and can shift prerequisite timing, so confirm your sequence with the Academic Program Advisor.' + (ctx.custom ? ' Switch to Full-time to add, remove or move slots.' : '') + '</p>'
+      : ctx.custom && ctx.plan.pace ? '<p class="pt-note"><b>Re-paced plan.</b> Completed subjects stay where you took them, and the rest runs at up to ' + ctx.plan.pace + ' CP a session, in sessions each subject is offered in, after its known prerequisites. Confirm it with your Academic Program Advisor before you enrol.</p>' : '';
     const edit = ctx.custom && !pt;
     const folded = foldedYears(ctx, years);
     // cards glide by subject, as slot numbers shift when a custom plan changes; names must be unique
@@ -1465,7 +1469,7 @@
           (edit ? '<button type="button" class="mark-all add-slot" data-action="cadd" data-y="' + y.year + '" data-s="' + sess + '">+ Add slot</button>' : '') +
           (list.length ? '<button type="button" class="mark-all" data-action="session-done" data-ids="' + list.map(function (s) { return s.id; }).join(',') + '">' + (allDone ? 'Unmark all' : 'Mark all done') + '</button>' : '') +
           '<span class="session-cp' + (over ? ' over' : '') + '"' + (over ? ' title="More than the 40 CP full-time load"' : '') + '>' + sumCP(list) + ' CP</span></div></div><p class="session-clear"></p><div class="slots">' +
-          (list.length ? list.map(function (s) { return slotHTML(s, ctx); }).join('') : '<div class="slot-empty">No subjects scheduled this session</div>') + '</div></section>';
+          (list.length ? list.map(function (s) { return slotHTML(s, ctx); }).join('') : '<div class="slot-empty">' + (sess === 'Autumn' && y === years[0] && lists.Spring.length ? 'Your plan starts in Spring, so nothing is planned here' : 'No subjects scheduled this session') + '</div>') + '</div></section>';
       });
       html += '</div></article>';
     });
@@ -1494,6 +1498,14 @@
     ['admission', '02→', 'Admission, LPAB Accreditation & Exit Awards'],
     ['catalogue', '03→', '2027 Subject Catalogue'],
   ];
+  function courseFacts(ctx) {
+    const d = ctx.deg;
+    const f = finishText(ctx);
+    return '<dl class="kv"><dt>Finish</dt><dd>' + esc(f.at) + (f.how ? ' · ' + esc(f.how) : '') + ' · ' + (planStart() < START_YEAR ? 'started ' : 'starting ') + planStart() + '</dd></dl>' +
+      (d.intake ? '<dl class="kv"><dt>Intake</dt><dd>' + esc(d.intake) + (d.intakeList.length === 1 ? ' only' : '') + '</dd></dl>' : '') +
+      '<dl class="kv"><dt>Campuses</dt><dd>' + esc(d.campuses) + '</dd></dl>' +
+      '<p class="kv-link"><a class="tbtn tbtn-outline" href="' + esc(d.handbook) + '" target="_blank" rel="noopener">' + (ctx.custom && !ctx.tdeg ? 'WSU Student Handbook →' : 'Official 2027 Handbook →') + '</a></p>';
+  }
   function customStructure(ctx) {
     const areas = {};
     let openCP = 0;
@@ -1513,6 +1525,7 @@
       (openCP ? row('Open slots', openCP, 'row-open') : '') +
       '<div class="structure-row structure-total"><span>Placed of ' + ctx.plan.cp + ' CP required</span><span class="cpv">' + ctx.placedCP + ' CP</span></div>' + doneRow(ctx) +
       '<dl class="kv" style="margin-top:18px"><dt>Duration</dt><dd>' + fmt(ctx.deg.ftYears) + ' years full-time · ' + fmt(ctx.deg.ptYears) + ' years part-time (40 or 20 CP a session)</dd></dl>' +
+      courseFacts(ctx) +
       '<dl class="kv"><dt>Starting point</dt><dd>' + (t ? esc(tplLabel(ctx.plan.tpl)) + (ctx.risks.replaced.length ? ' · ' + plural(ctx.risks.replaced.length, 'template subject') + ' changed' : ' · no template subjects changed') : 'Blank plan built from scratch') + '</dd></dl>' +
       '<button type="button" class="tbtn tbtn-outline" data-action="custom-setup">Edit name, credit points or template →</button></div>' +
       '<div><h3 class="panel-h">How custom plans work</h3><p class="small muted" style="margin-top:0">' + customWhy(ctx) + '</p>' +
@@ -1540,7 +1553,8 @@
         }).join('') +
         '<div class="structure-row structure-total"><span>Total credit points</span><span class="cpv">' + d.structureTotal + ' CP</span></div>' + doneRow(ctx) +
         '<dl class="kv" style="margin-top:18px"><dt>Major / minor choices</dt><dd>' + esc(d.majorChoices) + ' · ' + plural(d.pathwayGroups, 'pathway group') + '</dd></dl>' +
-        '<dl class="kv"><dt>Duration</dt><dd>' + fmt(d.ftYears) + ' years full-time · ' + fmt(d.ptYears) + ' years part-time</dd></dl></div>' +
+        '<dl class="kv"><dt>Duration</dt><dd>' + fmt(d.ftYears) + ' years full-time · ' + fmt(d.ptYears) + ' years part-time</dd></dl>' +
+        courseFacts(ctx) + '</div>' +
         '<div><h3 class="panel-h">How the pathway is built</h3><p class="small muted" style="margin-top:0">' + esc(d.sheetIntro) + '</p>' +
         '<h3 class="panel-h" style="margin-top:18px">Advisor notes for ' + d.code + '</h3>' +
         (d.advisorNotes.length ? '<ul class="src-list">' + d.advisorNotes.map(function (n) { return '<li>' + esc(n.text) + '</li>'; }).join('') + '</ul>' : '<p class="muted small">The workbook lists no advisor notes for this degree.</p>') +
@@ -1628,16 +1642,9 @@
     [2028, [['LAWS 2015', 'Professional Responsibility and Legal Ethics'], ['LAWS 2001', 'Alternative Dispute Resolution']]],
     [2029, [['LAWS 4004', 'Criminal Procedure and Evidence'], ['LAWS 4013', 'Civil Procedure and Arbitration']]],
   ];
-  // rendered once at boot: the content never changes, and re-rendering would close the details panel
-  function renderNotice() {
-    $('#notice').innerHTML = '<h2 class="sr-only">School of Law update</h2><div class="wrap notice-sum"><span class="notice-tag">School of Law update <i>·</i> 26 Oct<span class="wide-only">ober</span> 2026</span>' +
-      '<span class="notice-lead"><b>Started your law degree before 2027?</b> The School of Law advises choosing the 2026 Handbook when you plan and enrol.</span>' +
-      '<button type="button" class="notice-cta" data-action="enq-open" aria-controls="enq-card"><span class="wide-only">View </span>details</button></div>';
-  }
-
   // ======================================================================== Law Enquiry box
-  // The notice's detail, the School's contact and a drafted email, in a box that stays out of the way.
-  const ENQ_KEY = 'wslsa-2027-enquiry';
+  // The School's 2027 advice, its contact and a drafted email, in a box that stays out of the way: a pill
+  // until the student opens it, and a pill again once they press anywhere else or Esc.
   const ENQ_TOPICS = [
     { id: 'transition', label: '2027 Transition Check', subject: '2027 curriculum transition check', ask: 'Please could you confirm how the 2027 curriculum change affects my degree, and which Handbook and subjects apply to me.' },
     { id: 'progression', label: 'Progression / Study Plan Check', subject: 'Progression and study plan check', ask: 'Please could you check whether my study plan below meets my degree requirements and is in a suitable order.' },
@@ -1710,35 +1717,12 @@
     const d = enquiryDraft();
     return 'mailto:' + d.to + '?subject=' + encodeURIComponent(d.subject) + '&body=' + encodeURIComponent(d.body.replace(/\n/g, '\r\n'));
   }
-  function setEnquiryOpen(open, remember) {
+  function setEnquiryOpen(open) {
     ui.enqOpen = open;
     $('#enq-card').hidden = !open;
     $('.enq-pill').setAttribute('aria-expanded', String(open));
     $('#enq-caret').textContent = open ? '▾' : '▴';
     document.body.classList.toggle('enq-is-open', open);
-    if (remember) { ui.enqChosen = true; writeStored(ENQ_KEY, open ? 'open' : 'min'); $('#enq-card').style.removeProperty('--enq-room'); }
-  }
-  // Open on a first visit if it fits under the degree controls, and a pill on a phone or a short screen.
-  // Left untouched, it tucks itself away once the student scrolls down, as open it would cover subjects
-  // in the right-hand column. It needs the page laid out, so this runs after the first render.
-  function startEnquiry() {
-    const saved = readStored(ENQ_KEY);
-    if (saved) { setEnquiryOpen(saved === 'open', false); return; }
-    const fit = function () {
-      if (ui.enqChosen || ui.tour) return;
-      const room = Math.floor(window.innerHeight - $('#dock-wrap').getBoundingClientRect().bottom - 68);
-      $('#enq-card').style.setProperty('--enq-room', room + 'px');
-      setEnquiryOpen(window.innerWidth >= 760 && room >= 300, false);
-    };
-    fit();
-    // the headings settle once the fonts arrive, which moves the degree controls
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
-    const tuck = function () {
-      if (window.scrollY < 160) return;
-      window.removeEventListener('scroll', tuck);
-      if (ui.enqOpen && !ui.enqChosen && !ui.tour) setEnquiryOpen(false, true);
-    };
-    window.addEventListener('scroll', tuck, { passive: true });
   }
 
   // ======================================================================== dark mode
@@ -1764,14 +1748,14 @@
   const TOUR_KEY = 'wslsa-2027-tour-dismissed';
   const TOUR_STEPS = [
     { title: 'Choose your degree', text: 'Start here. Pick your degree and, if it has one, your major or minor. Campus highlight shows what runs at your campus, and Full-time or Part-time changes how your plan is laid out.', targets: ['#dock'], top: true },
-    { title: 'Key facts and progress', text: 'These show the credit points your degree requires, when you are on track to finish and the official 2027 Handbook. The progress bar counts the credit points you have ticked off.', targets: ['#dock .progress', '#facts'], top: true },
+    { title: 'Key facts and progress', text: 'The pills in the banner show the credit points your degree requires, when you are on track to finish and the official 2027 Handbook. The progress bar counts the credit points you have ticked off.', targets: ['#hero-meta', '#dock .progress'], top: true },
     { title: 'Pathway Advisory', text: 'This bar checks your plan for you: subjects whose 2027 sessions are not published yet (TBC), subjects that do not run at your campus, and prerequisite notes. Press View details to read them.', targets: ['#advisory'] },
     { title: 'Next to enrol', text: 'This is your next session. Copy Codes gives you the subject codes for MySR and Export .ics saves a calendar reminder. Already studying? Import my progress rebuilds your plan from a PDF, and Tick off from my results ticks subjects from text you paste.', targets: ['#next'] },
-    { title: 'Plan tools', text: 'Undo and Redo step through your changes (' + UNDO_KEYS + ' and ' + REDO_KEYS + '). Auto-suggest fills open slots as a starting point, Pin Snapshot saves a plan to compare against, and Customise this pathway or Build my own gives you a plan you can edit.', targets: ['#section-tools'] },
+    { title: 'Plan tools', text: 'Undo and Redo step through your changes (' + UNDO_KEYS + ' and ' + REDO_KEYS + '). Re-Pace / Switch Load changes your load for the rest of your degree, with a Leave of Absence, a Spring start and Fast-Track. Plan Tools holds Auto-fill, Pin Snapshot, Simulate Degree Transfer and your own custom plan.', targets: ['#section-tools'] },
     { title: 'Filter bar and degree map', text: 'Show everything, only what remains, or only what needs action. Type in the box, or press /, to filter your plan by code or title. The degree map shows every session, stays on screen as you scroll and jumps to a session when you press it.', targets: ['#gridbar', '#dmap'] },
     { title: 'Subject cards', text: 'Tick a subject when you pass it. Chain shows what it depends on and unlocks, open slots let you pick an LLB Alternate, and Defer ↷ moves a subject to the next session it runs in. In a custom plan you can drag one subject onto another to swap them.', targets: ['#grid .subj'], fallback: '#grid' },
     { title: 'Degree details and catalogue', text: 'Credit breakdown, admission, accreditation and exit awards are here. In the subject catalogue tab, + Assign puts a subject straight into an open slot in your plan.', targets: ['#details'] },
-    { title: 'Law Enquiry and your PDF', text: 'The Law Enquiry box in the corner holds the School of Law\'s 2027 advice and drafts an email to the School with your plan attached as a link. PDF Options, at the top of the page or in the Menu, saves a sharp A4 guide of your plan.', targets: ['#enquiry-box'], also: '[data-action="export-open"]', top: true, corner: true },
+    { title: 'Law Enquiry and your PDF', text: 'The Law Enquiry box in the corner holds the School of Law\'s 2027 advice and drafts an email to the School with your plan attached as a link. Print / Save PDF, at the top of the page or in the Menu, saves a sharp A4 guide of your plan, and PDF Options under More sets it up.', targets: ['#enquiry-box'], also: '[data-action="print"]', top: true, corner: true },
   ];
   function showsOnPage(el) { return !!el && el.getClientRects().length > 0; }
   function tourElements(step) {
@@ -1892,7 +1876,7 @@
     hideTourPrompt(true);
     ui.tour = { at: 0, els: [], opener: opener || null, enqBefore: ui.enqOpen, raf: 0, clone: null, cloneOf: null };
     // an open box would sit over whatever each step lights up
-    if (ui.enqOpen) setEnquiryOpen(false, false);
+    if (ui.enqOpen) setEnquiryOpen(false);
     $('#app').inert = true;
     $('#tour').hidden = false;
     tourGo(0);
@@ -1907,7 +1891,7 @@
     ui.tour = null;
     $('#tour').hidden = true;
     $('#app').inert = false;
-    if (t.enqBefore) setEnquiryOpen(true, false);
+    if (t.enqBefore) setEnquiryOpen(true);
     if (t.opener && t.opener.isConnected && showsOnPage(t.opener)) t.opener.focus({ preventScroll: true });
     else if (t.opener && t.opener.closest && t.opener.closest('#top-actions')) $('.top-menu-btn').focus({ preventScroll: true });
   }
@@ -1983,11 +1967,17 @@
 
   function renderSectionHead(ctx) {
     $('#section-kicker').innerHTML = (ctx.custom ? 'Custom pathway' : 'Recommended pathway') + ' <i>·</i> 2027';
-    $('#section-tools').innerHTML = '<div class="tool-group tool-group-history">' + historyButtons() + '</div><div class="tool-group">' + suggestButtons(ctx) + pinButtons() + '</div><div class="tool-group">' + (ctx.custom
-      ? '<button type="button" class="tbtn tbtn-outline" data-action="custom-setup" title="Change the degree name, credit points or starting template">Edit setup</button>' +
-        '<button type="button" class="tbtn" data-action="custom-exit" title="Your custom plan is kept; switch back any time from the Degree menu">← WSLSA pathways</button>'
-      : '<button type="button" class="tbtn tbtn-outline" data-action="custom-from-current" title="Copy this pathway into your own editable plan">Customise this pathway →</button>' +
-        (state.custom ? '<button type="button" class="tbtn" data-action="custom-open" title="Switch to your saved custom plan">Open my custom plan</button>' : '<button type="button" class="tbtn" data-action="custom-open" title="Set the credit points and build a degree from scratch">Build my own</button>')) + '</div>';
+    const item = function (action, label, title, off) { return '<button type="button" class="tbtn pop-item" data-action="' + action + '"' + (title ? ' title="' + esc(title) + '"' : '') + (off ? ' disabled' : '') + '>' + label + '</button>'; };
+    $('#section-tools').innerHTML = '<div class="tool-group tool-group-history">' + historyButtons() + '</div>' +
+      '<button type="button" class="tbtn tbtn-primary" data-action="repace-open" title="Change your load for the rest of your degree, take a session off, start in Spring or finish earlier">Re-Pace / Switch Load</button>' +
+      '<div class="pop plan-tools"><button type="button" class="tbtn pop-btn" data-action="pop-toggle" aria-expanded="false" aria-controls="plan-tools-menu">Plan Tools</button><div class="pop-menu" id="plan-tools-menu" hidden>' +
+      suggestItem(ctx) + pinItems() + item('transfer-open', 'Simulate Degree Transfer', 'See how your completed subjects would count in another degree') +
+      '<span class="pop-sep"></span>' + (ctx.custom
+        ? item('custom-setup', 'Custom Plan Setup', 'Change the degree name, credit points or starting template') +
+          item('custom-exit', '← WSLSA Pathways', 'Your custom plan is kept; switch back any time from the Degree menu')
+        : item('custom-from-current', 'Customise This Pathway', 'Copy this pathway into your own editable plan') +
+          (state.custom ? item('custom-open', 'Open My Custom Plan', 'Switch to your saved custom plan') : item('custom-open', 'Build My Own', 'Set the credit points and build a degree from scratch'))) +
+      '<span class="pop-sep"></span>' + item('reset', 'Reset Plan', ctx.custom ? 'Clear your custom plan and rebuild it' : 'Clear choices and progress for this pathway') + '</div></div>';
     syncHistoryButtons();
   }
 
@@ -2059,7 +2049,7 @@
     const pct = progressPct(ctx);
     ui.shown = { done: ctx.doneCP, cp: ctx.deg.cp, pct: pct };
     countTo($('#progress-num .num'), shown ? shown.done : ctx.doneCP, ctx.doneCP);
-    countTo($('#facts .rb-v.big .num'), shown ? shown.cp : ctx.deg.cp, ctx.deg.cp);
+    countTo($('#hero-meta .hp-cp .num'), shown ? shown.cp : ctx.deg.cp, ctx.deg.cp);
     const bar = $('#dock .bar');
     bar.setAttribute('aria-valuenow', ctx.doneCP);
     const fill = bar.firstElementChild;
@@ -2294,8 +2284,9 @@
       .filter(function (c) { return c.rank != null && Object.keys(c.codes).length; })
       .sort(function (a, b) { return a.rank - b.rank || a.at - b.at || a.s.raw.slot - b.s.raw.slot; });
   }
-  function suggestButtons(ctx) {
-    return (openChoices(ctx).length ? '<button type="button" class="tbtn tbtn-outline" data-action="suggest" title="Fill open choices with subjects that run in that session' + (state.campus ? ' at ' + esc(META.campuses[state.campus]) + ' or online' : ', online first') + '">Auto-suggest open slots</button>' : '');
+  function suggestItem(ctx) {
+    const any = openChoices(ctx).length;
+    return '<button type="button" class="tbtn pop-item" data-action="suggest"' + (any ? '' : ' disabled') + ' title="' + (any ? 'Fill open choices with subjects that run in that session' + (state.campus ? ' at ' + esc(META.campuses[state.campus]) + ' or online' : ', online first') : 'No open slots to fill') + '">Auto-fill Open Slots</button>';
   }
   function prereqsMet(code, idx, ctx, placed) {
     return (REQ_GROUPS[code] || []).every(function (group) {
@@ -2594,6 +2585,8 @@
     ui.setupSummer = 0;
     ui.importFound = null;
     ui.progress = null;
+    ui.repace = null;
+    ui.transfer = null;
     ui.importJob = (ui.importJob || 0) + 1;
     const root = $('#modal-root');
     clearTimeout(modalTimer);
@@ -2619,6 +2612,10 @@
     let el = f.el && f.el.isConnected ? f.el : f.id ? document.getElementById(f.id) : null;
     if (!el && f.action) el = document.querySelector('[data-action="' + f.action + '"]' + (f.slot ? '[data-slot="' + f.slot + '"]' : ''));
     if (el && el.focus) el.focus({ preventScroll: true });
+    if (el && document.activeElement !== el && el.closest('.pop')) {
+      const button = el.closest('.pop').querySelector('.pop-btn');
+      if (button.offsetParent) { button.focus({ preventScroll: true }); return; }
+    }
     if (el && el.closest('#top-actions') && document.activeElement !== el) $('.top-menu-btn').focus({ preventScroll: true });
   }
   function trapTab(ev) {
@@ -2833,6 +2830,557 @@
       (over ? ' That session is now ' + over.cp + ' CP.' : '') + (unsure ? ' Its sessions are unpublished, so check the Handbook.' : ''), { action: 'undo', label: 'Undo' });
   }
 
+  // ======================================================================== re-pace
+  // Lays out what is left of a degree again at a chosen load, in the student's own copy of the plan.
+  // Completed subjects stay in the sessions they were taken in. Everything else goes into the earliest
+  // session that has room, that the subject runs in according to the 2027 guides, and that comes after its
+  // known prerequisites. The data lists few prerequisites and a WSLSA pathway carries the rest in its order,
+  // so a subject can only move ahead of the subjects before it by one session.
+  const PACE_NAME = { 20: 'Part-Time', 30: '3-Unit Load', 40: 'Full-Time' };
+  const SUMMER_CP = 20;
+  // counts Autumn and Spring sessions only, so two sessions can be compared across a Summer
+  function studyNo(k) { return Math.floor(k / 3) * 2 + Math.min(k % 3, 1); }
+  function studyIdx(k) { return PLAN_SESSIONS[k % 3] === 'Summer' ? k + 1 : k; }
+  function shiftStudy(k, by) {
+    const sess = PLAN_SESSIONS[k % 3];
+    if (!by || sess === 'Summer') return k;
+    if (by > 0) return sess === 'Autumn' ? k + 1 : k + 2;
+    return sess === 'Spring' ? k - 1 : Math.max(0, k - 2);
+  }
+  function shownPlaces(ctx) {
+    const at = {};
+    timeline(ctx, state.load).forEach(function (y) {
+      PLAN_SESSIONS.forEach(function (sess) { y[sess].forEach(function (s) { at[s.id] = orderIdx(y.year, sess); }); });
+    });
+    return at;
+  }
+  function planIntake(ctx) {
+    const at = shownPlaces(ctx);
+    const first = ctx.slots.reduce(function (m, s) { return Math.min(m, at[s.id]); }, Infinity);
+    return first < Infinity && PLAN_SESSIONS[first % 3] === 'Spring' ? 'Spring' : 'Autumn';
+  }
+  // The session types a subject can go in: those the guides publish. A subject with nothing published
+  // stays in the type it was planned for, and one the guides do not list could go in either; both are flagged.
+  function sessionsOf(deg, code, planned) {
+    const e = deg.byCode[code] || GLOBAL_BY_CODE[code];
+    if (!e) return { list: SESSIONS, unsure: true };
+    const list = SESSIONS.filter(function (sess) { return parseOffered(sessionValue(e, sess)).codes.length > 0; });
+    if (list.length) return { list: list, unsure: false };
+    const tbc = SESSIONS.filter(function (sess) { return parseOffered(sessionValue(e, sess)).tbc; });
+    const keep = SESSIONS.indexOf(planned) >= 0 ? planned : 'Autumn';
+    return { list: tbc.length && tbc.indexOf(keep) < 0 ? tbc : [keep], unsure: true };
+  }
+  function sessionsForRow(deg, r) {
+    if (r.code) return sessionsOf(deg, r.code, r.slot.s);
+    const options = r.s.raw && r.s.raw.options;
+    if (!options || !options.length) return { list: SESSIONS, unsure: false };
+    const runs = {};
+    options.forEach(function (o) { sessionsOf(deg, o.code, r.slot.s).list.forEach(function (sess) { runs[sess] = 1; }); });
+    return { list: SESSIONS.filter(function (sess) { return runs[sess]; }), unsure: false };
+  }
+  // Known rules must be met in an earlier session. A subject the plan does not hold cannot be waited for, and
+  // the advisory already says so. The general order (a Usually first) allows the same session, as the pathways do.
+  function paceReady(code, k, placedAt, inPlan) {
+    if (!code) return true;
+    const rules = (REQ_GROUPS[code] || []).every(function (group) {
+      const known = group.filter(function (p) { return inPlan[p]; });
+      return !known.length || known.some(function (p) { return placedAt[p] != null && placedAt[p] < k; });
+    });
+    if (!rules) return false;
+    return PREREQS.sequences.every(function (seq) {
+      return !followsSequence(code, seq) || seq.first.every(function (p) { return !inPlan[p] || (placedAt[p] != null && placedAt[p] <= k); });
+    });
+  }
+  function layoutPace(ctx, o) {
+    const deg = ctx.deg;
+    const places = shownPlaces(ctx);
+    const base = ctx.custom ? ctx.plan.slots : templateSlots(ctx.key, true);
+    const whole = o.scope === 'whole';
+    const began = ctx.custom && ctx.plan.start ? firstOpenIdx(ctx.plan.start) : 0;
+    const shift = o.intake === planIntake(ctx) ? 0 : o.intake === 'Spring' ? 1 : -1;
+    const rows = ctx.slots.map(function (s, i) {
+      const locked = !whole && (s.done || places[s.id] < began);
+      return { s: s, slot: base[i], code: s.pending ? '' : s.code, cp: s.cp, order: i, shown: places[s.id], from: orderIdx(base[i].y, base[i].s), locked: locked, k: locked ? shiftStudy(places[s.id], shift) : -1 };
+    });
+    const lastLocked = rows.reduce(function (m, r) { return r.locked ? Math.max(m, r.k) : m; }, -1);
+    const floor = whole ? 0 : Math.max(lastLocked + 1, firstOpenIdx(o.start));
+    let first = studyIdx(Math.max(floor, o.intake === 'Spring' ? 1 : 0));
+    let loa = -1;
+    if (o.loa) { loa = first; first = studyIdx(first + 1); }
+    const inPlan = {};
+    const placedAt = {};
+    const loads = {};
+    rows.forEach(function (r) {
+      if (r.code) inPlan[r.code] = 1;
+      if (!r.locked) return;
+      loads[r.k] = (loads[r.k] || 0) + r.cp;
+      if (r.code) placedAt[r.code] = r.s.done ? -1 : r.k;
+    });
+    const todo = rows.filter(function (r) { return !r.locked; });
+    const lowest = todo.reduce(function (m, r) { return Math.min(m, studyNo(r.from)); }, Infinity);
+    todo.forEach(function (r) {
+      r.runs = sessionsForRow(deg, r);
+      // subjects being phased out go first, before their last offerings pass
+      r.rank = PHASE_YEAR[r.code] ? lowest : studyNo(r.from);
+      // an open slot or an elective has no place in the pathway's order, so it can fill a session that would run short
+      r.free = !r.code || (r.s.kind === 'cslot' ? r.s.raw.kind : r.s.kind) === 'elective';
+    });
+    todo.sort(function (a, b) { return (PHASE_YEAR[a.code] || 9999) - (PHASE_YEAR[b.code] || 9999) || a.from - b.from || a.order - b.order; });
+    let left = todo;
+    let idle = 0;
+    let keepOrder = true;
+    let strict = true;
+    const forced = [];
+    for (let k = first; left.length && k < MAX_YEARS * 3; k++) {
+      const sess = PLAN_SESSIONS[k % 3];
+      if (sess === 'Summer') continue;
+      const lead = left.reduce(function (m, r) { return Math.min(m, r.rank); }, Infinity);
+      const before = left.length;
+      left = left.filter(function (r) {
+        const used = loads[k] || 0;
+        if (used && used + r.cp > o.load) return true;
+        if (r.runs.list.indexOf(sess) < 0) return true;
+        if (keepOrder && !r.free && r.rank > lead + 1) return true;
+        const met = paceReady(r.code, k, placedAt, inPlan);
+        if (strict && !met) return true;
+        if (!met) forced.push(r.code);
+        r.k = k;
+        loads[k] = used + r.cp;
+        if (r.code && placedAt[r.code] == null) placedAt[r.code] = k;
+        return false;
+      });
+      idle = left.length === before ? idle + 1 : 0;
+      // a plan whose own order cannot be kept still gets laid out, and the student is told
+      if (idle >= 2) keepOrder = false;
+      if (idle >= 4) strict = false;
+    }
+    const lastOf = function () { return rows.reduce(function (m, r) { return Math.max(m, r.k); }, -1); };
+    const plainEnd = lastOf();
+    let fast = null;
+    if (o.fast && !left.length && todo.length) {
+      fast = fastTrack(deg, todo, loads, placedAt, inPlan, o, o.loa ? first : floor);
+      fast.gain = studyNo(plainEnd) - studyNo(lastOf());
+    }
+    const end = lastOf();
+    return { rows: rows, todo: todo, first: first, loa: loa, unplaced: left, forced: forced, fast: fast, finishK: end, finishLabel: end < 0 ? 'No subjects yet' : termName(o.start + Math.floor(end / 3), PLAN_SESSIONS[end % 3]) };
+  }
+  // Tries to clear the last session, twice at most: first into room already free, then LLB Alternates and
+  // electives into a Summer session, then by moving one of those from an earlier session into Summer to make
+  // room, then one extra subject in an Autumn or Spring it runs in. The guides have no Summer data, so a
+  // subject moved there is flagged, and an extra subject at full-time is an overload.
+  function fastTrack(deg, todo, loads, placedAt, inPlan, o, floor) {
+    const moves = [];
+    const inLLB = {};
+    (deg.byComp[deg.llbComponent] || []).forEach(function (e) { inLLB[e.code] = 1; });
+    const summerOK = function (r) {
+      const kind = r.s.kind === 'cslot' ? r.s.raw.kind : r.s.kind;
+      return kind === 'llb' || kind === 'elective' || !!inLLB[r.code];
+    };
+    for (let round = 0; round < 2; round++) {
+      const last = todo.reduce(function (m, r) { return Math.max(m, r.k); }, -1);
+      const movers = todo.filter(function (r) { return r.k === last; });
+      const tryLoads = Object.assign({}, loads);
+      const tryAt = Object.assign({}, placedAt);
+      const found = [];
+      const at = function (x) { const m = found.filter(function (f) { return f.r === x; }).pop(); return m ? m.k : x.k; };
+      const makeRoom = function (r) {
+        for (let k = last - 1; k >= floor; k--) {
+          const sess = PLAN_SESSIONS[k % 3];
+          if (sess === 'Summer' || r.runs.list.indexOf(sess) < 0 || !paceReady(r.code, k, tryAt, inPlan)) continue;
+          const out = todo.find(function (x) { return at(x) === k && x.k !== last && summerOK(x) && x.cp === r.cp; });
+          if (!out) continue;
+          for (let u = last - 1; u >= floor; u--) {
+            if (PLAN_SESSIONS[u % 3] !== 'Summer' || (tryLoads[u] || 0) + out.cp > SUMMER_CP) continue;
+            if (!paceReady(out.code, u, tryAt, inPlan)) continue;
+            const needed = (REQUIRED_BY[out.code] || []).some(function (e) { return tryAt[e.code] != null && tryAt[e.code] <= u; });
+            if (needed) continue;
+            tryLoads[u] = (tryLoads[u] || 0) + out.cp;
+            if (out.code) tryAt[out.code] = u;
+            if (r.code) tryAt[r.code] = k;
+            found.push({ r: out, k: u, way: 'summer' }, { r: r, k: k, way: 'room' });
+            return true;
+          }
+        }
+        return false;
+      };
+      const place = function (r, way) {
+        for (let k = last - 1; k >= floor; k--) {
+          const sess = PLAN_SESSIONS[k % 3];
+          const used = tryLoads[k] || 0;
+          if (way === 'summer') {
+            if (sess !== 'Summer' || !summerOK(r) || used + r.cp > SUMMER_CP) continue;
+          } else {
+            if (sess === 'Summer' || r.runs.list.indexOf(sess) < 0) continue;
+            if (used + r.cp > o.load + (way === 'extra' ? 10 : 0)) continue;
+          }
+          if (!paceReady(r.code, k, tryAt, inPlan)) continue;
+          tryLoads[k] = used + r.cp;
+          if (r.code) tryAt[r.code] = k;
+          found.push({ r: r, k: k, way: way });
+          return true;
+        }
+        return false;
+      };
+      const cleared = movers.length && movers.every(function (r) {
+        return place(r, 'room') || (o.summer && (place(r, 'summer') || makeRoom(r))) || (o.overload && place(r, 'extra'));
+      });
+      if (!cleared) break;
+      found.forEach(function (f) {
+        loads[f.r.k] -= f.r.cp;
+        loads[f.k] = (loads[f.k] || 0) + f.r.cp;
+        f.r.k = f.k;
+        if (f.r.code) placedAt[f.r.code] = f.k;
+        moves.push(f);
+      });
+    }
+    return { moves: moves, gain: 0 };
+  }
+  function pacedPlan(ctx, res, o) {
+    const head = ctx.custom
+      ? { name: ctx.plan.name, code: ctx.plan.code, cp: ctx.plan.cp, tpl: ctx.plan.tpl }
+      : { name: ctx.deg.title, code: ctx.deg.code, cp: ctx.deg.cp, tpl: ctx.key };
+    const slots = res.rows.slice().sort(function (a, b) { return a.k - b.k || a.order - b.order; }).map(function (r) {
+      return Object.assign({}, r.slot, { y: Math.floor(r.k / 3) + 1, s: PLAN_SESSIONS[r.k % 3] });
+    });
+    return sanitiseCustom(Object.assign(head, { start: o.start === START_YEAR ? 0 : o.start, pace: o.load, slots: slots }));
+  }
+  function paceSummary(res, o) {
+    const rest = res.todo.reduce(function (a, r) { return a + r.cp; }, 0);
+    const locked = res.rows.filter(function (r) { return r.locked; });
+    const tail = ' re-paced to ' + PACE_NAME[o.load] + ' (' + o.load + ' CP/session) → Finishes ' + res.finishLabel;
+    if (!locked.length) return 'All ' + rest + ' CP' + tail;
+    const yearOf = function (r) { return Math.floor(r.shown / 3) + 1; };
+    const years = Array.from(new Set(res.rows.map(yearOf))).sort(function (a, b) { return a - b; });
+    let full = 0;
+    while (full < years.length && res.rows.every(function (r) { return yearOf(r) !== years[full] || r.locked; })) full++;
+    const perSession = {};
+    locked.forEach(function (r) { perSession[r.shown] = (perSession[r.shown] || 0) + r.cp; });
+    const heavy = Object.keys(perSession).some(function (k) { return perSession[k] > 20; });
+    const kept = full > 1 ? 'Years ' + years[0] + '–' + years[full - 1] + ' kept ' + (heavy ? 'Full-Time' : 'Part-Time')
+      : full === 1 ? 'Year ' + years[0] + ' kept ' + (heavy ? 'Full-Time' : 'Part-Time')
+        : locked.reduce(function (a, r) { return a + r.cp; }, 0) + ' CP kept';
+    return kept + ' · Remaining ' + rest + ' CP' + tail;
+  }
+  function sessionsApart(n) { return n === 0 ? 'the same finish' : plural(Math.abs(n), 'session') + (n > 0 ? ' later' : ' earlier'); }
+  // a change a student could already make with the dock's two buttons: a view, not a new plan
+  function paceIsView(ctx, o) {
+    return o.scope === 'whole' && (o.load === 20 || o.load === 40) && !o.loa && !o.fast && o.intake === planIntake(ctx) && o.start === planStart() && !(ctx.custom && ctx.plan.pace);
+  }
+  function lastIn(ctx, load) {
+    const years = timeline(ctx, load);
+    const y = years[years.length - 1];
+    if (!y) return null;
+    const sess = PLAN_SESSIONS.slice().reverse().find(function (x) { return y[x].length; });
+    return { year: y.year, session: sess };
+  }
+  function openRePace(init) {
+    const ctx = lastCtx;
+    const now = paceNow(ctx);
+    const end = finishOf(ctx);
+    const canSpring = !ctx.deg.intakeList.length || ctx.deg.intakeList.indexOf('Spring') >= 0;
+    ui.repace = {
+      scope: ctx.doneCP > 0 ? 'remaining' : 'whole', load: init && init.load ? init.load : now === 40 ? 20 : 40,
+      loa: false, intake: planIntake(ctx), start: planStart(), fast: false, summer: true, overload: true,
+    };
+    const years = [];
+    for (let yr = Math.min(planStart(), START_YEAR - 8); yr <= Math.max(planStart(), START_YEAR + 2); yr++) years.push(yr);
+    const card = function (val, title, desc) {
+      return '<label class="opt-card"><input type="radio" name="rp-scope" value="' + val + '"' + (ui.repace.scope === val ? ' checked' : '') + '><b>' + title + '</b><span>' + desc + '</span></label>';
+    };
+    ui.modal = 'repace';
+    showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal modal-repace" role="dialog" aria-modal="true" aria-labelledby="rp-h">' +
+      '<div class="modal-head"><div><h2 id="rp-h">Re-Pace Remaining Degree</h2><p>' + (ctx.doneCP > 0 ? 'You have completed ' + ctx.doneCP + ' of ' + ctx.deg.cp + ' CP.' : 'Nothing is ticked off yet, so all ' + ctx.deg.cp + ' CP can move.') + (end ? ' Your plan finishes ' + esc(sessionLabel(end.year, end.session)) + ' as it stands.' : '') + '</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
+      '<div class="setup-body rp-body" id="rp-form"><div class="rp-controls">' +
+      '<fieldset><legend><span class="idx">01→</span>What to switch</legend><div class="start-opts">' +
+      card('remaining', 'Switch remaining only', 'Keeps your completed subjects in the sessions you took them, and moves only what is left into future sessions.') +
+      card('whole', 'Switch entire plan from Year 1', 'Changes the whole degree at this load, as though you had always studied this way. Your ticks stay on their subjects.') + '</div></fieldset>' +
+      '<fieldset><legend><span class="idx">02→</span>Load</legend>' +
+      '<div class="segmented rp-seg" role="group" aria-label="Load for the rest of your degree">' +
+      [[20, '20 CP Part-time'], [30, '30 CP 3 Units'], [40, '40 CP Full-time']].map(function (x) { return '<button type="button" data-action="rp-load" data-v="' + x[0] + '" aria-pressed="false">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<label class="check-row"><input type="checkbox" id="rp-loa"><span>Take one session off first (Leave of Absence)</span></label></fieldset>' +
+      '<fieldset><legend><span class="idx">03→</span>Intake and start year</legend><div class="rp-row">' +
+      '<div class="segmented rp-seg" role="group" aria-label="Intake">' +
+      '<button type="button" data-action="rp-intake" data-v="Autumn" aria-pressed="false">Autumn Start</button>' +
+      '<button type="button" data-action="rp-intake" data-v="Spring" aria-pressed="false"' + (canSpring ? '' : ' disabled title="' + esc(ctx.deg.code) + ' has an Autumn intake only"') + '>Spring Start</button></div>' +
+      '<div class="field rp-year"><label for="rp-start">Year 1 begins in</label><div class="select-wrap"><select id="rp-start">' + years.map(function (yr) {
+        return '<option value="' + yr + '"' + (yr === ui.repace.start ? ' selected' : '') + '>' + yr + '</option>';
+      }).join('') + '</select></div></div></div>' +
+      (canSpring ? '' : '<p class="cs-derived">' + esc(ctx.deg.code) + ' has an Autumn intake only.</p>') + '</fieldset>' +
+      '<fieldset><legend><span class="idx">04→</span>Finish earlier</legend><div class="rp-row"><button type="button" class="tbtn tbtn-outline" data-action="rp-fast" aria-pressed="false">Fast-Track Remaining</button>' +
+      '<p class="cs-derived rp-fast-note">Sets the full-time load, then looks for a finish one or two sessions earlier.</p></div>' +
+      '<div class="rp-fast-opts" id="rp-fast-opts" hidden><label class="check-row"><input type="checkbox" id="rp-summer" checked><span>Move LLB Alternates and electives into a Summer session (up to ' + SUMMER_CP + ' CP each)</span></label>' +
+      '<label class="check-row"><input type="checkbox" id="rp-over" checked><span>Add one extra subject to a session (a 50 CP overload at full-time)</span></label></div></fieldset></div>' +
+      '<section class="rp-preview" id="rp-preview" tabindex="0" aria-live="polite" aria-label="What this does to your plan"></section></div>' +
+      '<div class="modal-foot"><span class="small muted">Confirm it with your Academic Program Advisor before you enrol.</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="button" class="btn btn-primary" data-action="rp-apply" id="rp-apply">Apply →</button></div></div></div></div>');
+    renderRePace();
+  }
+  function renderRePace() {
+    const o = ui.repace;
+    const ctx = lastCtx;
+    if (!o || !$('#rp-preview')) return;
+    document.querySelectorAll('[data-action="rp-load"]').forEach(function (b) { b.setAttribute('aria-pressed', String(+b.dataset.v === o.load)); });
+    document.querySelectorAll('[data-action="rp-intake"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === o.intake)); });
+    document.querySelectorAll('input[name="rp-scope"]').forEach(function (r) { r.checked = r.value === o.scope; });
+    $('[data-action="rp-fast"]').setAttribute('aria-pressed', String(o.fast));
+    $('#rp-fast-opts').hidden = !o.fast;
+    const apply = $('#rp-apply');
+    const end = finishOf(ctx);
+    const wasNo = end ? planStart() * 2 + studyNo(orderIdx(end.year, end.session)) : 0;
+    const box = $('#rp-preview');
+    if (paceIsView(ctx, o)) {
+      const key = o.load === 20 ? 'PT' : 'FT';
+      const f = lastIn(ctx, key);
+      const same = key === state.load;
+      apply.disabled = same;
+      apply.textContent = 'Switch whole plan →';
+      box.innerHTML = same
+        ? '<p class="rp-summary">Your plan is already laid out at ' + PACE_NAME[o.load] + '.</p>'
+        : '<p class="rp-summary">Whole plan at ' + PACE_NAME[o.load] + ' (' + o.load + ' CP/session) → Finishes ' + esc(f ? sessionLabel(f.year, f.session) : '') + '</p>' +
+          (end && f ? '<p class="rp-change">From ' + esc(sessionLabel(end.year, end.session)) + ' to ' + esc(sessionLabel(f.year, f.session)) + ' · ' + sessionsApart(planStart() * 2 + studyNo(orderIdx(f.year, f.session)) - wasNo) + '</p>' : '') +
+          '<p class="pick-hint">An indicative view of the WSLSA pathway, so your plan itself does not change.</p>';
+      return;
+    }
+    const res = layoutPace(ctx, o);
+    apply.disabled = !!res.unplaced.length || !res.todo.length;
+    apply.textContent = 'Apply re-pace →';
+    const parts = [];
+    if (!res.todo.length) parts.push('<p class="rp-summary">' + (ctx.slots.length ? 'Every subject in your plan is already complete.' : 'Your plan has no subjects yet.') + '</p>');
+    else if (res.unplaced.length) parts.push('<p class="cs-warn">This does not fit in the ' + MAX_YEARS + ' years a plan can hold, so ' + plural(res.unplaced.length, 'subject') + ' would be left out. Choose a heavier load.</p>');
+    else {
+      parts.push('<p class="rp-summary">' + esc(paceSummary(res, o)) + '</p>');
+      if (end) parts.push('<p class="rp-change">From ' + esc(sessionLabel(end.year, end.session)) + ' to ' + esc(res.finishLabel) + ' · ' + sessionsApart(o.start * 2 + studyNo(res.finishK) - wasNo) + '</p>');
+    }
+    if (res.fast) {
+      if (res.fast.gain > 0) {
+        const summers = res.fast.moves.filter(function (m) { return m.way === 'summer'; });
+        const extras = res.fast.moves.filter(function (m) { return m.way === 'extra'; });
+        const free = res.fast.moves.filter(function (m) { return m.way === 'room'; });
+        const uses = [];
+        if (summers.length) uses.push(plural(summers.length, 'LLB Alternate or elective', 'LLB Alternates or electives') + ' in ' + plural(new Set(summers.map(function (m) { return m.k; })).size, 'Summer session'));
+        if (free.length) uses.push(plural(free.length, 'subject') + ' brought forward');
+        if (extras.length) uses.push(plural(extras.length, 'session') + ' at ' + (o.load + 10) + ' CP');
+        parts.push('<p class="rp-fast-result"><b>Fast-Track finishes ' + plural(res.fast.gain, 'session') + ' earlier,</b> with ' + uses.join(', ') + '.' +
+          (summers.length ? ' The guides have no Summer data, so check in the Handbook that each subject runs in Summer.' : '') +
+          (extras.length && o.load === 40 ? ' An overload needs approval from the university.' : '') + '</p>');
+      } else {
+        parts.push('<p class="pick-hint">Fast-Track found no earlier finish with these settings.</p>');
+      }
+    }
+    const unsure = res.todo.filter(function (r) { return r.code && r.runs.unsure; }).map(function (r) { return r.code; });
+    if (unsure.length) parts.push('<p class="pick-hint"><b>Check the Handbook:</b> ' + esc(unsure.join(', ')) + (unsure.length === 1 ? ' has' : ' have') + ' no published 2027 session, so each stays in the session type it was planned for.</p>');
+    const late = res.todo.filter(function (r) { return PHASE_YEAR[r.code] && r.k >= 0 && o.start + Math.floor(r.k / 3) > PHASE_YEAR[r.code]; });
+    if (late.length) parts.push('<p class="cs-warn">' + late.map(function (r) { return esc(r.code) + ' has its final offering in ' + PHASE_YEAR[r.code] + ', but this places it in ' + esc(termName(o.start + Math.floor(r.k / 3), PLAN_SESSIONS[r.k % 3])); }).join('. ') + '. Ask the School of Law how to fit it in.</p>');
+    if (res.forced.length) parts.push('<p class="cs-warn">' + esc(res.forced.join(', ')) + ' could not be kept after ' + (res.forced.length === 1 ? 'its' : 'their') + ' known prerequisites. Check this plan with your Academic Program Advisor.</p>');
+    const filled = !ctx.custom && state.custom ? state.custom.slots.filter(function (x) { return x.code; }).length : 0;
+    if (filled) parts.push('<p class="cs-warn">Applying replaces your current custom plan and its ' + plural(filled, 'subject') + '. Undo brings it back.</p>');
+    const groups = {};
+    res.todo.forEach(function (r) { if (r.k >= 0) (groups[r.k] = groups[r.k] || []).push(r); });
+    const label = function (k) { return termName(o.start + Math.floor(k / 3), PLAN_SESSIONS[k % 3]); };
+    const keys = Object.keys(groups).map(Number);
+    if (res.loa >= 0) keys.push(res.loa);
+    parts.push('<div class="progress-sessions rp-rows">' + keys.sort(function (a, b) { return a - b; }).map(function (k) {
+      return '<div class="ps-row"><span class="ps-when">' + esc(label(k)) + '</span>' + (k === res.loa ? '<div class="rp-break">Leave of Absence</div>' : '<div class="chiplist">' + groups[k].sort(function (a, b) { return a.order - b.order; }).map(function (r) {
+        return '<span class="chipbtn' + (r.code ? '' : ' is-open') + '"><code>' + esc(r.code || 'Open slot') + '</code></span>';
+      }).join('') + '</div>') + '</div>';
+    }).join('') + '</div>');
+    box.innerHTML = parts.join('');
+  }
+  function applyRePace() {
+    const ctx = lastCtx;
+    const o = ui.repace;
+    if (paceIsView(ctx, o)) {
+      state.load = o.load === 20 ? 'PT' : 'FT';
+      closeModal(true);
+      renderMoving();
+      toast('Whole plan switched to ' + PACE_NAME[o.load] + '.');
+      return;
+    }
+    const res = layoutPace(ctx, o);
+    if (res.unplaced.length || !res.todo.length) return;
+    const summary = paceSummary(res, o);
+    noteChange('re-paced your plan to ' + PACE_NAME[o.load]);
+    state.custom = pacedPlan(ctx, res, o);
+    state.mode = 'custom';
+    state.load = 'FT';
+    ui.folded = null;
+    closeModal(true);
+    renderMoving();
+    toast(summary + '.', { action: 'undo', label: 'Undo' });
+  }
+
+  // ======================================================================== degree transfer
+  // What a student's completed subjects would count for in another degree. The same subject ticks off where
+  // it stands; a subject a choice lists fills that choice; other non-law subjects can fill any-subject
+  // electives, in one step, as credit is the university's decision and the student should choose it.
+  function completedIn(ctx) {
+    return ctx.slots.filter(function (s) { return s.done && !s.pending && s.code; }).map(function (s) {
+      return { code: s.code, title: s.title, cp: s.cp, custom: !!s.custom };
+    });
+  }
+  function sourceLabel(ctx) { return ctx.custom ? customName(ctx.plan, ctx.tdeg) : ctx.deg.code; }
+  function pickFrom(c) {
+    if (c.custom) return { code: c.code, title: c.title, custom: true };
+    return EXTRA_BY_CODE[c.code] && !GLOBAL_BY_CODE[c.code] ? { code: c.code, title: c.title, list: true } : { code: c.code, title: c.title };
+  }
+  function transferTo(key, completed, credit) {
+    const deg = DEG[key.split('|')[0]];
+    const picks = Object.assign({}, state.picks[key] || {});
+    const done = Object.assign({}, state.done[key] || {});
+    const slots = PATH[key].map(function (raw) { return resolveSlot(raw, deg, OPT[key], picks, done); });
+    const taken = {};
+    const out = { matched: [], chosen: [], electives: [], left: [], nonLaw: [], picks: picks, done: done, electiveSlots: 0 };
+    let rest = completed.filter(function (c) {
+      const s = slots.find(function (x) { return !taken[x.id] && !x.pending && x.code === c.code; });
+      if (!s) return true;
+      taken[s.id] = 1;
+      if (!done[s.id]) { done[s.id] = 1; out.matched.push(c); }
+      return false;
+    });
+    const tctx = { deg: deg, custom: false, slots: slots };
+    const open = slots.filter(function (s) { return s.pending && s.kind !== 'elective'; }).map(function (s) { return choiceList(tctx, s); }).filter(function (c) { return c.rank != null; });
+    rest = rest.filter(function (c) {
+      const fit = open.filter(function (o) { return !taken[o.s.id] && o.codes[c.code]; }).sort(function (a, b) { return a.rank - b.rank || a.at - b.at; })[0];
+      if (!fit) return true;
+      taken[fit.s.id] = 1;
+      picks[fit.s.id] = pickFrom(c);
+      done[fit.s.id] = 1;
+      out.chosen.push(c);
+      return false;
+    });
+    const electives = slots.filter(function (s) { return s.pending && s.kind === 'elective' && !done[s.id]; });
+    out.electiveSlots = electives.length;
+    out.nonLaw = rest.filter(function (c) { return !/^LAWS /.test(c.code) && c.cp === 10; });
+    if (credit) {
+      out.electives = out.nonLaw.slice(0, electives.length);
+      out.electives.forEach(function (c, i) {
+        picks[electives[i].id] = pickFrom(c);
+        done[electives[i].id] = 1;
+      });
+    }
+    out.left = rest.filter(function (c) { return out.electives.indexOf(c) < 0; });
+    out.doneCP = PATH[key].reduce(function (a, r) { return a + (done[r.id] ? r.cp : 0); }, 0);
+    out.cp = deg.cp;
+    return out;
+  }
+  function writeTransfer(key, t) {
+    state.picks[key] = t.picks;
+    state.done[key] = t.done;
+  }
+  function carryOver(from, key, completed) {
+    if (!completed.length) { ui.credit = null; return null; }
+    const t = transferTo(key, completed, false);
+    const moved = t.matched.length + t.chosen.length;
+    if (moved) {
+      noteChange('carried your subjects over to ' + key.split('|')[0]);
+      writeTransfer(key, t);
+    }
+    ui.credit = t.nonLaw.length && t.electiveSlots ? { key: key, from: from, completed: completed } : null;
+    return { moved: moved, t: t, from: from, key: key };
+  }
+  function announceCarry(c) {
+    if (!c || !c.moved) return;
+    const list = c.t.matched.concat(c.t.chosen);
+    const cp = list.reduce(function (a, x) { return a + x.cp; }, 0);
+    toast('Carried over ' + plural(c.moved, 'completed subject') + ' (' + cp + ' CP) from ' + c.from + '. ' + c.t.doneCP + ' of ' + c.t.cp + ' CP of ' + c.key.split('|')[0] + ' finished.', { action: 'undo', label: 'Undo' });
+  }
+  function renderCreditOffer(ctx) {
+    const box = $('#credit-offer');
+    const c = ui.credit;
+    const t = c && !ctx.custom && c.key === ctx.key ? transferTo(ctx.key, c.completed, true) : null;
+    if (!t || !t.electives.length) {
+      box.hidden = true;
+      box.innerHTML = '';
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = '<div class="credit-card"><p><b>' + plural(t.electives.length, 'completed non-law subject') + ' from ' + esc(c.from) + ' could fill open electives here,</b> taking you to ' + t.doneCP + ' of ' + t.cp + ' CP. WSU decides credit, so confirm it with your Academic Program Advisor.</p>' +
+      '<div class="credit-actions"><button type="button" class="tbtn tbtn-primary" data-action="credit-electives">Credit Completed Non-Law Units as Electives</button><button type="button" class="btn btn-ghost" data-action="credit-dismiss">Not now</button></div></div>';
+  }
+  function creditElectives() {
+    const c = ui.credit;
+    if (!c) return;
+    const t = transferTo(c.key, c.completed, true);
+    if (!t.electives.length) return;
+    noteChange('credited ' + plural(t.electives.length, 'subject') + ' as electives');
+    writeTransfer(c.key, t);
+    ui.credit = null;
+    ui.folded = null;
+    renderMoving();
+    toast('Credited ' + plural(t.electives.length, 'subject') + ' as electives. ' + t.doneCP + ' of ' + t.cp + ' CP of ' + c.key.split('|')[0] + ' finished.', { action: 'undo', label: 'Undo' });
+  }
+  function completedInKey(key) {
+    const deg = DEG[key.split('|')[0]];
+    return PATH[key].map(function (raw) { return resolveSlot(raw, deg, OPT[key], state.picks[key] || {}, state.done[key] || {}); })
+      .filter(function (s) { return s.done && !s.pending && s.code; }).map(function (s) { return { code: s.code, title: s.title, cp: s.cp, custom: !!s.custom }; });
+  }
+  // the plan on screen first, then any other plan with subjects ticked off
+  function transferSources() {
+    const out = [];
+    const here = lastCtx;
+    if (here.doneCP > 0) out.push({ id: 'here', label: 'This plan: ' + (here.custom ? customName(here.plan, here.tdeg) : tplLabel(here.key)), completed: completedIn(here) });
+    Object.keys(state.done).forEach(function (key) {
+      if (!here.custom && key === here.key) return;
+      const completed = completedInKey(key);
+      if (completed.length) out.push({ id: key, label: tplLabel(key), completed: completed });
+    });
+    return out.filter(function (s) { return s.completed.length; });
+  }
+  function openTransfer() {
+    const sources = transferSources();
+    const target = lastCtx.custom || lastCtx.deg.code !== '2848' ? '2848' : DEGREES.find(function (d) { return d.code !== '2848'; }).code;
+    ui.transfer = { sources: sources, from: sources.length ? sources[0].id : '', deg: target, key: DEG[target].options[0], credit: true };
+    ui.modal = 'transfer';
+    showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal modal-setup" role="dialog" aria-modal="true" aria-labelledby="tr-h">' +
+      '<div class="modal-head"><div><h2 id="tr-h">Simulate Degree Transfer</h2><p>See how your completed subjects would count in another degree. This is a simulation: WSU decides credit, so confirm it with the Law Enquiry Team or your Academic Program Advisor.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
+      '<div class="modal-body import-body" id="tr-body"></div>' +
+      '<div class="modal-foot"><span class="small muted">Your current plan stays saved, and Undo reverses this.</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="button" class="btn btn-primary" data-action="transfer-apply" id="tr-apply">Switch to this degree →</button></div></div></div></div>');
+    renderTransfer();
+  }
+  function renderTransfer() {
+    const u = ui.transfer;
+    const body = $('#tr-body');
+    if (!u || !body) return;
+    if (!u.sources.length) {
+      body.innerHTML = '<p class="pick-hint">Tick off the subjects you have completed first, or import your progress, then come back here.</p>';
+      $('#tr-apply').disabled = true;
+      return;
+    }
+    const src = u.sources.find(function (s) { return s.id === u.from; }) || u.sources[0];
+    const deg = DEG[u.deg];
+    const t = transferTo(u.key, src.completed, u.credit);
+    const chips = function (list) { return '<div class="chiplist">' + list.map(function (c) { return '<span class="chipbtn"><code>' + esc(c.code) + '</code>' + esc(c.title) + '</span>'; }).join('') + '</div>'; };
+    const part = function (title, list) { return list.length ? '<div class="pick-section"><h3><span>' + title + '</span><span>' + list.length + '</span></h3>' + chips(list) + '</div>' : ''; };
+    const pct = t.cp ? Math.min(100, Math.round(t.doneCP / t.cp * 100)) : 0;
+    const a = document.activeElement && document.activeElement.id;
+    body.innerHTML =
+      '<div class="tpl-fields tr-fields">' +
+      '<div class="field tr-span"><label for="tr-from">Completed subjects from</label><div class="select-wrap"><select id="tr-from">' + u.sources.map(function (s) { return '<option value="' + esc(s.id) + '"' + (s === src ? ' selected' : '') + '>' + esc(s.label) + ' (' + plural(s.completed.length, 'subject') + ')</option>'; }).join('') + '</select></div></div>' +
+      '<div class="field"><label for="tr-deg">Transfer to</label><div class="select-wrap"><select id="tr-deg">' + DEGREES.map(function (d) { return '<option value="' + d.code + '"' + (d.code === u.deg ? ' selected' : '') + '>' + esc(d.label) + '</option>'; }).join('') + '</select></div></div>' +
+      '<div class="field"><label for="tr-major">Major / minor</label><div class="select-wrap"><select id="tr-major"' + (deg.options.length > 1 ? '' : ' disabled') + '>' + tplMajorOptions(u.deg, u.key) + '</select></div></div></div>' +
+      '<div class="tr-score"><p><b>' + t.doneCP + ' of ' + t.cp + ' CP</b> of ' + esc(deg.code) + ' would already be finished.</p><span class="bar" aria-hidden="true"><span style="width:' + pct + '%"></span></span></div>' +
+      (t.nonLaw.length && t.electiveSlots ? '<label class="check-row tr-credit"><input type="checkbox" id="tr-credit"' + (u.credit ? ' checked' : '') + '><span><b>Credit Completed Non-Law Units as Electives</b> (' + plural(Math.min(t.nonLaw.length, t.electiveSlots), 'subject') + ' into ' + plural(t.electiveSlots, 'open elective slot') + ')</span></label>' : '') +
+      part('Same subject in this degree', t.matched) + part('LLB Alternates and choices', t.chosen) + part('Credited as electives', t.electives) + part('Not carried over', t.left);
+    $('#tr-apply').disabled = false;
+    if (a && document.getElementById(a)) document.getElementById(a).focus({ preventScroll: true });
+  }
+  function applyTransfer() {
+    const u = ui.transfer;
+    const src = u.sources.find(function (s) { return s.id === u.from; }) || u.sources[0];
+    if (!src) return;
+    const t = transferTo(u.key, src.completed, u.credit);
+    const moved = t.matched.length + t.chosen.length + t.electives.length;
+    noteChange('simulated a transfer to ' + u.deg);
+    if (moved) writeTransfer(u.key, t);
+    state.mode = 'guide';
+    state.degree = u.deg;
+    state.majorFor[u.deg] = u.key;
+    ui.credit = !u.credit && t.nonLaw.length && t.electiveSlots ? { key: u.key, from: src.label.replace(/^This plan: /, ''), completed: src.completed } : null;
+    ui.folded = null;
+    closeModal(true);
+    renderEntering();
+    toast('Switched to ' + u.deg + ': ' + t.doneCP + ' of ' + t.cp + ' CP finished, with ' + plural(moved, 'subject') + ' carried over.', moved ? { action: 'undo', label: 'Undo' } : null);
+  }
+
   // ======================================================================== snapshot and compare
   const PIN_KEY = STORE_KEY + ':pin';
   ui.pin = (function () {
@@ -2861,7 +3409,7 @@
     });
     return {
       label: (ctx.custom ? (ctx.plan.code ? ctx.plan.code + ' ' : '') + customName(ctx.plan, ctx.tdeg) : ctx.deg.code + ' ' + ctx.deg.title) + (ctx.opt.majorCode !== 'BASE' ? ' · ' + ctx.opt.majorLabel : ''),
-      load: state.load === 'PT' ? 'Part-time' : 'Full-time',
+      load: paceNow(ctx) === 20 ? 'Part-time' : paceNow(ctx) === 30 ? '3-unit load' : 'Full-time',
       finish: end ? sessionLabel(end.year, end.session) : 'No subjects yet',
       sessions: sessions.length,
       summers: sessions.filter(function (x) { return x.session === 'Summer'; }).length,
@@ -2873,9 +3421,9 @@
       pinned: today(),
     };
   }
-  function pinButtons() {
-    return '<button type="button" class="tbtn" data-action="pin" title="Save this plan as a baseline, then change things and compare">' + (ui.pin ? 'Re-pin Snapshot' : 'Pin Snapshot') + '</button>' +
-      (ui.pin ? '<button type="button" class="tbtn tbtn-outline" data-action="compare">Compare with Pinned</button>' : '');
+  function pinItems() {
+    return '<button type="button" class="tbtn pop-item" data-action="pin" title="Save this plan as a baseline, then change things and compare">' + (ui.pin ? 'Re-pin Snapshot' : 'Pin Snapshot') + '</button>' +
+      (ui.pin ? '<button type="button" class="tbtn pop-item" data-action="compare">Compare with Pinned</button>' : '');
   }
   function pinPlan() {
     ui.pin = planSummary(lastCtx);
@@ -2975,8 +3523,8 @@
     document.body.classList.toggle('has-campus', !!state.campus);
     renderHero(ctx);
     renderDock(ctx);
-    renderFacts(ctx);
     renderAdvisory(ctx);
+    renderCreditOffer(ctx);
     renderNext(ctx);
     renderSectionHead(ctx);
     renderLegend(ctx);
@@ -3004,7 +3552,7 @@
   let historyMerge = '';
   function planPart() { return JSON.stringify({ picks: state.picks, done: state.done, custom: state.custom }); }
   // which plan was on screen travels with it, so an undo always shows the plan it changed
-  function viewPart() { return { mode: state.mode, degree: state.degree, majorFor: Object.assign({}, state.majorFor) }; }
+  function viewPart() { return { mode: state.mode, degree: state.degree, majorFor: Object.assign({}, state.majorFor), load: state.load }; }
   function noteChange(label, merge) {
     historyNote = label;
     historyMerge = merge || '';
@@ -3053,6 +3601,8 @@
     state.mode = entry.view.mode;
     state.degree = entry.view.degree;
     state.majorFor = Object.assign({}, entry.view.majorFor);
+    if (entry.view.load) state.load = entry.view.load;
+    ui.folded = null;
     historyPlan = entry.plan;
     // the control in use is rebuilt with the page: focus stays with it, or moves to its partner once it has nothing left to do
     const a = document.activeElement;
@@ -3745,6 +4295,7 @@
     const plan = state.custom;
     plan.slots = plan.tpl ? templateSlots(plan.tpl, false) : [];
     plan.start = 0;
+    plan.pace = 0;
     fitToCP(plan);
   }
 
@@ -3841,8 +4392,8 @@
     const prev = state.custom;
     const filled = prev ? prev.slots.filter(function (x) { return x.code; }).length : 0;
     if (filled && start !== 'keep' && !window.confirm('Start again? This replaces the ' + plural(filled, 'subject') + ' in your current custom plan.')) return;
-    const plan = { name: $('#cs-name').value.trim().slice(0, 120), code: $('#cs-code').value.trim().slice(0, 16), cp: clampCP(cpRaw), tpl: '', start: 0, slots: [] };
-    if (start === 'keep' && prev) { plan.tpl = prev.tpl; plan.slots = prev.slots; }
+    const plan = { name: $('#cs-name').value.trim().slice(0, 120), code: $('#cs-code').value.trim().slice(0, 16), cp: clampCP(cpRaw), tpl: '', start: 0, pace: 0, slots: [] };
+    if (start === 'keep' && prev) { plan.tpl = prev.tpl; plan.slots = prev.slots; plan.pace = prev.pace; }
     else if (start === 'template') { plan.tpl = $('#cs-tpl-major').value; plan.slots = templateSlots(plan.tpl, $('#cs-tpl-mine').checked); }
     const began = +$('#cs-year').value;
     plan.start = began < START_YEAR ? began : 0;
@@ -4842,12 +5393,26 @@
   }
 
   // ======================================================================== events
+  function closePops() {
+    document.querySelectorAll('.pop-menu:not([hidden])').forEach(function (m) {
+      m.hidden = true;
+      m.previousElementSibling.setAttribute('aria-expanded', 'false');
+    });
+  }
+  // pressing anywhere else puts away what floats over the page
+  document.addEventListener('pointerdown', function (ev) {
+    const t = ev.target;
+    if (!t.closest) return;
+    if (ui.enqOpen && !t.closest('#enquiry-box, [data-action="enq-open"]')) setEnquiryOpen(false);
+    if (!t.closest('.pop')) closePops();
+  });
   function setTopMenu(open) {
     $('#top-actions').classList.toggle('is-open', open);
     $('.top-menu-btn').setAttribute('aria-expanded', String(open));
   }
   document.addEventListener('click', function (ev) {
     if ($('#top-actions').classList.contains('is-open') && !ev.target.closest('.top-menu-btn')) setTopMenu(false);
+    if (!ev.target.closest('[data-action="pop-toggle"]')) closePops();
     const el = ev.target.closest('[data-action]');
     if (!el) return;
     const a = el.dataset.action;
@@ -4864,9 +5429,9 @@
       case 'tour-next': tourGo(ui.tour.at + 1); break;
       case 'tour-back': tourGo(ui.tour.at - 1); break;
       case 'tour-skip': endTour(); break;
-      case 'enq-toggle': setEnquiryOpen(!ui.enqOpen, true); break;
+      case 'enq-toggle': setEnquiryOpen(!ui.enqOpen); break;
       case 'enq-open':
-        setEnquiryOpen(true, true);
+        setEnquiryOpen(true);
         $('#enq-card').focus({ preventScroll: true });
         break;
       case 'enq-topic':
@@ -4922,6 +5487,14 @@
         break;
       }
       case 'top-menu': setTopMenu(!$('#top-actions').classList.contains('is-open')); break;
+      case 'pop-toggle': {
+        const menu = el.nextElementSibling;
+        const opening = menu.hidden;
+        closePops();
+        menu.hidden = !opening;
+        el.setAttribute('aria-expanded', String(opening));
+        break;
+      }
       case 'year-toggle': {
         const fold = el.getAttribute('aria-expanded') === 'true';
         transition(function () { setYearFold(+el.dataset.y, fold); }, true);
@@ -4982,7 +5555,41 @@
       }
       case 'export-print': doPrint(); break;
       case 'exp-orient': state.exp.orient = el.dataset.v; el.parentElement.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b === el)); }); saveState(); renderExportPreview(); break;
-      case 'load': state.load = el.dataset.load; renderMoving(); break;
+      case 'load': {
+        const want = el.dataset.load;
+        // with subjects ticked off or a re-paced plan, the student chooses how much of the plan this changes
+        if (ctx.doneCP > 0 || (ctx.custom && ctx.plan.pace)) {
+          if (LOAD_CP[want] !== paceNow(ctx)) openRePace({ load: LOAD_CP[want] });
+          break;
+        }
+        state.load = want;
+        renderMoving();
+        break;
+      }
+      case 'repace-open': openRePace(); break;
+      case 'rp-load':
+        ui.repace.load = +el.dataset.v;
+        renderRePace();
+        break;
+      case 'rp-intake':
+        ui.repace.intake = el.dataset.v;
+        renderRePace();
+        break;
+      case 'rp-fast':
+        ui.repace.fast = !ui.repace.fast;
+        // the preset is the full load, plus whatever brings the finish forward
+        if (ui.repace.fast) ui.repace.load = 40;
+        if (ui.repace.fast && ctx.doneCP > 0) ui.repace.scope = 'remaining';
+        renderRePace();
+        break;
+      case 'rp-apply': applyRePace(); break;
+      case 'transfer-open': openTransfer(); break;
+      case 'transfer-apply': applyTransfer(); break;
+      case 'credit-electives': creditElectives(); break;
+      case 'credit-dismiss':
+        ui.credit = null;
+        renderCreditOffer(ctx);
+        break;
       case 'campus-pill': {
         const c = el.dataset.campus;
         state.campus = state.campus === c ? '' : c;
@@ -5208,7 +5815,15 @@
       if (t.value === CUSTOM) {
         if (state.custom) { state.mode = 'custom'; renderEntering(); }
         else { t.value = state.degree; openSetup({ start: 'blank' }); }
-      } else { state.mode = 'guide'; state.degree = t.value; renderEntering(); }
+      } else {
+        const from = lastCtx;
+        const completed = completedIn(from);
+        state.mode = 'guide';
+        state.degree = t.value;
+        const carried = carryOver(sourceLabel(from), currentKey(), completed);
+        renderEntering();
+        announceCarry(carried);
+      }
     } else if (t.id === 'custom-name') { render(); }
     else if (t.id === 'cp-move') {
       const v = t.value.split('|');
@@ -5229,7 +5844,24 @@
     }
     else if (t.name === 'cs-start') { setupSync('start'); }
     else if (t.id === 'cs-tpl-deg') { $('#cs-tpl-major').innerHTML = tplMajorOptions(t.value, DEG[t.value].options[0]); setupSync('tpl'); }
-    else if (t.id === 'sel-major') { noteChange('changed your major'); setMajor(t.value); renderEntering(); }
+    else if (t.id === 'sel-major') {
+      const from = lastCtx;
+      const completed = completedIn(from);
+      noteChange('changed your major');
+      setMajor(t.value);
+      const carried = carryOver(sourceLabel(from), t.value, completed);
+      renderEntering();
+      announceCarry(carried);
+    }
+    else if (t.name === 'rp-scope') { ui.repace.scope = t.value; renderRePace(); }
+    else if (t.id === 'rp-loa') { ui.repace.loa = t.checked; renderRePace(); }
+    else if (t.id === 'rp-start') { ui.repace.start = +t.value; renderRePace(); }
+    else if (t.id === 'rp-summer') { ui.repace.summer = t.checked; renderRePace(); }
+    else if (t.id === 'rp-over') { ui.repace.overload = t.checked; renderRePace(); }
+    else if (t.id === 'tr-from') { ui.transfer.from = t.value; renderTransfer(); }
+    else if (t.id === 'tr-deg') { ui.transfer.deg = t.value; ui.transfer.key = DEG[t.value].options[0]; renderTransfer(); }
+    else if (t.id === 'tr-major') { ui.transfer.key = t.value; renderTransfer(); }
+    else if (t.id === 'tr-credit') { ui.transfer.credit = t.checked; renderTransfer(); }
     else if (t.id === 'sel-campus') { state.campus = t.value; render(); }
     else if (t.dataset && t.dataset.action === 'done') {
       const ticked = lastCtx.byId[t.dataset.slot];
@@ -5286,8 +5918,20 @@
     if (ev.key === 'Enter' && el.id === 'grid-q') { ev.preventDefault(); stepMatch(ev.shiftKey ? -1 : 1); return; }
     if (ev.key === 'Escape') {
       if ($('#top-actions').classList.contains('is-open')) { setTopMenu(false); $('.top-menu-btn').focus(); return; }
+      const pop = document.querySelector('.pop-menu:not([hidden])');
+      if (pop) {
+        const button = pop.previousElementSibling;
+        closePops();
+        button.focus();
+        return;
+      }
       if (ui.modal) { closeModal(); return; }
-      if (ui.enqOpen && el.closest && el.closest('#enquiry-box')) { setEnquiryOpen(false, true); $('.enq-pill').focus(); return; }
+      if (ui.enqOpen) {
+        const inside = el.closest && el.closest('#enquiry-box');
+        setEnquiryOpen(false);
+        if (inside) $('.enq-pill').focus();
+        return;
+      }
       if (el.id === 'grid-q') {
         if (el.value) clearGridFilter(); else el.blur();
         return;
@@ -5367,7 +6011,6 @@
   // ======================================================================== boot
   const askTour = tourMayAsk();
   const opened = applyHash();
-  renderNotice();
   renderEnquiryBox();
   syncTheme();
   document.querySelectorAll('.view-modes button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.view === state.view)); });
@@ -5375,7 +6018,6 @@
   $('#grid-q').addEventListener('focus', syncGridBar);
   $('#grid-q').addEventListener('blur', syncGridBar);
   render();
-  startEnquiry();
   if (opened === false) toast(LINK_FAILED);
   if (askTour) {
     setTimeout(function () {
@@ -5396,6 +6038,15 @@
     planUrl: function () { return planUrl(); },
     history: function () { return { undo: undoStack.length, redo: redoStack.length, undoLabel: undoStack.length ? undoStack[undoStack.length - 1].label : '', redoLabel: redoStack.length ? redoStack[redoStack.length - 1].label : '' }; },
     linkText: function () { return encodeLink(); },
+    // the date to treat as today, so which sessions have begun does not depend on when the checks run
+    setNow: function (now) { ui.now = now || null; },
+    // lays a plan out without applying it, optionally as though the first years were ticked off
+    pace: function (o, tickYears) {
+      const ctx = buildContext();
+      if (tickYears) ctx.slots.forEach(function (s) { if (s.year <= tickYears) s.done = true; });
+      const r = layoutPace(ctx, Object.assign({ scope: 'whole', load: 40, loa: false, intake: 'Autumn', start: START_YEAR, fast: false, summer: true, overload: true }, o));
+      return { finish: r.finishLabel, unplaced: r.unplaced.length, forced: r.forced, groups: REQ_GROUPS, rows: r.rows.map(function (x) { return { code: x.code, k: x.k, cp: x.cp, locked: x.locked, done: x.s.done, list: x.runs ? x.runs.list : null }; }) };
+    },
     unscramble: function (code) { return unscrambleCode(code); },
     buildPrintDoc: function (opts) { return buildPrintDoc(buildContext(), Object.assign({}, state.exp, opts || {})); },
     preparePrint: function (opts) { Object.assign(state.exp, opts || {}); preparePrint(); },
