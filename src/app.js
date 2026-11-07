@@ -18,6 +18,9 @@
   const PLAN_SESSIONS = ['Autumn', 'Spring', 'Summer'];
   const LOAD_CP = { FT: 40, PT: 20 };
   const LAW_ENQUIRY = 'lawenquiry@westernsydney.edu.au';
+  const MOD_KEY = /Mac|iPhone|iPad/.test(navigator.platform || '') ? 'Cmd' : 'Ctrl';
+  const UNDO_KEYS = MOD_KEY + '+Z';
+  const REDO_KEYS = MOD_KEY === 'Cmd' ? 'Cmd+Shift+Z' : 'Ctrl+Y';
 
   const DEG = {};
   const GLOBAL_BY_CODE = {}; // every subject in the workbook, across all degrees
@@ -238,7 +241,7 @@
   const STORE_KEY = 'wslsa-2027-pathway-explorer:v1';
   const DEFAULT_EXPORT = { mode: 'A', orient: 'portrait', ticks: true, llbSession: 'all', llbCampus: false, llbTbc: true };
   let state = sanitise(readStore());
-  const ui = { tab: 'structure', cat: { q: '', comp: '', session: '', inPlan: false, area: '' }, modal: null, picker: null, assign: null, whyOpen: false, advisoryOpen: false, gridQ: '', viewFold: {}, yearInfo: {}, matchIds: [], matchAt: -1 };
+  const ui = { tab: 'structure', cat: { q: '', comp: '', session: '', inPlan: false, area: '' }, modal: null, picker: null, assign: null, whyOpen: false, advisoryOpen: false, gridQ: '', viewFold: {}, yearInfo: {}, matchIds: [], matchAt: -1, enqOpen: false, enqTopic: 'transition', tour: null };
 
   function readStore() {
     try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; }
@@ -1615,8 +1618,8 @@
     const ex = META.explorerIntro.match(/Pathways are[^.]*\./);
     const sheet = DEGREES[0].sheetIntro.match(/The recommended pathway[^]*$/);
     const src = META.overviewNote.match(/^Source:[^]*?Degree Guides\./);
-    return [sheet ? sheet[0] : '', ex ? ex[0] : '', src ? src[0] : '',
-      'Confirm enrolment decisions, prerequisites and any flagged gaps with the Academic Program Advisor, and for further guidance contact the Law Enquiry Team at ' + LAW_ENQUIRY + '.',
+    return ['This explorer is a student resource from the Western Sydney Law Students\' Association and is not endorsed by the School of Law of Western Sydney University.', sheet ? sheet[0] : '', ex ? ex[0] : '', src ? src[0] : '',
+      'Confirm enrolment decisions, prerequisites and any flagged gaps with your Academic Program Advisor. If you get stuck, contact the Law Enquiry Team at ' + LAW_ENQUIRY + ' or your Academic Program Advisor.',
       'If you started your degree before 2027, plan your 2027 subjects with the 2026 Handbook, which reflects the curriculum for your course.'].filter(Boolean).join(' ');
   }
   // From the School of Law's announcement to current students, 26 October 2026: final offering of each subject.
@@ -1627,20 +1630,344 @@
   ];
   // rendered once at boot: the content never changes, and re-rendering would close the details panel
   function renderNotice() {
-    $('#notice').innerHTML = '<h2 class="sr-only">School of Law update</h2><details class="notice-box" id="notice-box">' +
-      '<summary class="wrap notice-sum"><span class="notice-tag">School of Law update <i>·</i> 26 Oct<span class="wide-only">ober</span> 2026</span>' +
+    $('#notice').innerHTML = '<h2 class="sr-only">School of Law update</h2><div class="wrap notice-sum"><span class="notice-tag">School of Law update <i>·</i> 26 Oct<span class="wide-only">ober</span> 2026</span>' +
       '<span class="notice-lead"><b>Started your law degree before 2027?</b> The School of Law advises choosing the 2026 Handbook when you plan and enrol.</span>' +
-      '<span class="notice-cta"><span class="wide-only">View </span>details</span></summary>' +
-      '<div class="wrap notice-body"><div class="notice-main">' +
+      '<button type="button" class="notice-cta" data-action="enq-open" aria-controls="enq-card"><span class="wide-only">View </span>details</button></div>';
+  }
+
+  // ======================================================================== Law Enquiry box
+  // The notice's detail, the School's contact and a drafted email, in a box that stays out of the way.
+  const ENQ_KEY = 'wslsa-2027-enquiry';
+  const ENQ_TOPICS = [
+    { id: 'transition', label: '2027 Transition Check', subject: '2027 curriculum transition check', ask: 'Please could you confirm how the 2027 curriculum change affects my degree, and which Handbook and subjects apply to me.' },
+    { id: 'progression', label: 'Progression / Study Plan Check', subject: 'Progression and study plan check', ask: 'Please could you check whether my study plan below meets my degree requirements and is in a suitable order.' },
+    { id: 'waiver', label: 'Prerequisite Waiver Query', subject: 'Prerequisite waiver query', ask: 'I would like to ask about a prerequisite waiver for this subject: [subject code and your reason].' },
+    { id: 'alternate', label: 'LLB Alternate Question', subject: 'LLB Alternate question', ask: 'I have a question about my LLB Alternate subjects: [your question].' },
+  ];
+  // What each side of 80 Law CP means for a student. Put the School's own wording here once it is published:
+  // until then this only says where the student stands and sends them to the School, and claims no rule.
+  const TRANSITION_NOTE = {
+    under: 'To confirm how the 2027 change applies to you, send the School a 2027 Transition Check below.',
+    over: 'To confirm how the 2027 change applies to you, send the School a 2027 Transition Check below.',
+  };
+  function readStored(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  }
+  function writeStored(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) { /* private mode: it lasts until this page is closed */ }
+  }
+  function lawCP(ctx) {
+    return ctx.slots.reduce(function (n, s) { return n + (s.done && !s.pending && /^LAWS /.test(s.code || '') ? s.cp : 0); }, 0);
+  }
+  function renderEnquiryBox() {
+    $('#enquiry-box').innerHTML = '<button type="button" class="enq-pill" data-action="enq-toggle" aria-expanded="false" aria-controls="enq-card"><span aria-hidden="true">✉</span><span>Law Enquiry<span class="wide-only"> · 2027 Help</span></span><span class="enq-badge" id="enq-badge"></span><span class="enq-caret" id="enq-caret" aria-hidden="true">▴</span></button>' +
+      '<div class="enq-card" id="enq-card" tabindex="-1" hidden>' +
+      '<div class="enq-head"><div><p class="enq-kicker">School of Law update <i>·</i> 26 Oct<span class="wide-only">ober</span> 2026</p><h2>Law Enquiry and 2027 help</h2></div><button type="button" class="modal-x" data-action="enq-toggle" aria-label="Minimise Law Enquiry">×</button></div>' +
       '<p>This explorer follows the 2027 Handbook, which reflects the School of Law\'s new curriculum for students starting in 2027. If you are a current student, the School of Law advises choosing the <b>2026 Handbook</b> when you plan and enrol in your 2027 subjects, as it reflects the requirements of your course.</p>' +
-      '<h3>Subjects being phased out</h3>' +
+      '<p class="enq-status" id="enq-status"></p>' +
+      '<details class="enq-more"><summary>Phase 1, 2 and 3: subjects being phased out</summary>' +
       '<p>If you fail one of these subjects, or have not completed it in the correct order, enrol in its next available offering. Each is listed under the year of its final offering.</p>' +
-      '<div class="phase-grid">' + PHASE_OUT.map(function (p) {
-        return '<div><b>' + p[0] + '</b>' + p[1].map(function (s) { return '<span><code>' + s[0] + '</code> ' + esc(s[1]) + '</span>'; }).join('') + '</div>';
+      '<div class="phase-grid">' + PHASE_OUT.map(function (p, i) {
+        return '<div><b>Phase ' + (i + 1) + ' · ' + p[0] + '</b>' + p[1].map(function (s) { return '<span><code>' + s[0] + '</code> ' + esc(s[1]) + '</span>'; }).join('') + '</div>';
       }).join('') + '</div>' +
-      '<p>Remedies (LAWS 4014) runs in Autumn and Spring 2027, then once a year from 2028, so its session in a later year of your pathway may change.</p></div>' +
-      '<div class="notice-contact"><span class="field-label">Need guidance?</span><p>For further guidance on planning your enrolment, contact the Law Enquiry Team.</p>' +
-      '<a class="tbtn tbtn-outline notice-mail" href="mailto:' + LAW_ENQUIRY + '">' + LAW_ENQUIRY + '</a></div></div></details>';
+      '<p>Remedies (LAWS 4014) runs in Autumn and Spring 2027, then once a year from 2028, so its session in a later year of your pathway may change.</p></details>' +
+      '<h3>What is your question about?</h3><div class="enq-chips" role="group" aria-label="Enquiry topic">' + ENQ_TOPICS.map(function (t) {
+        return '<button type="button" class="chip" data-action="enq-topic" data-topic="' + t.id + '" aria-pressed="' + (t.id === ui.enqTopic) + '">' + esc(t.label) + '</button>';
+      }).join('') + '</div>' +
+      '<h3>Added to your email</h3><dl class="enq-context" id="enq-context"></dl>' +
+      '<p class="enq-to">This explorer is a student resource from WSLSA and is not endorsed by the School of Law of Western Sydney University. If you get stuck, contact the Law Enquiry Team at <a href="mailto:' + LAW_ENQUIRY + '">' + LAW_ENQUIRY + '</a> or your Academic Program Advisor.</p>' +
+      '<div class="enq-actions"><a class="tbtn tbtn-primary" id="enq-email" data-action="enq-email" href="mailto:' + LAW_ENQUIRY + '">Email School of Law →</a>' +
+      '<button type="button" class="tbtn tbtn-outline" data-action="enq-copy">Copy Email Draft</button>' +
+      '<button type="button" class="tbtn tbtn-outline" data-action="print" title="Save your guide as a PDF, then attach it to your email">Save PDF to Attach</button></div></div>';
+  }
+  function syncEnquiry(ctx) {
+    const law = lawCP(ctx);
+    const under = law < 80;
+    $('#enq-badge').textContent = (under ? '< 80' : '≥ 80') + ' Law CP';
+    $('#enq-badge').title = 'You have ticked ' + law + ' CP of Law subjects';
+    $('#enq-status').textContent = 'You have ticked ' + law + ' CP of Law subjects (' + (under ? 'under 80 CP' : '80 CP or more') + '). ' + (under ? TRANSITION_NOTE.under : TRANSITION_NOTE.over);
+    const facts = enquiryFacts(ctx);
+    $('#enq-context').innerHTML = facts.map(function (f) { return '<dt>' + f[0] + '</dt><dd>' + esc(f[1]) + '</dd>'; }).join('') + '<dt>Plan link</dt><dd>Your live share link</dd>';
+  }
+  function enquiryFacts(ctx) {
+    const chosen = ctx.slots.filter(function (s) { return !s.pending && s.chosen; });
+    return [
+      ['Degree', ctx.deg.code + ' ' + ctx.deg.title],
+      ['Major or minor', ctx.opt.majorCode !== 'BASE' ? ctx.opt.majorLabel : 'None'],
+      ['Completed', ctx.doneCP + ' of ' + ctx.deg.cp + ' CP, including ' + lawCP(ctx) + ' CP of Law subjects'],
+      ['Chosen alternates', chosen.length ? chosen.slice(0, 12).map(function (s) { return s.code + ' ' + s.title + ' (' + shownWhere(ctx, s) + ')'; }).join('; ') + (chosen.length > 12 ? '; and ' + (chosen.length - 12) + ' more' : '') : 'None yet'],
+    ];
+  }
+  function enquiryDraft() {
+    const ctx = lastCtx;
+    const topic = ENQ_TOPICS.find(function (t) { return t.id === ui.enqTopic; }) || ENQ_TOPICS[0];
+    const lines = ['Dear School of Law,', '', topic.ask, '', 'My plan:'];
+    enquiryFacts(ctx).forEach(function (f) { lines.push(f[0] + ': ' + f[1]); });
+    lines.push('Plan link: ' + planUrl(), '', 'Name: ', 'Student ID: ');
+    return { to: LAW_ENQUIRY, subject: topic.subject + ': ' + ctx.deg.code + ' ' + ctx.deg.title, body: lines.join('\n') };
+  }
+  function enquiryMailto() {
+    const d = enquiryDraft();
+    return 'mailto:' + d.to + '?subject=' + encodeURIComponent(d.subject) + '&body=' + encodeURIComponent(d.body.replace(/\n/g, '\r\n'));
+  }
+  function setEnquiryOpen(open, remember) {
+    ui.enqOpen = open;
+    $('#enq-card').hidden = !open;
+    $('.enq-pill').setAttribute('aria-expanded', String(open));
+    $('#enq-caret').textContent = open ? '▾' : '▴';
+    document.body.classList.toggle('enq-is-open', open);
+    if (remember) { ui.enqChosen = true; writeStored(ENQ_KEY, open ? 'open' : 'min'); $('#enq-card').style.removeProperty('--enq-room'); }
+  }
+  // Open on a first visit if it fits under the degree controls, and a pill on a phone or a short screen.
+  // Left untouched, it tucks itself away once the student scrolls down, as open it would cover subjects
+  // in the right-hand column. It needs the page laid out, so this runs after the first render.
+  function startEnquiry() {
+    const saved = readStored(ENQ_KEY);
+    if (saved) { setEnquiryOpen(saved === 'open', false); return; }
+    const fit = function () {
+      if (ui.enqChosen || ui.tour) return;
+      const room = Math.floor(window.innerHeight - $('#dock-wrap').getBoundingClientRect().bottom - 68);
+      $('#enq-card').style.setProperty('--enq-room', room + 'px');
+      setEnquiryOpen(window.innerWidth >= 760 && room >= 300, false);
+    };
+    fit();
+    // the headings settle once the fonts arrive, which moves the degree controls
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+    const tuck = function () {
+      if (window.scrollY < 160) return;
+      window.removeEventListener('scroll', tuck);
+      if (ui.enqOpen && !ui.enqChosen && !ui.tour) setEnquiryOpen(false, true);
+    };
+    window.addEventListener('scroll', tuck, { passive: true });
+  }
+
+  // ======================================================================== dark mode
+  const THEME_KEY = 'wslsa-2027-theme';
+  function currentTheme() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'; }
+  function syncTheme() {
+    const dark = currentTheme() === 'dark';
+    document.querySelectorAll('[data-action="theme-toggle"]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(dark));
+      b.querySelector('.theme-label').textContent = dark ? 'Light mode' : 'Dark mode';
+    });
+    $('meta[name="theme-color"]').setAttribute('content', dark ? '#1A191E' : '#7D0028');
+  }
+  function setTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    writeStored(THEME_KEY, theme);
+    syncTheme();
+  }
+
+  // ======================================================================== guided tour
+  // Optional. It is only offered to someone with nothing saved who did not arrive by a plan link, and it
+  // can always be started from the masthead. It never changes the plan.
+  const TOUR_KEY = 'wslsa-2027-tour-dismissed';
+  const TOUR_STEPS = [
+    { title: 'Choose your degree', text: 'Start here. Pick your degree and, if it has one, your major or minor. Campus highlight shows what runs at your campus, and Full-time or Part-time changes how your plan is laid out.', targets: ['#dock'], top: true },
+    { title: 'Key facts and progress', text: 'These show the credit points your degree requires, when you are on track to finish and the official 2027 Handbook. The progress bar counts the credit points you have ticked off.', targets: ['#dock .progress', '#facts'], top: true },
+    { title: 'Pathway Advisory', text: 'This bar checks your plan for you: subjects whose 2027 sessions are not published yet (TBC), subjects that do not run at your campus, and prerequisite notes. Press View details to read them.', targets: ['#advisory'] },
+    { title: 'Next to enrol', text: 'This is your next session. Copy Codes gives you the subject codes for MySR and Export .ics saves a calendar reminder. Already studying? Import my progress rebuilds your plan from a PDF, and Tick off from my results ticks subjects from text you paste.', targets: ['#next'] },
+    { title: 'Plan tools', text: 'Undo and Redo step through your changes (' + UNDO_KEYS + ' and ' + REDO_KEYS + '). Auto-suggest fills open slots as a starting point, Pin Snapshot saves a plan to compare against, and Customise this pathway or Build my own gives you a plan you can edit.', targets: ['#section-tools'] },
+    { title: 'Filter bar and degree map', text: 'Show everything, only what remains, or only what needs action. Type in the box, or press /, to filter your plan by code or title. The degree map shows every session, stays on screen as you scroll and jumps to a session when you press it.', targets: ['#gridbar', '#dmap'] },
+    { title: 'Subject cards', text: 'Tick a subject when you pass it. Chain shows what it depends on and unlocks, open slots let you pick an LLB Alternate, and Defer ↷ moves a subject to the next session it runs in. In a custom plan you can drag one subject onto another to swap them.', targets: ['#grid .subj'], fallback: '#grid' },
+    { title: 'Degree details and catalogue', text: 'Credit breakdown, admission, accreditation and exit awards are here. In the subject catalogue tab, + Assign puts a subject straight into an open slot in your plan.', targets: ['#details'] },
+    { title: 'Law Enquiry and your PDF', text: 'The Law Enquiry box in the corner holds the School of Law\'s 2027 advice and drafts an email to the School with your plan attached as a link. PDF Options, at the top of the page or in the Menu, saves a sharp A4 guide of your plan.', targets: ['#enquiry-box'], also: '[data-action="export-open"]', top: true, corner: true },
+  ];
+  function showsOnPage(el) { return !!el && el.getClientRects().length > 0; }
+  function tourElements(step) {
+    const out = [];
+    step.targets.forEach(function (sel) {
+      const el = Array.from(document.querySelectorAll(sel)).find(showsOnPage);
+      if (el) out.push(el);
+    });
+    if (!out.length && step.fallback && showsOnPage($(step.fallback))) out.push($(step.fallback));
+    return out;
+  }
+  // targets far apart on this screen size (the facts follow the plan on a phone) light up only the first
+  function tourRect(els) {
+    let box = null;
+    els.forEach(function (el) {
+      const r = el.getBoundingClientRect();
+      if (!box) { box = { top: r.top, left: r.left, right: r.right, bottom: r.bottom }; return; }
+      if (r.top - box.bottom > 160 || box.top - r.bottom > 160) return;
+      box = { top: Math.min(box.top, r.top), left: Math.min(box.left, r.left), right: Math.max(box.right, r.right), bottom: Math.max(box.bottom, r.bottom) };
+    });
+    return box;
+  }
+  function tourScroll(step, els) {
+    if (step.top) { window.scrollTo(0, 0); return; }
+    const box = tourRect(els);
+    if (!box) return;
+    const sticky = window.innerWidth > 1040 ? $('#dock-wrap').getBoundingClientRect().height + (els[0].closest('.plan-body') && els[0].id !== 'gridbar' ? 50 : 0) : els[0].closest('#grid') ? 50 : 0;
+    const under = window.innerWidth <= 760 ? $('.tour-card').getBoundingClientRect().height + 32 : 0;
+    const room = window.innerHeight - sticky - under;
+    const h = box.bottom - box.top;
+    const y = box.top + window.scrollY - sticky - (h < room ? Math.max(16, (room - h) / 2) : 16);
+    window.scrollTo(0, Math.max(0, y));
+  }
+  function tourPlace() {
+    const t = ui.tour;
+    if (!t) return;
+    const box = tourRect(t.els);
+    const spot = $('.tour-spot');
+    if (box) {
+      const css = { top: box.top - 6, left: box.left - 6, width: box.right - box.left + 12, height: box.bottom - box.top + 12 };
+      Object.keys(css).forEach(function (k) { spot.style[k] = Math.round(css[k]) + 'px'; });
+    }
+    if (t.clone && showsOnPage(t.cloneOf)) {
+      const r = t.cloneOf.getBoundingClientRect();
+      t.clone.style.top = r.top + 'px';
+      t.clone.style.left = r.left + 'px';
+      t.clone.style.width = r.width + 'px';
+      t.clone.style.height = r.height + 'px';
+    }
+    const card = $('.tour-card');
+    card.style.bottom = window.innerWidth <= 760 && box && TOUR_STEPS[t.at].corner ? Math.round(window.innerHeight - box.top + 16) + 'px' : '';
+    if (window.innerWidth <= 760 || !box) { card.style.top = ''; card.style.left = ''; return; }
+    const w = card.offsetWidth;
+    const h = card.offsetHeight;
+    const vw = document.documentElement.clientWidth;
+    const vh = window.innerHeight;
+    const left = Math.max(16, Math.min(box.left, vw - w - 16));
+    let top;
+    if (box.bottom + 16 + h + 16 <= vh) top = box.bottom + 16;
+    else if (box.top - 16 - h >= 16) top = box.top - 16 - h;
+    else top = vh - h - 16;
+    // beside a target in the corner rather than over it
+    const side = step0Side(box, w, h, vw, vh, top);
+    card.style.top = Math.round(side ? side.top : top) + 'px';
+    card.style.left = Math.round(side ? side.left : left) + 'px';
+  }
+  function step0Side(box, w, h, vw, vh, top) {
+    if (top + h <= box.top || top >= box.bottom) return null;
+    if (box.right + 16 + w + 16 <= vw) return { top: Math.max(16, Math.min(box.top, vh - h - 16)), left: box.right + 16 };
+    if (box.left - 16 - w >= 16) return { top: Math.max(16, Math.min(box.top, vh - h - 16)), left: box.left - 16 - w };
+    return null;
+  }
+  function tourFrame() {
+    if (!ui.tour) return;
+    tourPlace();
+    ui.tour.raf = requestAnimationFrame(tourFrame);
+  }
+  function tourClearStep() {
+    const t = ui.tour;
+    document.querySelectorAll('.tour-target').forEach(function (el) { el.classList.remove('tour-target'); });
+    if (t.clone) { t.clone.remove(); t.clone = null; t.cloneOf = null; }
+  }
+  function tourGo(i) {
+    const t = ui.tour;
+    if (!t || i < 0) return;
+    if (i >= TOUR_STEPS.length) { endTour(); return; }
+    tourClearStep();
+    t.at = i;
+    const step = TOUR_STEPS[i];
+    $('#tour-count').textContent = 'Step ' + (i + 1) + ' of ' + TOUR_STEPS.length;
+    $('#tour-fill').style.width = ((i + 1) / TOUR_STEPS.length * 100) + '%';
+    $('#tour-title').textContent = step.title;
+    $('#tour-text').textContent = step.text;
+    $('[data-action="tour-back"]').disabled = i === 0;
+    $('[data-action="tour-next"]').textContent = i === TOUR_STEPS.length - 1 ? 'Finish' : 'Next →';
+    t.els = tourElements(step);
+    t.els.forEach(function (el) { el.classList.add('tour-target'); });
+    if (step.also) {
+      const other = $(step.also);
+      if (showsOnPage(other)) {
+        t.cloneOf = other;
+        t.clone = other.cloneNode(true);
+        t.clone.removeAttribute('data-action');
+        t.clone.removeAttribute('title');
+        t.clone.setAttribute('aria-hidden', 'true');
+        t.clone.tabIndex = -1;
+        t.clone.classList.add('tour-clone');
+        $('#tour').appendChild(t.clone);
+      }
+    }
+    tourScroll(step, t.els);
+    tourPlace();
+    if (document.activeElement && document.activeElement.disabled) $('[data-action="tour-next"]').focus();
+  }
+  function startTour(opener) {
+    if (ui.tour) return;
+    if (ui.modal) closeModal(true);
+    hideTourPrompt(true);
+    ui.tour = { at: 0, els: [], opener: opener || null, enqBefore: ui.enqOpen, raf: 0, clone: null, cloneOf: null };
+    // an open box would sit over whatever each step lights up
+    if (ui.enqOpen) setEnquiryOpen(false, false);
+    $('#app').inert = true;
+    $('#tour').hidden = false;
+    tourGo(0);
+    $('[data-action="tour-next"]').focus({ preventScroll: true });
+    ui.tour.raf = requestAnimationFrame(tourFrame);
+  }
+  function endTour() {
+    const t = ui.tour;
+    if (!t) return;
+    cancelAnimationFrame(t.raf);
+    tourClearStep();
+    ui.tour = null;
+    $('#tour').hidden = true;
+    $('#app').inert = false;
+    if (t.enqBefore) setEnquiryOpen(true, false);
+    if (t.opener && t.opener.isConnected && showsOnPage(t.opener)) t.opener.focus({ preventScroll: true });
+    else if (t.opener && t.opener.closest && t.opener.closest('#top-actions')) $('.top-menu-btn').focus({ preventScroll: true });
+  }
+  function tourKey(ev) {
+    if (ev.key === 'Escape') { ev.preventDefault(); endTour(); return; }
+    if (ev.key === 'ArrowRight') { ev.preventDefault(); tourGo(ui.tour.at + 1); return; }
+    if (ev.key === 'ArrowLeft') { ev.preventDefault(); tourGo(ui.tour.at - 1); return; }
+    if (ev.key === 'Tab') {
+      const items = Array.from(document.querySelectorAll('.tour-card button')).filter(function (b) { return !b.disabled; });
+      const at = items.indexOf(document.activeElement);
+      ev.preventDefault();
+      items[(at + (ev.shiftKey ? -1 : 1) + items.length) % items.length].focus();
+    }
+  }
+  function hideTourPrompt(remember) {
+    $('#tour-prompt').hidden = true;
+    document.body.classList.remove('has-tour-prompt');
+    if (remember) writeStored(TOUR_KEY, '1');
+  }
+  // read before the first render, which saves a plan: anything already here means this is not a first visit
+  function tourMayAsk() {
+    if (location.search.length > 1 || location.hash.length > 1) return false;
+    try { return localStorage.getItem(STORE_KEY) === null && localStorage.getItem(TOUR_KEY) === null; } catch (e) { return false; }
+  }
+
+  // ======================================================================== plan backup
+  const BACKUP_APP = 'wslsa-2027-pathway-explorer';
+  const BACKUP_MAX = 2000000;
+  function downloadBackup() {
+    const data = { app: BACKUP_APP, version: 1, savedAt: new Date().toISOString(), state: state, pinned: ui.pin || null };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'wslsa-plan-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    toast('Plan backup saved. Drop it on Import my progress to restore everything.');
+  }
+  function restoreBackup(file) {
+    const fail = function () { progressStatus('That file is not a plan backup from this explorer. Use the .json file saved by Download Plan Backup.', 'error'); };
+    if (file.size > BACKUP_MAX) { fail(); return; }
+    ui.progress = null;
+    renderProgress();
+    file.text().then(function (text) {
+      const data = JSON.parse(text);
+      if (!data || data.app !== BACKUP_APP || !data.state || typeof data.state !== 'object') { fail(); return; }
+      noteChange('restored a plan backup');
+      // everything in the file goes through the same checks as a saved plan or a share link
+      state = sanitise(data.state);
+      const pin = data.pinned;
+      if (pin && Array.isArray(pin.subjects) && typeof pin.finish === 'string') { ui.pin = pin; writePin(); }
+      ui.folded = null;
+      ui.viewFold = {};
+      document.querySelectorAll('.view-modes button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.view === state.view)); });
+      closeModal(true);
+      renderEntering();
+      toast('Plan restored from your backup.', { action: 'undo', label: 'Undo' });
+    }).catch(fail);
   }
   const CREST = '<span class="crest-img pd-crest" role="img" aria-label="WSLSA crest"></span>';
   const FOOT_LINE = '© 2026 Western Sydney Law Students\' Association Inc. <i>·</i> Building EK, Parramatta South Campus <i>·</i> By students, for students';
@@ -1650,7 +1977,7 @@
       '<div class="foot-brand"><span class="crest-rev foot-crest" role="img" aria-label="WSLSA crest"></span><div><p class="foot-sub">Western Sydney</p><p class="foot-name">Law Students\' Association</p><p class="foot-tag">Est. 1996 · By students, for students</p></div></div>' +
       '<div class="foot-col"><h2>Your plan</h2><p>Choices and progress are saved in this browser only and are never uploaded. To continue on another phone or computer, use Copy Share Link and open that link there.</p>' +
       '<div class="foot-links"><a href="' + esc(ctx.deg.handbook) + '" target="_blank" rel="noopener">Official 2027 Handbook →</a><a href="mailto:' + LAW_ENQUIRY + '">Email the Law Enquiry Team →</a><a href="https://wslsa.com.au/" target="_blank" rel="noopener">wslsa.com.au →</a></div></div>' +
-      '<div class="foot-col"><h2>Official handbook disclaimer</h2><p>' + esc(disclaimerText()) + '</p></div>' +
+      '<div class="foot-col"><h2>Disclaimer</h2><p>' + esc(disclaimerText()) + '</p></div>' +
       '</div><div class="foot-base">' + FOOT_LINE + '</div>';
   }
 
@@ -1815,6 +2142,7 @@
     $('#progress-meta').textContent = progressMeta(ctx);
     renderMap(ctx);
     applyGridFilter(true);
+    syncEnquiry(ctx);
     renderAdvisory(ctx);
     const next = $('#next');
     renderNext(ctx);
@@ -2229,11 +2557,16 @@
     if (document.body.style.overflow === 'hidden') return;
     const bar = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = 'hidden';
-    if (bar > 0) $('#app').style.paddingRight = bar + 'px';
+    if (bar > 0) {
+      $('#app').style.paddingRight = bar + 'px';
+      // fixed to the right edge, the box would jump sideways as the scrollbar goes
+      $('#enquiry-box').style.marginRight = bar + 'px';
+    }
   }
   function unlockScroll() {
     document.body.style.overflow = '';
     $('#app').style.paddingRight = '';
+    $('#enquiry-box').style.marginRight = '';
   }
   function showModal(html) {
     const root = $('#modal-root');
@@ -2651,6 +2984,7 @@
     renderGrid(ctx);
     renderDetails(ctx);
     renderFoot(ctx);
+    syncEnquiry(ctx);
     applyGridFilter();
     if (active && document.getElementById(active) && /^(sel-|cat-|custom-name)/.test(active)) document.getElementById(active).focus({ preventScroll: true });
     saveState();
@@ -2664,9 +2998,6 @@
   const HISTORY_MAX = 30;
   const undoStack = [];
   const redoStack = [];
-  const MOD_KEY = /Mac|iPhone|iPad/.test(navigator.platform || '') ? 'Cmd' : 'Ctrl';
-  const UNDO_KEYS = MOD_KEY + '+Z';
-  const REDO_KEYS = MOD_KEY === 'Cmd' ? 'Cmd+Shift+Z' : 'Ctrl+Y';
   let historyPlan = null;
   let historyView = null;
   let historyNote = '';
@@ -3844,6 +4175,7 @@
   function readPdf(file) {
     const job = ui.importJob = (ui.importJob || 0) + 1;
     const live = function () { return ui.modal === 'progress' && ui.importJob === job; };
+    if (/\.json$/i.test(file.name) || file.type === 'application/json') { restoreBackup(file); return; }
     if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') {
       progressStatus('That file is not a PDF. Save your Degree Works audit or Subject Results page as a PDF, then choose it here.', 'error');
       return;
@@ -4015,12 +4347,13 @@
     showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="progress-h">' +
       '<div class="modal-head"><div><h2 id="progress-h">Import my progress</h2><p>Add your Degree Works audit or Subject Results page as a PDF and your plan is rebuilt from it: the subjects you have completed or are studying go in the sessions you took them, and what you still need is laid out from your next session, ready for you to change. Grades and marks are never shown or kept, and your file stays in this browser.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
       '<div class="modal-body import-body">' +
-      '<div class="import-drop" id="progress-drop"><input type="file" id="progress-file" accept="application/pdf,.pdf" hidden>' +
-      '<button type="button" class="btn btn-primary" data-action="progress-file">Choose a PDF</button>' +
-      '<p><b>Degree Works audit or Subject Results page</b>Save either one as a PDF (Print, then Save as PDF), then choose it here or drop it on this box. Your audit also lists what you still need, so it gives the most accurate plan.</p></div>' +
+      '<div class="import-drop" id="progress-drop"><input type="file" id="progress-file" accept="application/pdf,.pdf,application/json,.json" hidden>' +
+      '<button type="button" class="btn btn-primary" data-action="progress-file">Choose a file</button>' +
+      '<p><b>Degree Works audit or Subject Results page</b>Save either one as a PDF (Print, then Save as PDF), then choose it here or drop it on this box. Your audit also lists what you still need, so it gives the most accurate plan. A plan backup (.json) goes here too, and restores everything in one step.</p></div>' +
       '<p class="import-status" id="progress-status" role="status" hidden></p>' +
       '<div id="progress-results"></div></div>' +
-      '<div class="modal-foot"><span class="small muted">Import again whenever you have new results.</span><div style="display:flex;gap:8px">' +
+      '<div class="modal-foot"><span class="small muted">Import again whenever you have new results.</span><div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<button type="button" class="btn" data-action="backup-save" title="Save your whole plan to a file on this device">Download Plan Backup (.json)</button>' +
       '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="button" class="btn btn-primary" data-action="progress-apply" id="progress-apply" disabled>Build my plan</button></div></div></div></div>');
     lockScroll();
   }
@@ -4148,7 +4481,8 @@
       '<div class="modal-body import-body"><label class="field-label" for="import-text">Your results</label>' +
       '<textarea class="input" id="import-text" rows="6" placeholder="For example:&#10;LAWS 1003  Fundamentals of Australian Law  HD&#10;LAWS1010  Legal Methods  D"></textarea>' +
       '<div id="import-results"></div></div>' +
-      '<div class="modal-foot"><span class="small muted" id="import-summary">Subjects you pass later can be ticked here again.</span><div style="display:flex;gap:8px">' +
+      '<div class="modal-foot"><span class="small muted" id="import-summary">Subjects you pass later can be ticked here again.</span><div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<button type="button" class="btn" data-action="backup-save" title="Save your whole plan to a file on this device">Download Plan Backup (.json)</button>' +
       '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="button" class="btn btn-primary" data-action="import-apply" id="import-apply" disabled>Tick subjects</button></div></div></div></div>');
     lockScroll();
     const t = $('#import-text');
@@ -4347,7 +4681,7 @@
     const subject = ctx.custom
       ? 'a custom plan' + (ctx.tdeg ? ' based on ' + esc(ctx.tdeg.code) + (o.majorCode === 'BASE' ? '' : ' · ' + esc(o.majorCode)) : ' built by the student') + '. A custom plan is the student\'s own and is not a WSLSA recommendation. Units marked ◆ are the student\'s own choices or changes.'
       : esc(ctx.deg.code) + (o.majorCode === 'BASE' ? '' : ' · ' + esc(o.majorCode)) + '. Units marked ◆ are the student\'s own selections.';
-    return '<div class="pd-disclaimer"><b>Official handbook disclaimer.</b> ' + esc(disclaimerText()) + ' Generated ' + esc(today()) + ' from ' + esc(META.sourceWorkbook) + ' for ' + subject + '<div class="pd-footline">' + FOOT_LINE + '</div></div>';
+    return '<div class="pd-disclaimer"><b>Disclaimer.</b> ' + esc(disclaimerText()) + ' Generated ' + esc(today()) + ' from ' + esc(META.sourceWorkbook) + ' for ' + subject + '<div class="pd-footline">' + FOOT_LINE + '</div></div>';
   }
   function shortSource(src) {
     if (/^2027/.test(src || '')) return '2027';
@@ -4519,6 +4853,34 @@
     const a = el.dataset.action;
     const ctx = lastCtx;
     switch (a) {
+      case 'theme-toggle': {
+        const next = currentTheme() === 'dark' ? 'light' : 'dark';
+        transition(function () { setTheme(next); });
+        break;
+      }
+      case 'tour-start': startTour(el); break;
+      case 'tour-accept': startTour(); break;
+      case 'tour-decline': hideTourPrompt(true); break;
+      case 'tour-next': tourGo(ui.tour.at + 1); break;
+      case 'tour-back': tourGo(ui.tour.at - 1); break;
+      case 'tour-skip': endTour(); break;
+      case 'enq-toggle': setEnquiryOpen(!ui.enqOpen, true); break;
+      case 'enq-open':
+        setEnquiryOpen(true, true);
+        $('#enq-card').focus({ preventScroll: true });
+        break;
+      case 'enq-topic':
+        ui.enqTopic = el.dataset.topic;
+        document.querySelectorAll('[data-action="enq-topic"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === el)); });
+        break;
+      // built as the link is followed, as each share link is a fresh code
+      case 'enq-email': el.href = enquiryMailto(); break;
+      case 'enq-copy': {
+        const d = enquiryDraft();
+        copyText('To: ' + d.to + '\nSubject: ' + d.subject + '\n\n' + d.body, 'Email draft copied, with who to send it to.');
+        break;
+      }
+      case 'backup-save': downloadBackup(); break;
       case 'undo': stepHistory(true); break;
       case 'redo': stepHistory(false); break;
       case 'grid-view': {
@@ -4910,6 +5272,7 @@
   });
 
   document.addEventListener('keydown', function (ev) {
+    if (ui.tour) { tourKey(ev); return; }
     const el = ev.target;
     const key = (ev.key || '').toLowerCase();
     if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ui.modal) {
@@ -4924,6 +5287,7 @@
     if (ev.key === 'Escape') {
       if ($('#top-actions').classList.contains('is-open')) { setTopMenu(false); $('.top-menu-btn').focus(); return; }
       if (ui.modal) { closeModal(); return; }
+      if (ui.enqOpen && el.closest && el.closest('#enquiry-box')) { setEnquiryOpen(false, true); $('.enq-pill').focus(); return; }
       if (el.id === 'grid-q') {
         if (el.value) clearGridFilter(); else el.blur();
         return;
@@ -5001,14 +5365,25 @@
   }
 
   // ======================================================================== boot
+  const askTour = tourMayAsk();
   const opened = applyHash();
   renderNotice();
+  renderEnquiryBox();
+  syncTheme();
   document.querySelectorAll('.view-modes button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.view === state.view)); });
   if (window.matchMedia('(hover: none)').matches) $('#grid-q').placeholder = 'Filter by code or title';
   $('#grid-q').addEventListener('focus', syncGridBar);
   $('#grid-q').addEventListener('blur', syncGridBar);
   render();
+  startEnquiry();
   if (opened === false) toast(LINK_FAILED);
+  if (askTour) {
+    setTimeout(function () {
+      if (ui.tour || readStored(TOUR_KEY)) return;
+      $('#tour-prompt').hidden = false;
+      document.body.classList.add('has-tour-prompt');
+    }, 700);
+  }
 
   // test hook: lets the automated checks drive the app without relying on UI layout
   window.WSLSA = {

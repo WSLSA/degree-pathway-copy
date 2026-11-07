@@ -176,7 +176,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
 .preview-stage .pd-page-break::after { content: "Page break"; position: absolute; right: 10mm; top: -3.2mm; background: #fff; padding: 0 2mm; font: 700 7pt "Inter", sans-serif; color: #8A8273; letter-spacing: .12em; text-transform: uppercase; }
 
 @media print {
-  html, body { background: #fff !important; margin: 0 !important; }
+  html, body { background: #fff !important; margin: 0 !important; color-scheme: light !important; }
   body > *:not(#print-root) { display: none !important; }
   #print-root { display: block !important; }
   #print-root .pdoc { width: auto; box-shadow: none; padding: 0; min-height: 0; }

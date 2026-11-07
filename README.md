@@ -26,6 +26,12 @@ Looking for something in your plan? **Remaining only** hides what you have finis
 
 Changed your mind? **Undo** and **Redo** step through your last 30 changes to your plan, whether you ticked a subject, chose one, moved one, imported your progress or reset the plan (`Ctrl+Z`, then `Ctrl+Y` or `Ctrl+Shift+Z`, or `Cmd+Z` and `Cmd+Shift+Z` on a Mac). The history lasts until you close or reload the page.
 
+Prefer it dark? Press **Dark mode** at the top of the page. New to the explorer? Press **Tour** for a short guided walk through it.
+
+Need the School of Law? The **Law Enquiry** box at the bottom right holds the School's 2027 advice and the subjects being phased out. Choose a topic and it drafts your email with your degree, your completed credit points, your chosen alternates and a link to your plan, ready to send, copy or attach a PDF to.
+
+Changing devices or clearing your browser? **Download Plan Backup (.json)** in **Import my progress** or **Tick off from my results** saves your whole plan to a file, and adding that file to **Import my progress** brings it all back.
+
 Planning to study over Summer? Press **+ Add Summer** on any year. You can choose a new subject for that Summer or bring one forward from later in your plan. The 2027 guides only cover Autumn and Spring, so check in the Handbook that each Summer subject runs and where.
 
 ## Good to know
@@ -34,7 +40,7 @@ Your plan saves automatically in your browser, and nothing you enter is sent to 
 
 This explorer follows the 2027 Handbook, which reflects the School of Law's new curriculum for students starting in 2027. If you started your degree before 2027, the School of Law advises planning and enrolling in your 2027 subjects with the 2026 Handbook.
 
-The recommended pathways are prepared by WSLSA and are not official Western Sydney University sequences. Always confirm your enrolment, prerequisites and any flagged issues with your Academic Program Advisor, and check the 2027 Handbook for subjects still marked TBC. For further guidance on your enrolment, contact the Law Enquiry Team at [lawenquiry@westernsydney.edu.au](mailto:lawenquiry@westernsydney.edu.au).
+This explorer is a student resource from WSLSA and is not endorsed by the School of Law of Western Sydney University. If you get stuck, contact the Law Enquiry Team or your Academic Program Advisor. The recommended pathways are prepared by WSLSA and are not official Western Sydney University sequences. Always confirm your enrolment, prerequisites and any flagged issues with your Academic Program Advisor, and check the 2027 Handbook for subjects still marked TBC. For further guidance on your enrolment, contact the Law Enquiry Team at [lawenquiry@westernsydney.edu.au](mailto:lawenquiry@westernsydney.edu.au).
 
 Spotted an error? Let WSLSA know through [wslsa.com.au](https://wslsa.com.au/).
 

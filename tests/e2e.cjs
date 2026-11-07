@@ -31,6 +31,8 @@ function check(cond, msg) {
 async function newPage(browser, opts) {
   // reduced motion by default: updates are then instant, so checks can read the page straight after a click
   const page = await browser.newPage(Object.assign({ viewport: { width: 1360, height: 900 }, reducedMotion: 'reduce' }, opts || {}));
+  // a returning student: no tour prompt, and the Law Enquiry box as a pill. The tour and box checks set up their own pages.
+  await page.addInitScript(() => { try { localStorage.setItem('wslsa-2027-tour-dismissed', '1'); if (!localStorage.getItem('wslsa-2027-enquiry')) localStorage.setItem('wslsa-2027-enquiry', 'min'); } catch (e) { /* about:blank */ } });
   page.errors = [];
   page.on('pageerror', e => page.errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') page.errors.push(m.text()); });
@@ -357,10 +359,16 @@ async function renderPdf(page, key, mode, orient, file) {
 
   // ---------------------------------------------------------------- School of Law notice and Law Enquiry contact
   const LAW_ENQUIRY = 'lawenquiry@westernsydney.edu.au';
-  check(await page.$eval('#notice a[href="mailto:' + LAW_ENQUIRY + '"]', a => a.textContent.trim()) === LAW_ENQUIRY, 'the notice should link the Law Enquiry Team email');
+  check(await page.$eval('#enquiry-box a[href="mailto:' + LAW_ENQUIRY + '"]', a => a.textContent.trim()) === LAW_ENQUIRY, 'the Law Enquiry box should link the Law Enquiry Team email');
   check(/2026 Handbook/.test(await page.textContent('#notice')), 'the notice should point current students to the 2026 Handbook');
   check(docB.includes(LAW_ENQUIRY), 'the PDF disclaimer should carry the Law Enquiry email');
-  const phased = await page.textContent('#notice .phase-grid');
+  const notEndorsed = /not endorsed by the School of Law of Western Sydney University/i;
+  const stuck = /If you get stuck, contact .*lawenquiry@westernsydney\.edu\.au.* or your Academic Program Advisor/;
+  check(notEndorsed.test(docB) && stuck.test(docB), 'every PDF should say it is not endorsed, and where to go when stuck');
+  check(notEndorsed.test(await page.textContent('.hero-note')) && stuck.test(await page.textContent('.hero-note')) && await page.isVisible('.hero-note'), 'the first screen should say it is not endorsed, and where to go when stuck');
+  check(notEndorsed.test(await page.textContent('#site-foot')) && stuck.test(await page.textContent('#site-foot')), 'the footer should say it is not endorsed, and where to go when stuck');
+  check(notEndorsed.test(await page.textContent('#enquiry-box')) && stuck.test(await page.textContent('#enquiry-box')), 'the Law Enquiry box should say it is not endorsed, and where to go when stuck');
+  const phased = await page.textContent('#enquiry-box .phase-grid');
   check(['LAWS 2004', 'LAWS 1009', 'LAWS 2015', 'LAWS 2001', 'LAWS 4004', 'LAWS 4013'].every(c => phased.includes(c)), 'the notice should list all six subjects being phased out');
   check(!!(await page.$('#site-foot a[href="mailto:' + LAW_ENQUIRY + '"]')), 'the footer should link the Law Enquiry Team');
 
@@ -769,7 +777,7 @@ async function renderPdf(page, key, mode, orient, file) {
   await mo.click('[data-action="progress-open"]', { force: true }).catch(() => {});
   await mo.waitForTimeout(220);
   check(!(await mo.$('#modal-root.closing')), 'opening straight after closing should not leave the old fade running');
-  await mo.evaluate(() => { const b = document.querySelector('.modal-x'); if (b) b.click(); });
+  await mo.evaluate(() => { const b = document.querySelector('#modal-root .modal-x'); if (b) b.click(); });
   await mo.waitForTimeout(220);
   // a subject glides to its new session in a custom plan
   await mo.click('[data-action="custom-from-current"]');
@@ -1015,10 +1023,11 @@ async function renderPdf(page, key, mode, orient, file) {
   check(await lay.evaluate(() => document.activeElement.id === 'plan-heading' && !location.hash), 'the skip link should move focus to the plan, without changing the address');
   await lay.evaluate(() => window.scrollTo(0, 0));
   // the School of Law advice stays in view, and its detail opens from it
-  check(/2026 Handbook/.test(await lay.textContent('.notice-lead')) && await lay.isVisible('.notice-lead') && await lay.isHidden('#notice .phase-grid'), 'the notice should show its advice with the detail closed');
-  await lay.click('.notice-sum');
-  check(await lay.isVisible('#notice .phase-grid') && await lay.isVisible('.notice-mail'), 'opening the notice should show the phase-out subjects and contact');
-  await lay.click('.notice-sum');
+  check(/2026 Handbook/.test(await lay.textContent('.notice-lead')) && await lay.isVisible('.notice-lead') && await lay.isHidden('#enquiry-box .phase-grid'), 'the notice should show its advice with the detail closed');
+  await lay.click('.notice-cta');
+  await lay.click('.enq-more > summary');
+  check(await lay.isVisible('#enquiry-box .phase-grid') && await lay.isVisible('#enquiry-box .enq-to a'), 'the notice should open the box, with the phase-out subjects and contact');
+  await lay.click('.enq-pill');
   // the legend keeps its colours in view, and stays open across a re-render once opened
   check(await lay.isHidden('#legend .lg-body') && await lay.isVisible('#legend .lg-sw'), 'the legend should start closed with its colours showing');
   await lay.click('#legend-box > summary');
@@ -1132,17 +1141,16 @@ async function renderPdf(page, key, mode, orient, file) {
   await ph.keyboard.press('Escape');
   check(await ph.isHidden('[data-action="print"]') && await ph.evaluate(() => document.activeElement.dataset.action === 'top-menu'), 'Esc should close the menu and return to its button');
   await ph.click('[data-action="top-menu"]');
-  await ph.click('.notice-lead', { force: true });
+  await ph.mouse.click(6, 700);
   check(await ph.isHidden('[data-action="print"]'), 'pressing elsewhere should close the menu');
-  await ph.evaluate(() => { const b = document.getElementById('notice-box'); b.open = false; });
   await ph.click('[data-action="top-menu"]');
   await ph.click('[data-action="export-open"]');
   check(await ph.isHidden('.top-actions .tbtn-primary') && !!(await ph.$('.modal')), 'a menu item should run and close the menu');
   await ph.keyboard.press('Escape');
   check(await ph.evaluate(() => document.activeElement.dataset.action === 'top-menu'), 'closing a window opened from the menu should return to the menu button');
-  await ph.evaluate(() => { document.getElementById('notice-box').open = true; });
-  check(await ph.evaluate(() => document.documentElement.scrollWidth <= 390), 'the open notice should not cause sideways scrolling');
-  await ph.evaluate(() => { document.getElementById('notice-box').open = false; });
+  await ph.click('.enq-pill');
+  check(await ph.evaluate(() => document.documentElement.scrollWidth <= 390), 'the open Law Enquiry box should not cause sideways scrolling');
+  await ph.click('.enq-pill');
   check(await ph.isHidden('#dmap .dm-s[data-y="1"][data-s="Autumn"]') && await ph.isVisible('#dmap .dm-y[data-y="5"]') && await ph.evaluate(() => { const b = document.getElementById('dmap'); return b.scrollWidth <= b.clientWidth; }), 'the phone map should show each year as one tile, all in view');
   await ph.click('#dmap .dm-y[data-y="3"]');
   const phoneJump = await ph.evaluate(() => ({ map: Math.round(document.getElementById('dmap').getBoundingClientRect().top), year: Math.round(document.getElementById('year-3').getBoundingClientRect().top), bottom: Math.round(document.getElementById('dmap').getBoundingClientRect().bottom) }));
@@ -1581,6 +1589,379 @@ async function renderPdf(page, key, mode, orient, file) {
   check(await pf.evaluate(() => WSLSA.context().doneCP) === 0 && await pf.isDisabled('#mini-bar [data-action="undo"]'), 'the phone bar undo should work');
   check(pf.errors.length === 0, 'phone filter console errors: ' + pf.errors.join('; '));
   await pf.close();
+
+  // ---------------------------------------------------------------- dark mode
+  const dk = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  await dk.goto(APP);
+  await dk.evaluate(() => { WSLSA.select('2785|BASE'); });
+  const themeNow = () => dk.evaluate(() => document.documentElement.dataset.theme);
+  const paint = (s, prop) => dk.$eval(s, (e, p) => getComputedStyle(e)[p], prop || 'backgroundColor');
+  const themeBtn = '[data-action="theme-toggle"]';
+  check(await themeNow() === 'light' && await dk.getAttribute(themeBtn, 'aria-pressed') === 'false' && /Dark mode/.test(await dk.textContent(themeBtn)), 'the site should start light, with a Dark mode button');
+  check(await paint('.year-bar') === 'rgb(30, 29, 32)' && await paint('body') === 'rgb(246, 241, 234)', 'light mode should look as it did');
+  const paperLight = await dk.evaluate(() => WSLSA.buildPrintDoc({ mode: 'A' }).replace(/pd-plan">[^<]*</, ''));
+  await dk.click(themeBtn);
+  check(await themeNow() === 'dark' && await dk.getAttribute(themeBtn, 'aria-pressed') === 'true' && /Light mode/.test(await dk.textContent(themeBtn)), 'pressing it should switch to dark and offer light');
+  check(await dk.evaluate(() => localStorage.getItem('wslsa-2027-theme')) === 'dark', 'the choice should be saved');
+  check(await paint('body') === 'rgb(17, 17, 20)' && await paint('.topbar') === 'rgb(26, 25, 30)' && await paint('.dock-card') === 'rgb(26, 25, 30)' && await paint('.year') === 'rgb(26, 25, 30)' && await paint('.drawer') === 'rgb(26, 25, 30)', 'every surface should go dark');
+  for (const s of ['.year-bar', '.advisory > summary', '.segmented button[aria-pressed="true"]']) {
+    check(await paint(s) === 'rgb(40, 38, 48)' && await paint(s, 'color') === 'rgb(255, 255, 255)', `${s} should stay a dark band with white text`);
+  }
+  check(await paint('.site-footer') === 'rgb(40, 38, 48)' && await paint('.site-footer', 'color') === 'rgb(203, 197, 188)', 'the footer should stay a dark band with its light text');
+  check(await paint('.subj-title', 'color') === 'rgb(244, 239, 230)', 'text should flip to light');
+  check(await paint('.tbtn-primary') === 'rgb(139, 0, 41)' && await paint('.tbtn-primary', 'color') === 'rgb(255, 255, 255)', 'filled buttons should keep burgundy and white');
+  check(await dk.evaluate(() => getComputedStyle(document.documentElement).colorScheme) === 'dark', 'native controls should go dark');
+  check(await dk.$eval('.brand-crest', e => /url/.test(getComputedStyle(e).webkitMaskImage || getComputedStyle(e).maskImage)) && await paint('.brand-crest') === 'rgb(227, 199, 116)', 'the masthead crest should use the gold mask');
+  // done cards and the catalogue
+  await dk.click('#year-1 .session[data-s="Autumn"] [data-action="session-done"]');
+  check(await paint('#year-1 .subj.is-done') === 'rgb(22, 21, 26)', 'a done card should use the dark done colour');
+  await dk.click('[data-action="tab"][data-tab="catalogue"]');
+  check(await paint('#cat-results table.cat th') === 'rgb(40, 38, 48)', 'the catalogue heading should stay a dark band');
+  check(await dk.$eval('#cat-results tr.in-plan td.c-plan', c => !/rgba/.test(getComputedStyle(c).backgroundColor)), 'the sticky column should hide what scrolls under it');
+  await dk.click('[data-action="tab"][data-tab="structure"]');
+  // the paper stays paper
+  check(await dk.evaluate(() => WSLSA.buildPrintDoc({ mode: 'A' }).replace(/pd-plan">[^<]*</, '')) !== '', 'the document should build in dark');
+  await dk.click('[data-action="export-open"]');
+  await dk.waitForTimeout(120);
+  check(await paint('#preview-stage .pdoc') === 'rgb(255, 255, 255)' && await paint('#preview-stage .pdoc', 'color') === 'rgb(42, 40, 43)' && await paint('#preview-stage .pdoc', 'colorScheme') === 'light', 'the A4 preview should stay white paper in dark mode');
+  check(await paint('#export-preview') === 'rgb(18, 17, 21)', 'the desk behind the paper should go dark');
+  await dk.keyboard.press('Escape');
+  await dk.evaluate(() => WSLSA.preparePrint({ mode: 'A', orient: 'portrait' }));
+  await dk.emulateMedia({ media: 'print' });
+  check(await paint('html') === 'rgb(255, 255, 255)' && await paint('body') === 'rgb(255, 255, 255)' && await paint('#print-root .pdoc') === 'rgb(255, 255, 255)' && await dk.isHidden('#app'), 'printing from dark mode should give a white page');
+  await dk.emulateMedia({ media: 'screen' });
+  // it survives a reload, and is set before anything is drawn
+  await dk.reload();
+  check(await themeNow() === 'dark' && await dk.getAttribute(themeBtn, 'aria-pressed') === 'true', 'dark should survive a reload');
+  const shell = fs.readFileSync(path.join(ROOT, 'dist', 'wslsa-pathway-explorer.html'), 'utf8');
+  check(shell.indexOf('wslsa-2027-theme') > 0 && shell.indexOf('wslsa-2027-theme') < shell.indexOf('<style>'), 'the theme should be set before the styles load');
+  await dk.click(themeBtn);
+  check(await themeNow() === 'light' && await dk.evaluate(() => localStorage.getItem('wslsa-2027-theme')) === 'light' && await paint('body') === 'rgb(246, 241, 234)', 'it should switch back');
+  check(await dk.evaluate(() => { WSLSA.select('2785|BASE'); return true; }), 'a render should not disturb it');
+  check(await themeNow() === 'light', 'the theme should stay as chosen');
+  const pmenu = await newPage(browser, { viewport: { width: 390, height: 844 } });
+  await pmenu.goto(APP);
+  await pmenu.click('[data-action="top-menu"]');
+  check(await pmenu.isVisible('[data-action="theme-toggle"]') && await pmenu.isVisible('[data-action="tour-start"]'), 'the menu should offer dark mode and the tour on a phone');
+  await pmenu.click('[data-action="theme-toggle"]');
+  check(await pmenu.evaluate(() => document.documentElement.dataset.theme) === 'dark' && await pmenu.isHidden('[data-action="print"]'), 'switching from the menu should work and close it');
+  await pmenu.close();
+  check(dk.errors.length === 0, 'dark mode console errors: ' + dk.errors.join('; '));
+  await dk.close();
+
+  // ---------------------------------------------------------------- the masthead stays on one row
+  const mastRows = await newPage(browser);
+  await mastRows.goto(APP);
+  for (const w of [1440, 1321, 1320, 1200, 1131, 1130, 900]) {
+    await mastRows.setViewportSize({ width: w, height: 800 });
+    const tops = await mastRows.$$eval('.topbar .tbtn', bs => Array.from(new Set(bs.filter(b => b.getClientRects().length).map(b => Math.round(b.getBoundingClientRect().top)))));
+    check(tops.length === 1, `the masthead should keep one row at ${w} px, got ${tops.length}`);
+  }
+  await mastRows.close();
+
+  // ---------------------------------------------------------------- the guided tour is only ever offered to a first-time visitor
+  const firstVisit = async (url, setup, opts) => {
+    const ctx = await browser.newContext(Object.assign({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' }, opts || {}));
+    const p = await ctx.newPage();
+    p.errors = [];
+    p.on('pageerror', e => p.errors.push(e.message));
+    if (setup) await p.addInitScript(setup);
+    await p.goto(url);
+    return p;
+  };
+  const promptShows = async p => { await p.waitForTimeout(900); return p.isVisible('#tour-prompt'); };
+  const t1 = await firstVisit(APP);
+  check(await promptShows(t1), 'a first-time visitor should be offered the tour');
+  check(/New to the Pathway Explorer\? Would you like a quick guided tour of how to map your degree\?/.test(await t1.textContent('#tour-prompt')) && await t1.textContent('[data-action="tour-accept"]') === 'Start Tour →' && await t1.textContent('[data-action="tour-decline"]') === 'No thanks', 'the prompt should ask politely');
+  check(await t1.evaluate(() => !document.getElementById('app').inert) && await t1.isHidden('#tour'), 'the prompt should not block the page');
+  await t1.click('[data-action="tour-decline"]');
+  check(await t1.isHidden('#tour-prompt') && await t1.evaluate(() => localStorage.getItem('wslsa-2027-tour-dismissed')) === '1', 'No thanks should be remembered');
+  await t1.reload();
+  check(!(await promptShows(t1)), 'it should not ask again');
+  const t2 = await firstVisit(APP);
+  await t2.waitForTimeout(100);
+  const planLink = await t2.evaluate(() => WSLSA.planUrl());
+  await t2.reload();
+  check(!(await promptShows(t2)), 'a browser with a saved plan should not be asked');
+  const t3 = await firstVisit(planLink);
+  check(!(await promptShows(t3)), 'someone arriving by a share link should not be asked');
+  const t4 = await firstVisit(APP + '?d=1');
+  check(!(await promptShows(t4)), 'someone arriving with plan parameters should not be asked');
+  const t5 = await firstVisit(APP, () => { localStorage.setItem('wslsa-2027-explorer-unrelated', '1'); localStorage.setItem('wslsa-2027-tour-dismissed', '1'); });
+  check(!(await promptShows(t5)), 'someone who dismissed it should not be asked');
+  for (const p of [t1, t2, t3, t4, t5]) check(p.errors.length === 0, 'tour prompt console errors: ' + p.errors.join('; '));
+  // the nine steps
+  const t6 = await firstVisit(APP);
+  await t6.evaluate(() => WSLSA.select('2785|BASE'));
+  await t6.waitForSelector('#tour-prompt:not([hidden])');
+  await t6.click('[data-action="tour-accept"]');
+  check(await t6.isVisible('#tour') && await t6.isHidden('#tour-prompt') && await t6.evaluate(() => document.getElementById('app').inert) && await t6.evaluate(() => document.activeElement.dataset.action === 'tour-next'), 'Start Tour should open it with focus on Next');
+  const planBefore = await t6.evaluate(() => JSON.stringify(WSLSA.state()));
+  const stepTargets = ['#dock', '#dock .progress', '#advisory', '#next', '#section-tools', '#gridbar', '.subj.tour-target', '#details', '#enquiry-box'];
+  for (let i = 0; i < stepTargets.length; i++) {
+    await t6.waitForTimeout(60);
+    const s = await t6.evaluate(sel => {
+      const r = e => e.getBoundingClientRect();
+      const spot = r(document.querySelector('.tour-spot'));
+      const t = r(document.querySelector(sel));
+      const c = r(document.querySelector('.tour-card'));
+      return { count: document.getElementById('tour-count').textContent, covers: spot.left <= t.left + 1 && spot.top <= t.top + 1 && spot.right >= t.right - 1 && spot.bottom >= t.bottom - 1, onScreen: t.top < innerHeight && t.bottom > 0 && t.left >= 0, card: c.top >= 0 && c.left >= 0 && c.bottom <= innerHeight && c.right <= innerWidth, border: getComputedStyle(document.querySelector('.tour-spot')).borderTopColor, shadow: /9999px/.test(getComputedStyle(document.querySelector('.tour-spot')).boxShadow), width: document.getElementById('tour-fill').style.width };
+    }, stepTargets[i]);
+    check(s.count === `Step ${i + 1} of 9` && s.covers && s.onScreen && s.card && s.shadow && parseFloat(s.width) > 0, `step ${i + 1} should light up ${stepTargets[i]}, got ${JSON.stringify(s)}`);
+    if (i === 6) check(await t6.$eval('.subj.tour-target .chain-btn, .subj.tour-target .defer-btn', b => getComputedStyle(b).opacity) === '1', 'the cards step should show the tools it describes');
+    if (i === 0) check(await t6.isDisabled('[data-action="tour-back"]'), 'there is nothing before the first step');
+    if (i === 8) {
+      check(await t6.textContent('[data-action="tour-next"]') === 'Finish' && !!(await t6.$('#tour .tour-clone')) && await t6.$eval('#tour .tour-clone', c => { const a = c.getBoundingClientRect(); const b = document.querySelector('.topbar [data-action="export-open"]').getBoundingClientRect(); return Math.abs(a.left - b.left) < 2 && Math.abs(a.top - b.top) < 2; }), 'the last step should finish, and show the PDF button too');
+      break;
+    }
+    await t6.click('[data-action="tour-next"]');
+  }
+  await t6.click('[data-action="tour-next"]');
+  check(await t6.isHidden('#tour') && await t6.evaluate(() => !document.getElementById('app').inert) && !(await t6.$('.tour-target, .tour-clone')), 'Finish should close it and leave nothing behind');
+  check(await t6.evaluate(() => JSON.stringify(WSLSA.state())) === planBefore && await t6.evaluate(() => WSLSA.history().undo) === 0, 'the tour should not change the plan');
+  await t6.reload();
+  check(!(await promptShows(t6)), 'after a tour it should not ask again');
+  // the keyboard, and starting it by hand
+  await t6.click('[data-action="tour-start"]');
+  const tourStep = () => t6.textContent('#tour-count');
+  await t6.keyboard.press('ArrowRight');
+  await t6.keyboard.press('ArrowRight');
+  check(await tourStep() === 'Step 3 of 9', 'the right arrow should go forward');
+  await t6.keyboard.press('ArrowLeft');
+  check(await tourStep() === 'Step 2 of 9', 'the left arrow should go back');
+  await t6.click('[data-action="tour-back"]');
+  check(await tourStep() === 'Step 1 of 9', 'Back should go back');
+  await t6.keyboard.press('ArrowLeft');
+  check(await tourStep() === 'Step 1 of 9', 'the first step should stay put');
+  for (let i = 0; i < 6; i++) await t6.keyboard.press('Tab');
+  check(await t6.evaluate(() => !!document.activeElement.closest('.tour-card')), 'Tab should stay in the tour');
+  await t6.keyboard.press('Control+z');
+  check(await t6.isVisible('#tour'), 'keys for the page should wait until the tour is over');
+  await t6.keyboard.press('Escape');
+  check(await t6.isHidden('#tour') && await t6.evaluate(() => document.activeElement.dataset.action === 'tour-start'), 'Esc should end it and go back to the Tour button');
+  await t6.click('[data-action="tour-start"]');
+  await t6.click('[data-action="tour-skip"]');
+  check(await t6.isHidden('#tour'), 'Skip Tour should end it');
+  // on a phone
+  const t7 = await firstVisit(APP, null, { viewport: { width: 390, height: 844 } });
+  await t7.evaluate(() => { localStorage.setItem('wslsa-2027-tour-dismissed', '1'); WSLSA.select('2785|BASE'); });
+  await t7.click('[data-action="top-menu"]');
+  await t7.click('[data-action="tour-start"]');
+  for (let i = 0; i < 9; i++) {
+    await t7.waitForTimeout(60);
+    const s = await t7.evaluate(() => { const c = document.querySelector('.tour-card').getBoundingClientRect(); const sp = document.querySelector('.tour-spot').getBoundingClientRect(); return { card: c.top >= 0 && c.bottom <= innerHeight && c.left >= 0 && c.right <= innerWidth, spot: sp.top < innerHeight && sp.bottom > 0, wide: document.documentElement.scrollWidth <= 390 }; });
+    check(s.card && s.spot && s.wide, `phone step ${i + 1} should fit the screen, got ${JSON.stringify(s)}`);
+    if (i === 8) check(await t7.evaluate(() => document.querySelector('.tour-card').getBoundingClientRect().bottom <= document.querySelector('.enq-pill').getBoundingClientRect().top), 'on a phone the last step should show the box, not cover it');
+    await t7.click('[data-action="tour-next"]');
+  }
+  check(await t7.isHidden('#tour'), 'the phone tour should finish');
+  check(t6.errors.length === 0 && t7.errors.length === 0, 'tour console errors: ' + t6.errors.concat(t7.errors).join('; '));
+  for (const p of [t1, t2, t3, t4, t5, t6, t7]) await p.context().close();
+
+  // ---------------------------------------------------------------- Law Enquiry box
+  const en = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  await en.goto(APP);
+  await en.evaluate(() => { WSLSA.select('2848|BASE'); });
+  const box = () => en.$eval('#enquiry-box', e => { const r = e.getBoundingClientRect(); return { right: Math.round(innerWidth - r.right), bottom: Math.round(innerHeight - r.bottom), position: getComputedStyle(e).position, z: getComputedStyle(e).zIndex }; });
+  const b0 = await box();
+  check(b0.position === 'fixed' && b0.right === 16 && b0.bottom === 16 && b0.z === '48', `the box should sit bottom right, got ${JSON.stringify(b0)}`);
+  check(/Law Enquiry · 2027 Help/.test(await en.textContent('.enq-pill')) && await en.textContent('#enq-badge') === '< 80 Law CP' && await en.isHidden('#enq-card') && await en.getAttribute('.enq-pill', 'aria-expanded') === 'false', 'the pill should show its label and status');
+  check(await en.textContent('#notice .notice-cta') === 'View details' && !(await en.$('#notice details')), 'the top notice should be one line');
+  await en.click('#notice .notice-cta');
+  check(await en.isVisible('#enq-card') && await en.evaluate(() => document.activeElement.id === 'enq-card') && await en.getAttribute('.enq-pill', 'aria-expanded') === 'true', 'the notice should open the box and move to it');
+  const enqRect = await en.$eval('#enq-card', c => { const r = c.getBoundingClientRect(); return r.top >= 0 && r.left >= 0 && r.right <= innerWidth; });
+  check(enqRect, 'the open box should fit on screen');
+  check(/2026 Handbook/.test(await en.textContent('#enq-card')) && /under 80 CP/.test(await en.textContent('#enq-status')), 'the box should give the School\'s advice and where the student stands');
+  check((await en.$$('[data-action="enq-topic"]')).length === 4 && await en.$eval('[data-action="enq-topic"][aria-pressed="true"]', c => c.textContent) === '2027 Transition Check', 'there should be four topics, starting with the transition check');
+  check(await en.getAttribute('#enq-email', 'href') === 'mailto:' + LAW_ENQUIRY && await en.getAttribute('#enquiry-box [data-action="print"]', 'data-action') === 'print', 'it should email the Law Enquiry Team and offer the PDF');
+  // the draft follows the topic and the plan
+  await en.evaluate(() => { window.addEventListener('click', e => { if (e.target.closest('#enq-email')) e.preventDefault(); }); });
+  const draftHref = async () => { await en.click('#enq-email'); const h = await en.getAttribute('#enq-email', 'href'); const u = new URL(h); return { to: u.pathname, subject: u.searchParams.get('subject'), body: u.searchParams.get('body') }; };
+  const d1 = await draftHref();
+  check(d1.to === LAW_ENQUIRY && /^2027 curriculum transition check: 2848 Bachelor of Laws$/.test(d1.subject) && /Degree: 2848 Bachelor of Laws/.test(d1.body) && /Completed: 0 of 320 CP/.test(d1.body) && /Chosen alternates: None yet/.test(d1.body) && /Plan link: \S+#\S+/.test(d1.body), `the email should carry the plan, got ${JSON.stringify(d1).slice(0, 300)}`);
+  check(!/[—!]|n't\b/.test(d1.body), 'the draft should be in plain, full words');
+  await en.click('[data-action="enq-topic"][data-topic="waiver"]');
+  check(await en.getAttribute('[data-action="enq-topic"][data-topic="waiver"]', 'aria-pressed') === 'true' && await en.getAttribute('[data-action="enq-topic"][data-topic="transition"]', 'aria-pressed') === 'false', 'pressing a topic should select it');
+  const d2 = await draftHref();
+  check(/^Prerequisite waiver query/.test(d2.subject) && /prerequisite waiver/.test(d2.body), 'the topic should change the subject and body');
+  await en.evaluate(() => { window.__copied = ''; const c = navigator.clipboard || {}; try { Object.defineProperty(navigator, 'clipboard', { value: { writeText: t => { window.__copied = t; return Promise.resolve(); } }, configurable: true }); } catch (e) { /* older browsers */ } });
+  await en.click('[data-action="enq-copy"]');
+  await en.waitForTimeout(60);
+  const copied = await en.evaluate(() => window.__copied);
+  check(copied === '' || (copied.indexOf('To: ' + LAW_ENQUIRY) === 0 && /Subject: Prerequisite waiver query/.test(copied) && /Plan link:/.test(copied)), `Copy Email Draft should copy who to, the subject and the body, got ${copied.slice(0, 120)}`);
+  check(/Email draft copied/.test(await en.textContent('#toast')), 'it should confirm the copy');
+  // the status follows the ticks, and only Law subjects count
+  await en.evaluate(() => { WSLSA.select('2785|BASE'); });
+  const lawCount = () => en.evaluate(() => { const c = WSLSA.context(); return c.slots.filter(s => s.done && !s.pending && /^LAWS /.test(s.code)).reduce((n, s) => n + s.cp, 0); });
+  await en.evaluate(() => { WSLSA.context().slots.filter(s => !s.pending && !/^LAWS /.test(s.code) && s.year === 1).slice(0, 2).forEach(s => document.querySelector('#slot-' + s.id + ' .tick input').click()); });
+  check(await lawCount() === 0 && await en.textContent('#enq-badge') === '< 80 Law CP', 'non-law subjects should not count');
+  await en.evaluate(() => { WSLSA.context().slots.filter(s => !s.pending && /^LAWS /.test(s.code)).slice(0, 8).forEach(s => document.querySelector('#slot-' + s.id + ' .tick input').click()); });
+  check(await lawCount() >= 80 && await en.textContent('#enq-badge') === '≥ 80 Law CP' && /80 CP or more/.test(await en.textContent('#enq-status')), `the badge should flip at 80 Law CP, with ${await lawCount()} ticked`);
+  check(/Completed: \d+ of 400 CP, including \d+ CP of Law subjects/.test((await draftHref()).body), 'the email should use the live numbers');
+  // a choice appears as a chosen alternate
+  const altSlot = await en.evaluate(() => WSLSA.context().slots.find(s => s.kind === 'llb' && s.pending).id);
+  await en.keyboard.press('Escape');
+  await en.click(`#slot-${altSlot} [data-action="picker-open"]`);
+  await en.click('#pick-results .pick:not([disabled])');
+  await en.click('.enq-pill');
+  const altCode = await en.evaluate(i => WSLSA.context().byId[i].code, altSlot);
+  check(new RegExp('Chosen alternates: ' + altCode).test((await draftHref()).body), 'the email should name the chosen alternates');
+  // its state is remembered
+  check(await en.evaluate(() => localStorage.getItem('wslsa-2027-enquiry')) === 'open', 'open should be remembered');
+  await en.reload();
+  check(await en.isVisible('#enq-card'), 'it should reopen as it was');
+  await en.focus('[data-action="enq-copy"]');
+  await en.keyboard.press('Escape');
+  check(await en.isHidden('#enq-card') && await en.evaluate(() => document.activeElement.classList.contains('enq-pill') && localStorage.getItem('wslsa-2027-enquiry') === 'min'), 'Esc inside it should minimise it and remember');
+  await en.reload();
+  check(await en.isHidden('#enq-card'), 'it should stay minimised');
+  check((await smallTargets(en)).length === 0, 'the box should have targets of at least 24 px: ' + (await smallTargets(en)).join('; '));
+  await en.click('.enq-pill');
+  await en.click('.enq-more > summary');
+  check((await smallTargets(en)).length === 0 && (await headingSkips(en, '#enquiry-box')).length === 0, 'the open box should have targets of at least 24 px and ordered headings: ' + (await smallTargets(en)).join('; '));
+  // the actions stay in view however far the card is scrolled
+  await en.setViewportSize({ width: 1440, height: 620 });
+  const actionsShow = () => en.evaluate(() => { const c = document.getElementById('enq-card').getBoundingClientRect(); const a = document.querySelector('.enq-actions').getBoundingClientRect(); return document.getElementById('enq-card').scrollHeight > c.height && Math.abs(a.bottom - c.bottom) < 3; });
+  check(await en.evaluate(() => { document.getElementById('enq-card').scrollTop = 0; return true; }) && await actionsShow(), 'at the top of a scrolling card, the actions should show');
+  await en.evaluate(() => { document.getElementById('enq-card').scrollTop = 70; });
+  check(await actionsShow(), 'part way down a scrolling card, the actions should show');
+  await en.setViewportSize({ width: 1440, height: 900 });
+  // nothing that floats overlaps it
+  const overlapIn = (p, a, b) => p.evaluate(([x, y]) => { const r = document.querySelector(x).getBoundingClientRect(); const s = document.querySelector(y).getBoundingClientRect(); return r.width > 0 && s.width > 0 && r.left < s.right && s.left < r.right && r.top < s.bottom && s.top < r.bottom; }, [a, b]);
+  const chainSlot = await en.evaluate(() => document.querySelector('#grid .chain-btn').dataset.slot);
+  await en.$eval(`#slot-${chainSlot}`, c => c.scrollIntoView({ block: 'center' }));
+  await en.$eval(`#slot-${chainSlot} .chain-btn`, b => b.click());
+  check(await en.isVisible('#xray-note') && !(await overlapIn(en, '#xray-note', '#enq-card')) && !(await overlapIn(en, '#xray-note', '.enq-pill')), 'the chain note should not overlap the open box');
+  await en.$eval(`#slot-${chainSlot} .chain-btn`, b => b.click());
+  check(en.errors.length === 0, 'enquiry console errors: ' + en.errors.join('; '));
+  await en.close();
+  // first visits: open on a wide screen until the student scrolls, a pill on a phone
+  const e1 = await firstVisit(APP);
+  check(await e1.isVisible('#enq-card'), 'a first visit on a wide screen should show the box open');
+  check(await e1.evaluate(() => document.getElementById('enq-card').getBoundingClientRect().top >= document.getElementById('dock-wrap').getBoundingClientRect().bottom), 'open on a first visit, the box should leave the degree controls clear');
+  await e1.waitForSelector('#tour-prompt:not([hidden])');
+  check(!(await overlapIn(e1, '#tour-prompt', '#enq-card')) && !(await overlapIn(e1, '#tour-prompt', '.enq-pill')), 'the tour prompt and the open box should not overlap');
+  const firstChain = await e1.evaluate(() => { const b = document.querySelector('#grid .chain-btn'); b.scrollIntoView({ block: 'center' }); return b.dataset.slot; });
+  await e1.$eval(`#slot-${firstChain} .chain-btn`, b => b.click());
+  check(await e1.isVisible('#xray-note') && !(await overlapIn(e1, '#xray-note', '#tour-prompt')), 'the chain note and the tour prompt should not overlap');
+  await e1.$eval(`#slot-${firstChain} .chain-btn`, b => b.click());
+  await e1.evaluate(() => { const c = document.getElementById('enq-card'); if (!c.hidden) c.closest('#enquiry-box').querySelector('.enq-pill').click(); c.closest('#enquiry-box').querySelector('.enq-pill').click(); });
+  check(await e1.evaluate(() => getComputedStyle(document.getElementById('enq-card')).getPropertyValue('--enq-room').trim() === ''), 'once the student opens it, the box should use its full height');
+  await e1.evaluate(() => { localStorage.removeItem('wslsa-2027-enquiry'); window.scrollTo(0, 0); });
+  await e1.reload();
+  await e1.evaluate(() => window.scrollTo(0, 600));
+  await e1.waitForFunction(() => document.getElementById('enq-card').hidden);
+  check(await e1.evaluate(() => localStorage.getItem('wslsa-2027-enquiry')) === 'min', 'left alone, it should tuck itself away once the student scrolls');
+  await e1.context().close();
+  const e0 = await firstVisit(APP, null, { viewport: { width: 1366, height: 650 } });
+  check(await e0.isHidden('#enq-card') && await e0.isVisible('.enq-pill'), 'a short laptop screen should start with the pill, as open it would cover the degree controls');
+  await e0.context().close();
+  const e2 = await firstVisit(APP, null, { viewport: { width: 390, height: 844 } });
+  check(await e2.isHidden('#enq-card') && await e2.isVisible('.enq-pill'), 'a phone should start with the pill');
+  await e2.waitForSelector('#tour-prompt:not([hidden])');
+  check(!(await overlapIn(e2, '#tour-prompt', '.enq-pill')), 'on a phone the tour prompt should clear the pill');
+  await e2.click('.enq-pill');
+  check(await e2.isHidden('#tour-prompt'), 'on a phone the open box should not sit under the tour prompt');
+  await e2.click('.enq-pill');
+  check(await e2.isVisible('#tour-prompt'), 'the tour prompt should come back when the box closes');
+  await e2.click('[data-action="tour-decline"]');
+  await e2.evaluate(() => window.scrollTo(0, document.getElementById('grid').getBoundingClientRect().top + scrollY));
+  await e2.waitForFunction(() => document.getElementById('mini-bar').classList.contains('is-on'));
+  await e2.waitForTimeout(350);
+  check(!(await overlapIn(e2, '.enq-pill', '#mini-bar')), 'the pill should sit above the phone bar');
+  await e2.click('.mini-toggle');
+  await e2.waitForTimeout(350);
+  check(await e2.$eval('#mini-bar', b => b.classList.contains('is-min')) && !(await overlapIn(e2, '.enq-pill', '#mini-bar')), 'the pill should sit above the minimised phone bar');
+  await e2.click('.mini-toggle');
+  await e2.waitForTimeout(350);
+  await e2.evaluate(() => { document.querySelector('#grid .subj:not(.is-pending) .tick input').click(); document.querySelector('#grid .subj:not(.is-pending) .tick input').click(); });
+  await e2.click('.enq-pill');
+  check(await e2.isVisible('#enq-card') && await e2.$eval('#enq-card', c => { const r = c.getBoundingClientRect(); return r.top >= 0 && r.left >= 0 && r.right <= innerWidth; }) && await e2.evaluate(() => document.documentElement.scrollWidth <= 390), 'the open box should fit a phone');
+  await e2.context().close();
+
+  // the footer should scroll every word clear of the pill
+  for (const size of [{ width: 1440, height: 900 }, { width: 1100, height: 800 }, { width: 768, height: 1024 }, { width: 390, height: 844 }]) {
+    const fp = await newPage(browser, { viewport: size });
+    await fp.goto(APP);
+    await fp.evaluate(() => { window.scrollTo(0, document.documentElement.scrollHeight); });
+    await fp.waitForTimeout(400);
+    const covered = await fp.evaluate(() => {
+      const pill = document.querySelector('.enq-pill').getBoundingClientRect();
+      const out = [];
+      const walk = document.createTreeWalker(document.querySelector('.site-footer'), NodeFilter.SHOW_TEXT);
+      while (walk.nextNode()) {
+        if (!walk.currentNode.nodeValue.trim()) continue;
+        const r = document.createRange();
+        r.selectNodeContents(walk.currentNode);
+        for (const q of r.getClientRects()) if (q.left < pill.right && pill.left < q.right && q.top < pill.bottom && pill.top < q.bottom) { out.push(walk.currentNode.nodeValue.trim().slice(-40)); break; }
+      }
+      return out;
+    });
+    check(covered.length === 0, `at ${size.width}x${size.height} the pill should not cover the end of the footer, got ${covered.join(' | ')}`);
+    await fp.close();
+  }
+
+  // ---------------------------------------------------------------- plan backup
+  const bk = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  bk.on('dialog', d => d.accept());
+  await bk.goto(APP);
+  await bk.evaluate(() => { WSLSA.select('2848|BASE'); });
+  const bkAlt = await bk.evaluate(() => WSLSA.context().slots.find(s => s.kind === 'llb' && s.pending).id);
+  await bk.click(`#slot-${bkAlt} [data-action="picker-open"]`);
+  await bk.click('#pick-results .pick:not([disabled])');
+  await bk.click('#year-1 .session[data-s="Autumn"] [data-action="session-done"]');
+  await bk.click('[data-action="pin"]');
+  await bk.selectOption('#sel-campus', 'PS');
+  await bk.click('[data-action="import-open"]');
+  check(!!(await bk.$('.modal [data-action="backup-save"]')), 'Tick off from my results should offer a backup');
+  await bk.keyboard.press('Escape');
+  await bk.click('[data-action="progress-open"]');
+  const dlBackup = bk.waitForEvent('download');
+  await bk.click('.modal [data-action="backup-save"]');
+  const backupFile = await dlBackup;
+  check(/^wslsa-plan-backup-\d{4}-\d{2}-\d{2}\.json$/.test(backupFile.suggestedFilename()), `the backup should have a clear name, got ${backupFile.suggestedFilename()}`);
+  const backupText = fs.readFileSync(await backupFile.path(), 'utf8');
+  const backup = JSON.parse(backupText);
+  check(backup.app === 'wslsa-2027-pathway-explorer' && backup.state.degree === '2848' && Object.keys(backup.state.picks).length === 1 && Object.keys(backup.state.done).length === 1 && Array.isArray(backup.pinned.subjects), 'the backup should hold the whole plan and the pinned snapshot');
+  check(/\.json/.test(await bk.getAttribute('#progress-file', 'accept')) && /\.pdf/.test(await bk.getAttribute('#progress-file', 'accept')), 'the import box should take a backup as well as a PDF');
+  await bk.keyboard.press('Escape');
+  const planOnly = p => p.evaluate(() => { const s = WSLSA.state(); return JSON.stringify({ degree: s.degree, majorFor: s.majorFor, picks: s.picks, done: s.done, custom: s.custom, mode: s.mode, campus: s.campus, load: s.load }, (k, v) => (k === 'custom' && v === false ? undefined : v)); });
+  const backedUp = await planOnly(bk);
+  // restoring on a fresh browser, in one step
+  const bk2 = await newPage(browser, { viewport: { width: 1440, height: 900 } });
+  await bk2.goto(APP);
+  await bk2.click('[data-action="progress-open"]');
+  await bk2.setInputFiles('#progress-file', { name: 'plan.json', mimeType: 'application/json', buffer: Buffer.from(backupText) });
+  await bk2.waitForFunction(() => /restored/i.test(document.getElementById('toast').textContent));
+  check(await planOnly(bk2) === backedUp && !(await bk2.$('.modal')) && !!(await bk2.$('[data-action="compare"]')), 'adding the file should restore the plan and pinned snapshot in one step');
+  check(await bk2.evaluate(() => /restored a plan backup/.test(WSLSA.history().undoLabel)), 'a restore should be undoable');
+  await bk2.click('#toast [data-action="undo"]');
+  check(await bk2.evaluate(() => Object.keys(WSLSA.state().picks).length === 0), 'Undo should go back to the plan before the restore');
+  // bad files are refused, and a hand-edited one cannot add anything a plan could not hold
+  await bk2.click('[data-action="progress-open"]');
+  await bk2.setInputFiles('#progress-file', { name: 'plan.json', mimeType: 'application/json', buffer: Buffer.from('{not json') });
+  await bk2.waitForFunction(() => /not a plan backup/.test(document.getElementById('progress-status').textContent));
+  check(!!(await bk2.$('.modal')), 'a broken file should leave the window open with a message');
+  await bk2.setInputFiles('#progress-file', { name: 'other.json', mimeType: 'application/json', buffer: Buffer.from('{"hello":"world"}') });
+  await bk2.waitForTimeout(80);
+  check(await bk2.evaluate(() => Object.keys(WSLSA.state().picks).length === 0) && /not a plan backup/.test(await bk2.textContent('#progress-status')), 'some other JSON file should be refused');
+  const nasty = JSON.parse(backupText);
+  const nastySlot = Object.keys(nasty.state.picks['2848|BASE'])[0];
+  nasty.state.picks['2848|BASE'][nastySlot] = { code: 'LAWS 9999', title: '<img src=x onerror="window.__hit=1">' };
+  nasty.state.picks['9999|NOPE'] = { x: { code: 'A', title: 'B' } };
+  nasty.state.view = 'evil';
+  nasty.state.extra = 'ignored';
+  nasty.pinned = { subjects: [{ c: '<b>x</b>', t: '<img src=x onerror="window.__hit=1">', w: 'y' }], finish: 'x', pinned: '<i>y</i>', label: 'z', load: 'FT', sessions: 1, summers: 0, commute: 0, heavy: 0 };
+  await bk2.setInputFiles('#progress-file', { name: 'plan.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(nasty)) });
+  await bk2.waitForFunction(() => /restored/i.test(document.getElementById('toast').textContent));
+  const nastyState = await bk2.evaluate(() => { const s = WSLSA.state(); return { keys: Object.keys(s.picks), view: s.view, extra: s.extra }; });
+  check(JSON.stringify(nastyState.keys) === JSON.stringify(['2848|BASE']) && nastyState.view === 'all' && nastyState.extra === undefined, `a hand-edited file should be cleaned like any saved plan, got ${JSON.stringify(nastyState)}`);
+  await bk2.click('[data-action="compare"]');
+  await bk2.waitForTimeout(60);
+  check(!(await bk2.$('.modal img, #grid img')) && await bk2.evaluate(() => !window.__hit), 'text in a backup should never run as code');
+  check(bk.errors.length === 0 && bk2.errors.length === 0, 'backup console errors: ' + bk.errors.concat(bk2.errors).join('; '));
+  await bk.close();
+  await bk2.close();
 
   // ---------------------------------------------------------------- mobile layout
   const m = await newPage(browser, { viewport: { width: 390, height: 844 } });

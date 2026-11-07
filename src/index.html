@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('wslsa-2027-theme')==='dark'?'dark':'light'}catch(e){document.documentElement.dataset.theme='light'}</script>
 <title>WSLSA 2027 Pathway Explorer</title>
 <meta name="description" content="Interactive 2027 degree pathway explorer and PDF guide generator for Western Sydney University law students, built from the WSLSA 2027 Degree Guides workbook.">
 <meta name="theme-color" content="#7D0028">
@@ -39,6 +40,8 @@
       <button type="button" class="tbtn top-menu-btn" data-action="top-menu" aria-expanded="false" aria-controls="top-actions">Menu</button>
       <nav class="top-actions" id="top-actions" aria-label="Plan actions">
         <a class="tbtn top-link" href="https://wslsa.com.au/" target="_blank" rel="noopener">wslsa.com.au ↗</a>
+        <button type="button" class="tbtn" data-action="tour-start" title="A short guided tour of how to map your degree">Tour</button>
+        <button type="button" class="tbtn theme-toggle" data-action="theme-toggle" aria-pressed="false" title="Switch between light and dark"><svg class="ic-moon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><svg class="ic-sun" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span class="theme-label">Dark mode</span></button>
         <button type="button" class="tbtn" data-action="share" title="Copy a link that restores this exact plan on any device">Copy Share Link</button>
         <button type="button" class="tbtn top-quiet" data-action="reset" title="Clear choices and progress for this pathway">Reset Plan</button>
         <button type="button" class="tbtn" data-action="export-open" title="Choose guide type, orientation and LLB Alternate filters, with a live A4 preview">PDF Options</button>
@@ -57,6 +60,7 @@
           <p class="hero-app"><b>2027</b> Degree Pathway Explorer</p>
           <h1 id="hero-title">Degree Pathway Explorer</h1>
           <div class="hero-meta" id="hero-meta"></div>
+          <p class="hero-note">Not endorsed by the School of Law of Western Sydney University. If you get stuck, contact <a href="mailto:lawenquiry@westernsydney.edu.au">lawenquiry@westernsydney.edu.au</a> or your Academic Program Advisor.</p>
         </div>
         <div class="hero-seal" aria-hidden="true">
           <span class="crest-rev hero-crest"></span>
@@ -110,11 +114,37 @@
     <button type="button" class="mini-undo" data-action="undo" aria-label="Undo" disabled>↶</button>
     <button type="button" class="mini-top" data-action="mini-top">Controls ↑</button>
   </div>
+
+  <aside class="enq" id="enquiry-box" aria-label="Law Enquiry and 2027 School of Law help"></aside>
 </div>
 
 <div id="modal-root"></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="xray-note" role="status" aria-live="polite" hidden></div>
+<section class="tour-prompt" id="tour-prompt" aria-label="Guided tour" hidden>
+  <p>New to the Pathway Explorer? Would you like a quick guided tour of how to map your degree?</p>
+  <div class="tour-prompt-actions">
+    <button type="button" class="btn btn-primary" data-action="tour-accept">Start Tour →</button>
+    <button type="button" class="btn btn-ghost" data-action="tour-decline">No thanks</button>
+  </div>
+</section>
+<div class="tour" id="tour" hidden>
+  <div class="tour-block"></div>
+  <div class="tour-spot" aria-hidden="true"></div>
+  <div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-text">
+    <p class="tour-count" id="tour-count"></p>
+    <div class="bar" aria-hidden="true"><span id="tour-fill"></span></div>
+    <div aria-live="polite">
+      <h2 id="tour-title"></h2>
+      <p id="tour-text"></p>
+    </div>
+    <div class="tour-actions">
+      <button type="button" class="btn btn-ghost" data-action="tour-skip">Skip Tour</button>
+      <button type="button" class="btn" data-action="tour-back">← Back</button>
+      <button type="button" class="btn btn-primary" data-action="tour-next">Next →</button>
+    </div>
+  </div>
+</div>
 <div id="print-root" aria-hidden="true"></div>
 
 <script type="application/json" id="wslsa-data">@@DATA@@</script>
