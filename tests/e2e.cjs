@@ -520,7 +520,7 @@ async function renderPdf(page, key, mode, orient, file) {
   ], NOW]);
   check(/Degree Works audit/.test(await ip.textContent('#progress-status')) && await ip.isEnabled('#progress-apply'), `the audit should be read, got "${await ip.textContent('#progress-status')}"`);
   const preview = await ip.innerText('#progress-results');
-  check(/2785 Bachelor of Accounting\/Bachelor of Laws/.test(preview) && /Started Autumn 2025/.test(preview) && /5\s*Completed/.test(preview) && /1\s*Studying now/.test(preview), `the preview should name the degree, start and counts, got ${preview.replace(/\n+/g, ' | ').slice(0, 240)}`);
+  check(/2785 Bachelor of Accounting\/Bachelor of Laws/.test(preview) && /Started Autumn 2025/.test(preview) && /5\s*Completed/.test(preview) && /1\s*In progress/.test(preview), `the preview should name the degree, start and counts, got ${preview.replace(/\n+/g, ' | ').slice(0, 240)}`);
   check(/LAWS 2013 looks like a fail/.test(preview) && /follows that degree/.test(preview) && /Still needed lists in your audit/.test(preview) && /laid out from Autumn 2027/.test(preview), 'the preview should explain the fail, the degree change and where the rest comes from');
   check(!/\b(D|H|C|P|NA)\b \(?10\)?|2025 Autumn, SC|\(10\)/.test(preview), 'the preview should show no grades, credit point columns or raw terms');
   await ip.click('#progress-apply');
@@ -531,10 +531,11 @@ async function renderPdf(page, key, mode, orient, file) {
   check(JSON.stringify(await planOf()) === JSON.stringify(dw), 'redo should bring the imported plan back');
   check(dw.start === 2025 && dw.cp === 400 && dw.total === 400, `the plan should start in 2025 and hold 400 CP, got start ${dw.start}, ${dw.total}/${dw.cp}`);
   const where = c => { const x = at(dw, c); return x.y + x.s + (x.done ? '+' : '-'); };
-  check(['LAWS 1003', 'MATH 1030', 'ECON 2002', 'LAWS 1009', 'LAWS 2012', 'LAWS 2008'].map(where).join(' ') === '1Autumn+ 1Autumn+ 1Spring+ 1Spring+ 1Summer+ 2Spring-',
-    `history should sit in its real sessions, passes ticked and subjects in progress not, got ${['LAWS 1003', 'MATH 1030', 'ECON 2002', 'LAWS 1009', 'LAWS 2012', 'LAWS 2008'].map(where).join(' ')}`);
+  check(['LAWS 1003', 'MATH 1030', 'ECON 2002', 'LAWS 1009', 'LAWS 2012', 'LAWS 2008'].map(where).join(' ') === '1Autumn+ 1Autumn+ 1Spring+ 1Spring+ 1Summer+ 2Spring+',
+    `history should sit in its real sessions, with passes and subjects in progress ticked, got ${['LAWS 1003', 'MATH 1030', 'ECON 2002', 'LAWS 1009', 'LAWS 2012', 'LAWS 2008'].map(where).join(' ')}`);
   check(at(dw, 'ECON 2002').replaced === 'FINC 2003' && at(dw, 'MATH 1030').kind === 'Choice' && at(dw, 'LAWS 2012').kind === 'LLB Alternate', 'history should be tied to the pathway slots it fills');
-  check(where('LAWS 2015') === '3Autumn-' && where('LAWS 3018') === '3Autumn-' && where('LAWS 2013') === '3Spring-', `what is still needed should start in Autumn 2027, phase-out subjects first and each in its session, got ${['LAWS 2015', 'LAWS 3018', 'LAWS 2013'].map(where).join(' ')}`);
+  check(where('LAWS 2020') === '3Autumn-' && !at(dw, 'LAWS 2015').code && where('LAWS 3018') === '3Autumn-' && where('LAWS 2013') === '3Spring-', `what is still needed should start in Autumn 2027, LAWS 2015 shown as LAWS 2020 and first, each in its session, got ${['LAWS 2020', 'LAWS 3018', 'LAWS 2013'].map(where).join(' ')}`);
+  check(!dw.slots.some(x => ['LAWS 1010', 'LAWS 2019', 'LAWS 3099', 'LAWS 3102'].indexOf(x.code) >= 0), 'a pre-2027 audit should add no 2027 subject its record already counts for, and none of the three new 2027 cores');
   check(dw.slots.filter(x => !x.code && x.kind === 'LLB Alternate').length === 2 && !dw.slots.some(x => ['LAWS 3001', 'JUST 2013', 'NOAW 0004', 'FINC 2003'].indexOf(x.code) >= 0), 'a list to choose from should become open LLB Alternate slots, with no listed code placed');
   check(JSON.stringify(await ip.$$eval('.year-bar h2 small', s => s.slice(0, 3).map(x => x.textContent))) === JSON.stringify(['2025', '2026', '2027']) && /started 2025/i.test(await ip.getAttribute('.hp-finish', 'title')) && /started 2025/.test(await ip.textContent('#details')), 'year bars and facts should show the real calendar years');
   check(/Next to enrol/.test(await ip.textContent('#next')) && /Autumn 2027/.test(await ip.textContent('#next')), `Next to enrol should pass over sessions that have begun, got ${(await ip.textContent('#next')).slice(0, 80)}`);
@@ -550,7 +551,8 @@ async function renderPdf(page, key, mode, orient, file) {
   const ip2 = await newPage(browser);
   await ip2.goto(sharedLink);
   const reopened = await ip2.evaluate(() => { const c = WSLSA.custom(); return c.start + ':' + c.slots.filter(x => x.done).length + ':' + c.slots.length; });
-  check(reopened === '2025:5:' + dw.slots.length, `a share link should reopen the imported plan with its start year, got ${reopened}`);
+  check(reopened === '2025:' + dw.slots.filter(x => x.done).length + ':' + dw.slots.length, `a share link should reopen the imported plan with its start year, got ${reopened}`);
+  check(await ip2.evaluate(() => { const c = WSLSA.custom(); return c.cohort || (c.start && c.start < 2027 ? 'pre2027' : '2027'); }) === 'pre2027', 'a share link should keep the pre-2027 structure');
   await ip2.close();
   // Year you started in the plan setup keeps past years for a plan built by hand too
   await ip.click('[data-action="custom-setup"]');
@@ -583,6 +585,173 @@ async function renderPdf(page, key, mode, orient, file) {
     `results should place passes in their sessions and the rest of the pathway from 2027, got start ${sr.start} ${['LAWS 2003', 'ACCT 2005', 'ACCT 3007', 'ACCT 1007'].map(srAt).join(' ')} ${sr.total} CP`);
   check(ip.errors.length === 0, 'Import my progress console errors: ' + ip.errors.join('; '));
   await ip.close();
+
+  // ---------------------------------------------------------------- a student who started before 2027 (a made-up record)
+  // 2785, started Autumn 2024: a Subject Results page and a Degree Works audit read together. Under the pre-2027
+  // structure there are 160 CP of Law core and 80 CP of LLB Alternates, pre-2027 subjects count for the 2027
+  // subjects that replaced them, and LAWS 3067, on two lists, fills the Alternate Accounting choice first.
+  {
+  const pr = await newPage(browser);
+  await pr.goto(APP);
+  await pr.evaluate(() => { localStorage.clear(); WSLSA.select('2848|BASE'); });
+  const RESULTS = [
+    'Subject Results', '2785 - Bachelor of Accounting/Bachelor of Laws',
+    'TERM SUBJECT CODE SUBJECT TITLE GRADE MARK CREDIT COUNTED in REASON', 'POINTS GPA PROVIDED (if no',
+    '2024 LAWS1003 Fundamentals of Australian Law C 66 10', 'Autumn',
+    '2024 ACCT1005 Accounting in Context D 73 10', 'Autumn',
+    '2024 ECON1011 Principles of Economics P 57 10', 'Autumn',
+    '2024 LAWS2004 Criminal Law C 64 10', 'Autumn',
+    '2024 LAWS1009 Legal Analysis and Critique D 72 10', 'Spring',
+    '2024 ACCT1007 Financial Accounting C 67 10', 'Spring',
+    '2024 LAWS2013 Torts Law P 59 10', 'Spring',
+    '2024 ECON1016 Economics for Business C 65 10', 'Spring',
+    '2025 LAWS2003 Contracts C 69 10', 'Autumn',
+    '2025 ACCT1010 Management Accounting P 58 10', 'Autumn',
+    '2025 ACCT2005 Techniques in Financial Accounting D 71 10', 'Autumn',
+    '2025 LAWS4010 Law Elective C 66 10', 'Autumn',
+    '2025 NOAW0004 Academic Integrity S 100 0', 'Autumn Module',
+    '2025 ECON2002 Corporate Financial Management P 62 10', 'Spring',
+    '2025 ACCT2001 Contemporary Management Accounting C 64 10', 'Spring',
+    '2025 ACCT3003 Accounting Standards P 56 10', 'Spring',
+    '2025 LAWS2001 Alternative Dispute Resolution D 74 10', 'Spring',
+    '2026 ACCT3007 Corporate Accounting C 68 10', 'Autumn',
+    '2026 ACCT3006 Auditing and Assurance P 55 10', 'Autumn',
+    '2026 FINC2002 Finance Elective C 63 10', 'Autumn',
+    '2026 LAWS3023 Law Elective P 58 10', 'Autumn',
+    'Total Credit Points Required 400',
+  ];
+  const AUDIT = [
+    'Western Sydney University Audit', 'Student, Sample - 10000002',
+    'Level Undergraduate Major No Major Program B Accounting/B Laws (2785) School Law Campus PS_2785 Catalogue Term 202430',
+    'Accounting and Laws Program Requirements INCOMPLETE', 'Credit points required: 400 Credit points applied: 200 Catalogue Term: 2024 AUTUMN',
+    'Fundamentals of Australian Law LAWS 1003 Fundamentals of Australian Law C 10 2024 Autumn, SC 1,', 'WSTC T1',
+    'Legal Analysis and Critique LAWS 1009 Legal Analysis and Critique D 10 2024 Spring',
+    'Accounting Information Systems ACCT 3001 Accounting Information Systems NA (10) 2026 Spring',
+    'The Accountant as a Consultant ACCT 3011 The Accountant as a Consultant NA (10) 2026 Spring',
+    'Government and Public Law LAWS 2008 Government and Public Law NA (10) 2026 Spring',
+    'Alternate Accounting Subjects LAWS 3067 Self-Managed Superannuation and Trusts NA (10) 2026 Spring',
+    'Equity & Trusts Still needed: 10 Credit Points in LAWS 3018',
+    'Professional Responsibility and Legal Ethics Still needed: 10 Credit Points in LAWS 2015',
+    'Property Law Still needed: 10 Credit Points in LAWS 3082',
+    'Still needed: 10 Credit Points in LAWS 3081', 'Still needed: 10 Credit Points in LAWS 3045',
+    'Still needed: 10 Credit Points in LAWS 4013', 'Still needed: 10 Credit Points in LAWS 4015',
+    'Still needed: 10 Credit Points in LAWS 4014', 'Still needed: 10 Credit Points in LAWS 4004',
+    'Laws Alternate Pool Still needed: 60 Credit Points in LAWS 2005 or 2007 or 3001 or 3002 or', '3023 or 4010 or 4017',
+    'Alternate Accounting Still needed: 10 Credit Points in FINC 3004 or 3006 or 3014',
+    'Not Currently Applied NOAW 0004 Academic Integrity Module S 0 2024 Autumn, SC 1, WSTC T1',
+    'Ellucian Degree Works - Copyright 1995-2026 Ellucian Company L.P.',
+  ];
+  const NEVER = ['LAWS 1010', 'LAWS 2018', 'FINC 2003', 'LAWS 2019', 'LAWS 3099', 'LAWS 3101', 'LAWS 3102'];
+  const CORES = ['LAWS 2020', 'LAWS 3018', 'LAWS 3082', 'LAWS 3081', 'LAWS 3045', 'LAWS 4015', 'LAWS 3100', 'LAWS 4014', 'LAWS 3103'];
+  const read = async (lines, name) => pr.evaluate(([l, now, n]) => WSLSA.importPdfLines(l, now, n), [lines, NOW, name]);
+  const prPlan = () => pr.evaluate(() => {
+    const c = WSLSA.context();
+    const p = WSLSA.custom();
+    return { cohort: p.cohort || (p.start && p.start < 2027 ? 'pre2027' : '2027'), stored: p.cohort, start: p.start, cp: c.plan.cp, total: c.totalCP, done: c.doneCP, slots: c.slots.map(s => ({ code: s.pending ? '' : s.code, y: s.year, s: s.session, done: s.done, kind: s.typeLabel, o: p.slots[+s.id.slice(1)].o, cp: s.cp, note: (document.querySelector('#slot-' + s.id + ' .flag-legacy') || {}).textContent || '' })) };
+  });
+  const term = x => (2023 + x.y) + ' ' + x.s;
+  await pr.click('[data-action="progress-open"]');
+  check(await pr.$eval('#progress-file', i => i.multiple), 'Import my progress should take several files at once');
+  await read(RESULTS, 'results.pdf');
+  const one = await pr.innerText('#progress-results');
+  check(/Read your Subject Results page/.test(await pr.textContent('#progress-status')) && /Add another PDF/.test(await pr.textContent('#progress-choose')), 'after one file it should offer to add another');
+  check(await pr.isChecked('#pp-cohort-pre2027') && /Pre-2027 Handbook \(160 CP Law Core \+ 80 CP LLB Alternates\) \(from your record: started 2024\)/.test(one) && /2027 Handbook \(190 CP Law Core \+ 50 CP LLB Alternates\)/.test(one), `a 2024 start should select the pre-2027 structure, got ${one.replace(/\n+/g, ' | ').slice(0, 300)}`);
+  check(!(await pr.$('#pp-inprogress')) && /20\s*Completed/.test(one) && /does not list what you still need/.test(one) && !/NOAW/.test(one), 'a results page alone has no subjects in progress, and the 0 CP module is left out');
+  await read(AUDIT, 'audit.pdf');
+  const both = await pr.innerText('#progress-results');
+  check(/Read 2 files \(Subject Results page and Degree Works audit\)/.test(await pr.textContent('#progress-status')) && /Read together: results\.pdf \(Subject Results page\), audit\.pdf \(Degree Works audit\)/.test(both), `the second file should be read with the first, got "${await pr.textContent('#progress-status')}"`);
+  check(/20\s*Completed\s*200 CP/.test(both) && /4\s*In progress\s*40 CP/.test(both) && /16\s*Still to plan\s*160 CP/.test(both), `the counts should merge without repeats, got ${both.replace(/\n+/g, ' | ').slice(0, 400)}`);
+  check(await pr.$$eval('.pp-badge', b => b.map(x => x.textContent).join('|')) === Array(4).fill('In Progress (2026 Spring)').join('|'), 'each subject in progress should carry its session');
+  check(await pr.isChecked('#pp-inprogress') && (await pr.textContent('label.check-row:has(#pp-inprogress)')).trim() === 'Mark In-Progress subjects as completed/enrolled in their session', 'the in-progress option should be on by default');
+  check(/LAWS 1009 for LAWS 1010/.test(both) && /LAWS 2004 for LAWS 2018/.test(both) && /LAWS 2001 for LAWS 3101/.test(both) && /ECON 2002 for FINC 2003/.test(both), 'the preview should say which subjects count for their 2027 replacements');
+  check(/LAWS 2020 for LAWS 2015 \(last offered 2028\)/.test(both) && /LAWS 3100 for LAWS 4004/.test(both) && /LAWS 3103 for LAWS 4013/.test(both) && /Still needed lists in your audit/.test(both), 'the preview should show the pre-2027 subjects still needed as their 2027 replacements');
+  await pr.click('#progress-apply');
+  const pre = await prPlan();
+  const rest = pre.slots.filter(x => !x.done);
+  check(pre.cohort === 'pre2027' && pre.start === 2024 && pre.total === 400 && pre.done === 240 && rest.reduce((a, x) => a + x.cp, 0) === 160, `the plan should hold 240 CP done or in progress and 160 CP to go, got ${pre.done} and ${pre.total} (${pre.cohort})`);
+  check(!pre.slots.some(x => NEVER.indexOf(x.code) >= 0), `the plan should hold none of ${NEVER.join(', ')}, got ${pre.slots.filter(x => NEVER.indexOf(x.code) >= 0).map(x => x.code)}`);
+  check(JSON.stringify(rest.filter(x => x.code).map(x => x.code).sort()) === JSON.stringify(CORES.slice().sort()), `what is left should be the nine Law core subjects, got ${rest.filter(x => x.code).map(x => x.code).join(' ')}`);
+  check(rest.filter(x => !x.code && x.kind === 'LLB Alternate').length === 6 && rest.filter(x => !x.code && x.kind !== 'LLB Alternate').length === 1, `six open LLB Alternate slots and one Alternate Accounting choice should be left, got ${rest.filter(x => !x.code).map(x => x.kind || 'open').join(', ')}`);
+  check(Array.from(new Set(rest.map(term))).join(', ') === '2027 Autumn, 2027 Spring, 2028 Autumn, 2028 Spring' && rest.every(x => x.s !== 'Summer'), `the rest should run from Autumn 2027 to Spring 2028, got ${Array.from(new Set(rest.map(term))).join(', ')}`);
+  const super_ = pre.slots.find(x => x.code === 'LAWS 3067');
+  check(super_ && super_.done && term(super_) === '2026 Spring' && /^3S[34]$/.test(super_.o) && super_.kind !== 'LLB Alternate', `LAWS 3067 should fill an Alternate Accounting choice before an LLB Alternate slot, got ${JSON.stringify(super_)}`);
+  check(pre.slots.find(x => x.code === 'LAWS 2020').note === 'Replaces pre-2027 LAWS 2015 · last offered 2028' && /Replaces pre-2027 LAWS 4004/.test(pre.slots.find(x => x.code === 'LAWS 3100').note) && !pre.slots.find(x => x.code === 'LAWS 3018').note, 'a 2027 subject shown for a pre-2027 one should say which it replaces');
+  check(['LAWS 1009', 'ECON 2002', 'ACCT 3001', 'LAWS 2008'].every(c => { const x = pre.slots.find(y => y.code === c); return x && x.done; }) && term(pre.slots.find(x => x.code === 'ACCT 3001')) === '2026 Spring', 'history should keep its sessions, with subjects in progress enrolled');
+  // either code of a pair meets the general order: LAWS 1009 is Usually first for a later Law subject
+  const eqId = await pr.evaluate(() => WSLSA.context().slots.find(s => s.code === 'LAWS 3018').id);
+  await pr.click(`#slot-${eqId} .chain-btn`);
+  const firsts = await pr.$$eval('[data-xray="Usually first"]', e => e.map(x => x.querySelector('code') ? x.querySelector('code').textContent : x.dataset.slot));
+  const legal = await pr.evaluate(() => WSLSA.context().slots.find(s => s.code === 'LAWS 1009').id);
+  check(await pr.$eval(`#slot-${legal}`, e => e.getAttribute('data-xray')) === 'Usually first', `LAWS 1009 should count as LAWS 1010 in the general order, got ${JSON.stringify(firsts)}`);
+  await pr.keyboard.press('Escape');
+  // the same files with subjects in progress left open
+  await pr.click('[data-action="progress-open"]');
+  await read(RESULTS, 'results.pdf');
+  await read(AUDIT, 'audit.pdf');
+  await pr.clickRaw('#pp-inprogress');
+  check(/4\s*In progress/.test(await pr.innerText('#progress-results')) && !(await pr.isChecked('#pp-inprogress')), 'unticking the option should keep the preview');
+  await pr.click('#progress-apply');
+  const open = await prPlan();
+  check(open.done === 200 && ['ACCT 3001', 'ACCT 3011', 'LAWS 2008', 'LAWS 3067'].every(c => { const x = open.slots.find(y => y.code === c); return x && !x.done && term(x) === '2026 Spring'; }), `subjects in progress should stay in Spring 2026 without a tick, got ${open.done} CP done`);
+  // the 2027 structure, chosen by hand: the audit's lists are set aside and the 2027 pathway fills the rest
+  await pr.click('[data-action="progress-open"]');
+  await read(AUDIT, 'audit.pdf');
+  await read(RESULTS, 'results.pdf');
+  await pr.clickRaw('#pp-cohort-2027');
+  const as2027 = await pr.innerText('#progress-results');
+  check(await pr.isChecked('#pp-cohort-2027') && /under the pre-2027 structure, so with the structure chosen here the rest follows the WSLSA 2027 pathway/.test(as2027), 'choosing the 2027 structure should say the audit lists are set aside');
+  await pr.click('#progress-apply');
+  const neu = await prPlan();
+  const neuRest = neu.slots.filter(x => !x.done);
+  check(neu.cohort === '2027' && neu.stored === '2027' && neu.total === 400 && ['LAWS 2019', 'LAWS 3099', 'LAWS 3102'].every(c => neuRest.some(x => x.code === c)) && !neu.slots.some(x => ['LAWS 1010', 'LAWS 2018', 'FINC 2003', 'LAWS 3101'].indexOf(x.code) >= 0), `the 2027 structure should add its three new cores and still count the pre-2027 passes, got ${neuRest.map(x => x.code || '[' + x.kind + ']').join(' ')}`);
+  check(neuRest.filter(x => !x.code && x.kind === 'LLB Alternate').length === 3 && !neu.slots.some(x => x.note), 'the 2027 structure should leave three LLB Alternate slots and no replacement notes');
+  // Re-Pace switches the structure both ways
+  await pr.clickRaw('[data-action="repace-open"]');
+  check(await pr.isChecked('#rp-cohort-2027') && /Cohort Structure/.test(await pr.textContent('#rp-form')), 'Re-Pace should show the plan\'s structure');
+  await pr.clickRaw('#rp-cohort-pre2027');
+  check(/Pre-2027 structure: LAWS 2019, LAWS 3099, LAWS 3102 become LLB Alternate slots/.test(await pr.textContent('#rp-preview')), `Re-Pace should say what the pre-2027 structure changes, got ${(await pr.textContent('#rp-preview')).slice(0, 240)}`);
+  await pr.clickRaw('#rp-apply');
+  await pr.waitForFunction(() => !document.getElementById('rp-form'));
+  const repaced = await prPlan();
+  check(repaced.cohort === 'pre2027' && !repaced.slots.some(x => ['LAWS 2019', 'LAWS 3099', 'LAWS 3102'].indexOf(x.code) >= 0) && repaced.slots.filter(x => !x.done && !x.code && x.kind === 'LLB Alternate').length === 6 && repaced.total === 400, `Re-Pace to the pre-2027 structure should turn the three cores into LLB Alternate slots, got ${repaced.slots.filter(x => !x.done).map(x => x.code || '[' + x.kind + ']').join(' ')}`);
+  await pr.clickRaw('[data-action="repace-open"]');
+  await pr.clickRaw('#rp-cohort-2027');
+  check(/2027 structure: LAWS 2019, LAWS 3099, LAWS 3102 take the place of open LLB Alternate slots/.test(await pr.textContent('#rp-preview')), `Re-Pace back to the 2027 structure should bring the three cores back, got ${(await pr.textContent('#rp-preview')).slice(0, 240)}`);
+  await pr.keyboard.press('Escape');
+  // the plan setup: the structure follows the year started, and a 2027 pathway copied in is changed to match
+  await pr.evaluate(() => localStorage.clear());
+  await pr.reload();
+  await pr.evaluate(() => WSLSA.select('2785|BASE'));
+  await pr.click('[data-action="custom-from-current"]');
+  check(await pr.isChecked('#cs-cohort-2027'), 'a plan that starts in 2027 should default to the 2027 structure');
+  await pr.selectOption('#cs-year', '2025');
+  check(await pr.isChecked('#cs-cohort-pre2027'), 'a 2025 start should switch the setup to the pre-2027 structure');
+  await pr.click('button[type=submit][form=setup-form]');
+  const built = await prPlan();
+  check(built.cohort === 'pre2027' && built.start === 2025 && !built.slots.some(x => ['LAWS 2019', 'LAWS 3099', 'LAWS 3102'].indexOf(x.code) >= 0) && built.slots.filter(x => !x.code && x.kind === 'LLB Alternate').length === 8 && built.total === 400, `a 2027 pathway copied in for a 2025 start should have 8 LLB Alternate slots, got ${built.slots.filter(x => !x.code).length} open`);
+  await pr.click('[data-action="custom-setup"]');
+  check(await pr.isChecked('#cs-cohort-pre2027'), 'editing the plan should show its structure');
+  await pr.clickRaw('#cs-cohort-2027');
+  await pr.click('button[type=submit][form=setup-form]');
+  const kept = await prPlan();
+  check(kept.cohort === '2027' && kept.stored === '2027' && ['LAWS 2019', 'LAWS 3099', 'LAWS 3102'].every(c => kept.slots.some(x => x.code === c)) && kept.slots.filter(x => !x.code && x.kind === 'LLB Alternate').length === 5, 'keeping the plan under the 2027 structure should bring the three cores back');
+  // Tick off from my results: Still needed lists, lists of options and 0 CP modules are left out, a subject in
+  // progress is marked, a pre-2027 subject ticks its 2027 replacement, and a record for another degree is offered
+  await pr.evaluate(() => WSLSA.select('2848|BASE'));
+  await pr.click('[data-action="import-open"]');
+  await pr.fill('#import-text', ['2785 - Bachelor of Accounting/Bachelor of Laws', 'LAWS 1009 Legal Analysis and Critique D 10 2024 Spring', 'LAWS 2008 Government and Public Law NA (10) 2026 Spring',
+    'Equity & Trusts Still needed: 10 Credit Points in LAWS 3018', 'Still needed: 20 Credit Points in LAWS 2005 or 2007 or', 'LAWS 3001 or 3002', 'Choose LAWS 3023 or LAWS 4010', 'NOAW 0004 Academic Integrity Module S 0 2024 Autumn', 'LAWS 1003, LAWS 2003'].join('\n'));
+  await pr.waitForTimeout(100);
+  const pasted = await pr.$$eval('.import-row', rs => rs.map(r => r.querySelector('code').textContent + (r.querySelector('input').checked ? '+' : '-') + (/In progress/.test(r.textContent) ? ' progress' : '') + (/counts for LAWS 1010/.test(r.textContent) ? ' counts' : '')));
+  check(JSON.stringify(pasted) === JSON.stringify(['LAWS 1009+ counts', 'LAWS 2008+ progress', 'LAWS 1003+', 'LAWS 2003+']), `pasted results should skip lists and modules and match equivalents, got ${JSON.stringify(pasted)}`);
+  check(!/LAWS 3018|LAWS 3001|LAWS 3023|LAWS 4010|NOAW/.test(await pr.textContent('#import-results')) && /This record is for/.test(await pr.textContent('#import-results')), 'nothing from a list should be offered, and the record\'s degree should be named');
+  await pr.click('[data-action="import-degree"]');
+  check(await pr.evaluate(() => WSLSA.state().degree) === '2785' && !(await pr.$('[data-action="import-degree"]')) && !!(await pr.$('#import-text')), 'matching the record to its degree should switch the guide and keep the window open');
+  await pr.click('#import-apply');
+  check(await pr.evaluate(() => ['LAWS 1010', 'LAWS 2008', 'LAWS 1003', 'LAWS 2003'].every(c => WSLSA.context().slots.find(s => s.code === c).done)), 'applying should tick LAWS 1010 for LAWS 1009 and the subject in progress');
+  check(pr.errors.length === 0, 'pre-2027 import console errors: ' + pr.errors.join('; '));
+  await pr.close();
+  }
 
   // ---------------------------------------------------------------- import real PDF files (loads the PDF reader and text recogniser from jsDelivr)
   if (args.has('--import')) {

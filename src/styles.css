@@ -919,6 +919,14 @@ table.cat tr.extra td.c-code { color: var(--slate); }
 .import-status[hidden] { display: none; }
 .import-status.is-busy::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border: 2px solid var(--gold); border-right-color: transparent; border-radius: 50%; vertical-align: -1px; animation: spin .8s linear infinite; }
 .import-status.is-ok { border-left-color: var(--ok); background: var(--ok-tint); }
+.flag-legacy { background: var(--amber-tint); color: var(--amber-ink); border: 1px solid var(--line-amber); }
+.pp-files { margin: 0; font-size: 13px; color: var(--muted); }
+.pp-files b { color: var(--ink); font-weight: 600; }
+.cohort-set { display: grid; gap: 6px; margin: 10px 0 0; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--surface-2); min-width: 0; }
+.cohort-set legend { padding: 0 4px; font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.cohort-set small { color: var(--muted); }
+#progress-results .cohort-set { margin: 0; }
+.pp-badge { margin-left: 4px; padding: 1px 6px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line-amber); color: var(--amber-ink) !important; font: 700 10.5px var(--sans) !important; white-space: nowrap; }
 .import-status.is-error { border-left-color: var(--crimson); background: var(--crimson-tint); color: var(--crimson-ink); }
 @keyframes spin { to { transform: rotate(360deg); } }
 .progress-head { padding-top: 4px; }

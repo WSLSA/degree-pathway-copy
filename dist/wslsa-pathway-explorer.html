@@ -941,6 +941,14 @@ table.cat tr.extra td.c-code { color: var(--slate); }
 .import-status[hidden] { display: none; }
 .import-status.is-busy::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border: 2px solid var(--gold); border-right-color: transparent; border-radius: 50%; vertical-align: -1px; animation: spin .8s linear infinite; }
 .import-status.is-ok { border-left-color: var(--ok); background: var(--ok-tint); }
+.flag-legacy { background: var(--amber-tint); color: var(--amber-ink); border: 1px solid var(--line-amber); }
+.pp-files { margin: 0; font-size: 13px; color: var(--muted); }
+.pp-files b { color: var(--ink); font-weight: 600; }
+.cohort-set { display: grid; gap: 6px; margin: 10px 0 0; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--surface-2); min-width: 0; }
+.cohort-set legend { padding: 0 4px; font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.cohort-set small { color: var(--muted); }
+#progress-results .cohort-set { margin: 0; }
+.pp-badge { margin-left: 4px; padding: 1px 6px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line-amber); color: var(--amber-ink) !important; font: 700 10.5px var(--sans) !important; white-space: nowrap; }
 .import-status.is-error { border-left-color: var(--crimson); background: var(--crimson-tint); color: var(--crimson-ink); }
 @keyframes spin { to { transform: rotate(360deg); } }
 .progress-head { padding-top: 4px; }
@@ -1668,6 +1676,27 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   const MOD_KEY = /Mac|iPhone|iPad/.test(navigator.platform || '') ? 'Cmd' : 'Ctrl';
   const UNDO_KEYS = MOD_KEY + '+Z';
   const REDO_KEYS = MOD_KEY === 'Cmd' ? 'Cmd+Shift+Z' : 'Ctrl+Y';
+  // Pre-2027 subjects and the 2027 subjects that replace them. Passing either one meets both: neither is added to
+  // a plan that has the other, and either one meets a prerequisite that names the other.
+  const LEGACY_EQUIVALENTS = {
+    'LAWS 1009': 'LAWS 1010', 'LAWS 2004': 'LAWS 2018', 'LAWS 2001': 'LAWS 3101', 'LAWS 2015': 'LAWS 2020',
+    'LAWS 4004': 'LAWS 3100', 'LAWS 4013': 'LAWS 3103', 'ECON 2002': 'FINC 2003',
+  };
+  const LEGACY_OF = {};
+  Object.keys(LEGACY_EQUIVALENTS).forEach(function (old) { LEGACY_OF[LEGACY_EQUIVALENTS[old]] = old; });
+  function sameAs(code) { const other = LEGACY_EQUIVALENTS[code] || LEGACY_OF[code]; return other ? [code, other] : [code]; }
+  // Law core subjects that are new in 2027. A student who started earlier follows the pre-2027 structure, with
+  // 160 CP of Law core and 80 CP of LLB Alternates, so these three are LLB Alternate slots in their plan instead.
+  const NEW_2027_CORES = ['LAWS 2019', 'LAWS 3099', 'LAWS 3102'];
+  const COHORT_LABEL = {
+    pre2027: 'Pre-2027 Handbook (160 CP Law Core + 80 CP LLB Alternates)',
+    2027: '2027 Handbook (190 CP Law Core + 50 CP LLB Alternates)',
+  };
+  function cohortSet(name, value, note) {
+    return '<fieldset class="cohort-set"><legend>Cohort Structure</legend>' + ['pre2027', '2027'].map(function (c) {
+      return '<label class="check-row"><input type="radio" name="' + name + '" id="' + name + '-' + c + '" value="' + c + '"' + (value === c ? ' checked' : '') + '><span>' + COHORT_LABEL[c] + (note && note[c] ? ' <small>' + note[c] + '</small>' : '') + '</span></label>';
+    }).join('') + '</fieldset>';
+  }
 
   const DEG = {};
   const GLOBAL_BY_CODE = {}; // every subject in the workbook, across all degrees
@@ -1944,15 +1973,22 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     if (!c || typeof c !== 'object') return null;
     const tpl = typeof c.tpl === 'string' && PATH[c.tpl] ? c.tpl : '';
     const start = Math.floor(+c.start);
-    return {
+    const out = {
       name: str(c.name, 120), code: str(c.code, 16).trim(), cp: clampCP(c.cp), tpl: tpl,
       // the calendar year of Year 1 in a plan imported from results; 0 for the 2027 intake
       start: start >= 2000 && start <= 2100 ? start : 0,
       // the load the rest of the plan runs at after Re-Pace; 0 for a plan that has not been re-paced
       pace: [20, 30, 40].indexOf(+c.pace) >= 0 ? +c.pace : 0,
+      // the Handbook structure, 'pre2027' or '2027', kept only when it is not the one the start year gives
+      cohort: c.cohort === 'pre2027' || c.cohort === '2027' ? c.cohort : '',
       slots: (Array.isArray(c.slots) ? c.slots : []).slice(0, MAX_SLOTS).map(function (x) { return sanitiseCSlot(x, tpl); }).filter(Boolean),
     };
+    if (out.cohort === startCohort(out.start)) out.cohort = '';
+    return out;
   }
+  // the structure a start year gives: a student who started before 2027 follows the pre-2027 structure
+  function startCohort(start) { return start && start < START_YEAR ? 'pre2027' : '2027'; }
+  function cohortOf(plan) { return plan.cohort || startCohort(plan.start); }
   function isCustom() { return state.mode === 'custom' && !!state.custom; }
   function sanitise(s) {
     s = s && typeof s === 'object' ? s : {};
@@ -2053,6 +2089,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     if (!tdeg || plan.cp !== tdeg.cp) parts.push('cp=' + plan.cp);
     if (plan.start) parts.push('st=' + plan.start);
     if (plan.pace) parts.push('pc=' + plan.pace);
+    if (plan.cohort) parts.push('co=' + (plan.cohort === 'pre2027' ? 'p' : 'n'));
     const items = [];
     let run = null;
     const flush = function () { if (run) items.push(run[0] === run[1] ? String(run[0]) : run[0] + '-' + run[1]); run = null; };
@@ -2166,7 +2203,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     return sanitiseCustom({
       name: 'n' in f ? dec(f.n) : tdeg ? tdeg.title : '',
       code: 'k' in f ? dec(f.k) : tdeg ? tdeg.code : '',
-      cp: f.cp ? +f.cp : tdeg ? tdeg.cp : 10, tpl: tpl, start: +f.st || 0, pace: +f.pc || 0, slots: slots,
+      cp: f.cp ? +f.cp : tdeg ? tdeg.cp : 10, tpl: tpl, start: +f.st || 0, pace: +f.pc || 0, cohort: f.co === 'p' ? 'pre2027' : f.co === 'n' ? '2027' : '', slots: slots,
     });
   }
   function applyLink(s) {
@@ -2401,6 +2438,28 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       return { y: raw.year, s: raw.session, code: s.pending ? '' : s.code, title: s.custom ? s.title : '', cp: raw.cp, o: raw.id, done: s.done };
     });
   }
+  // Moves a plan's slots to a Handbook structure. Under the pre-2027 structure the core subjects new in 2027 are open
+  // LLB Alternate slots; under the 2027 structure they take the place of open LLB Alternate slots, latest first.
+  function restructure(tpl, slots, cohort) {
+    const llb = PATH[tpl].find(function (r) { return r.kind === 'llb'; });
+    if (!llb) return slots;
+    if (cohort === 'pre2027') {
+      return slots.map(function (x) { return !x.done && NEW_2027_CORES.indexOf(x.code) >= 0 ? Object.assign({}, x, { code: '', title: '', o: llb.id }) : x; });
+    }
+    const out = slots.slice();
+    const held = {};
+    slots.forEach(function (x) { if (x.code) held[x.code] = 1; });
+    const isLLB = {};
+    PATH[tpl].forEach(function (r) { if (r.kind === 'llb') isLLB[r.id] = 1; });
+    const spare = slots.map(function (x, i) { return i; }).filter(function (i) { return !slots[i].done && !slots[i].code && isLLB[slots[i].o]; }).reverse();
+    NEW_2027_CORES.forEach(function (code) {
+      const raw = PATH[tpl].find(function (r) { return r.code === code; });
+      if (!raw || held[code] || !spare.length) return;
+      const i = spare.shift();
+      out[i] = Object.assign({}, out[i], { code: code, title: '', o: raw.id });
+    });
+    return out;
+  }
   function emptyCSlot(y, s) { return { y: y, s: s, code: '', title: '', cp: 10, o: '', done: false }; }
   // Matches the plan's slots to the credit points required: removes open slots from the latest
   // sessions first (never a chosen subject) and adds open 10 CP slots after the last session in use.
@@ -2452,7 +2511,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   // ======================================================================== risk engine
   function prereqHint(ctx, note, flagSlot) {
     const fIdx = flagSlot ? orderIdx(flagSlot.year, flagSlot.session) : Infinity;
-    const have = ctx.slots.find(function (s) { return !s.pending && s.code === note.prereq; });
+    const have = ctx.slots.find(function (s) { return !s.pending && sameAs(note.prereq).indexOf(s.code) >= 0; });
     if (have) {
       return { type: orderIdx(have.year, have.session) < fIdx ? 'have-before' : 'have-after', slot: have };
     }
@@ -2915,6 +2974,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     if (s.replaced && !s.pending) flags.push('<span class="flag flag-chosen" title="Template subject: ' + esc(s.replaced.code + ' ' + s.replaced.title) + '">Replaces ' + esc(s.replaced.code) + '</span>');
     if (ctx.custom && !s.pending && (ctx.used[s.code] || []).length > 1) flags.push('<span class="flag flag-warn">Listed twice</span>');
     if (s.custom) flags.push('<span class="flag flag-chosen">Custom</span>');
+    if (ctx.custom && cohortOf(ctx.plan) === 'pre2027' && !s.done && !s.pending && LEGACY_OF[s.code]) flags.push('<span class="flag flag-legacy">Replaces pre-2027 ' + LEGACY_OF[s.code] + (PHASE_YEAR[LEGACY_OF[s.code]] ? ' · last offered ' + PHASE_YEAR[LEGACY_OF[s.code]] : '') + '</span>');
     if (s.listSubject) flags.push('<span class="flag flag-2026" title="Added from the WSU subject list">WSU subject list</span>');
     if (offCampus) flags.push('<span class="flag flag-campus">Not at ' + state.campus + '</span>');
     if (ctx.risks.advisor.some(function (a) { return a.flagSlot === s; })) flags.push('<button type="button" class="flag flag-warn" data-action="open-advisory">Check prerequisite</button>');
@@ -3801,11 +3861,16 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   const REQUIRES = {};
   const REQUIRED_BY = {};
   const REQ_GROUPS = {};
+  // a pre-2027 subject meets what its 2027 replacement meets, and the other way round
   function addRequirement(code, group, source) {
-    (REQ_GROUPS[code] = REQ_GROUPS[code] || []).push(group);
-    group.forEach(function (p) {
-      (REQUIRES[code] = REQUIRES[code] || []).push({ code: p, source: source });
-      (REQUIRED_BY[p] = REQUIRED_BY[p] || []).push({ code: code, source: source });
+    const wide = [];
+    group.forEach(function (p) { sameAs(p).forEach(function (q) { if (wide.indexOf(q) < 0) wide.push(q); }); });
+    sameAs(code).forEach(function (c) {
+      (REQ_GROUPS[c] = REQ_GROUPS[c] || []).push(wide);
+      wide.forEach(function (p) {
+        (REQUIRES[c] = REQUIRES[c] || []).push({ code: p, source: source });
+        (REQUIRED_BY[p] = REQUIRED_BY[p] || []).push({ code: c, source: source });
+      });
     });
   }
   Object.keys(PREREQS.subjects).forEach(function (code) {
@@ -3819,6 +3884,10 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       NOTED[k] = 1;
       addRequirement(n.subject, [n.prereq], 'WSLSA advisor note');
     });
+  });
+  // the general order takes a pre-2027 subject in place of the 2027 subject that replaced it
+  PREREQS.sequences.forEach(function (seq) {
+    seq.first = seq.first.reduce(function (all, c) { sameAs(c).forEach(function (q) { if (all.indexOf(q) < 0) all.push(q); }); return all; }, []);
   });
   function followsSequence(code, seq) { return code.indexOf(seq.then.area + ' ') === 0 && seq.then.levels.indexOf(+code.charAt(5)) >= 0; }
   // what a subject leads back to and on to, across the whole chain, limited to subjects in this plan
@@ -4545,10 +4614,53 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     const whole = o.scope === 'whole';
     const began = ctx.custom && ctx.plan.start ? firstOpenIdx(ctx.plan.start) : 0;
     const shift = o.intake === planIntake(ctx) ? 0 : o.intake === 'Spring' ? 1 : -1;
-    const rows = ctx.slots.map(function (s, i) {
+    let rows = ctx.slots.map(function (s, i) {
       const locked = !whole && (s.done || places[s.id] < began);
       return { s: s, slot: base[i], code: s.pending ? '' : s.code, cp: s.cp, order: i, shown: places[s.id], from: orderIdx(base[i].y, base[i].s), locked: locked, k: locked ? shiftStudy(places[s.id], shift) : -1 };
     });
+    // a subject whose pre-2027 or 2027 equivalent is passed is not needed again: it goes when the plan has the
+    // credit points to spare, and otherwise becomes an open slot
+    const tplKey = ctx.custom ? ctx.plan.tpl : ctx.key;
+    const llb = tplKey ? PATH[tplKey].find(function (r) { return r.kind === 'llb'; }) : null;
+    const asSlot = function (r, raw, code) {
+      r.code = code;
+      r.slot = Object.assign({}, r.slot, { code: code, title: '', o: raw ? raw.id : '' });
+      const shape = raw ? { kind: raw.kind, pool: raw.pool, options: raw.options, title: raw.title } : { kind: 'open', pool: null, options: null, title: '' };
+      r.s = Object.assign({}, r.s, r.s.kind === 'cslot' ? { raw: shape, orig: raw } : { kind: shape.kind, raw: raw || shape });
+    };
+    const passed = {};
+    rows.forEach(function (r) { if (r.s.done && r.code) sameAs(r.code).forEach(function (c) { if (c !== r.code) passed[c] = r.code; }); });
+    const dropped = [];
+    let spareCP = rows.reduce(function (a, r) { return a + r.cp; }, 0) - (ctx.custom ? ctx.plan.cp : deg.cp);
+    rows = rows.filter(function (r) {
+      if (r.locked || r.s.done || !r.code || !passed[r.code]) return true;
+      dropped.push({ code: r.code, by: passed[r.code] });
+      if (spareCP >= r.cp) { spareCP -= r.cp; return false; }
+      asSlot(r, null, '');
+      return true;
+    });
+    // the pre-2027 structure has LLB Alternate slots where the 2027 structure has LAWS 2019, LAWS 3099 and LAWS 3102
+    const converted = [];
+    const restored = [];
+    if (o.cohort === 'pre2027') {
+      rows.forEach(function (r) {
+        if (r.locked || r.s.done || NEW_2027_CORES.indexOf(r.code) < 0) return;
+        converted.push(r.code);
+        asSlot(r, llb, '');
+      });
+    } else if (ctx.custom && cohortOf(ctx.plan) === 'pre2027' && tplKey && llb) {
+      const held = {};
+      rows.forEach(function (r) { if (r.code) held[r.code] = 1; });
+      const isLLB = {};
+      PATH[tplKey].forEach(function (r) { if (r.kind === 'llb') isLLB[r.id] = 1; });
+      const spare = rows.filter(function (r) { return !r.locked && !r.s.done && !r.code && isLLB[r.slot.o]; }).reverse();
+      NEW_2027_CORES.forEach(function (code) {
+        const raw = PATH[tplKey].find(function (x) { return x.code === code; });
+        if (!raw || held[code] || !spare.length) return;
+        restored.push(code);
+        asSlot(spare.shift(), raw, code);
+      });
+    }
     const lastLocked = rows.reduce(function (m, r) { return r.locked ? Math.max(m, r.k) : m; }, -1);
     const floor = whole ? 0 : Math.max(lastLocked + 1, firstOpenIdx(o.start));
     let first = studyIdx(Math.max(floor, o.intake === 'Spring' ? 1 : 0));
@@ -4609,7 +4721,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       fast.gain = studyNo(plainEnd) - studyNo(lastOf());
     }
     const end = lastOf();
-    return { rows: rows, todo: todo, first: first, loa: loa, unplaced: left, forced: forced, fast: fast, finishK: end, finishLabel: end < 0 ? 'No subjects yet' : termName(o.start + Math.floor(end / 3), PLAN_SESSIONS[end % 3]) };
+    return { rows: rows, todo: todo, first: first, loa: loa, unplaced: left, forced: forced, fast: fast, converted: converted, restored: restored, dropped: dropped, finishK: end, finishLabel: end < 0 ? 'No subjects yet' : termName(o.start + Math.floor(end / 3), PLAN_SESSIONS[end % 3]) };
   }
   // Tries to clear the last session, twice at most: first into room already free, then LLB Alternates and
   // electives into a Summer session, then by moving one of those from an earlier session into Summer to make
@@ -4689,7 +4801,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     const slots = res.rows.slice().sort(function (a, b) { return a.k - b.k || a.order - b.order; }).map(function (r) {
       return Object.assign({}, r.slot, { y: Math.floor(r.k / 3) + 1, s: PLAN_SESSIONS[r.k % 3] });
     });
-    return sanitiseCustom(Object.assign(head, { start: o.start === START_YEAR ? 0 : o.start, pace: o.load, slots: slots }));
+    return sanitiseCustom(Object.assign(head, { start: o.start === START_YEAR ? 0 : o.start, pace: o.load, cohort: o.cohort, slots: slots }));
   }
   function paceSummary(res, o) {
     const rest = res.todo.reduce(function (a, r) { return a + r.cp; }, 0);
@@ -4711,7 +4823,12 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   function sessionsApart(n) { return n === 0 ? 'the same finish' : plural(Math.abs(n), 'session') + (n > 0 ? ' later' : ' earlier'); }
   // a change a student could already make with the dock's two buttons: a view, not a new plan
   function paceIsView(ctx, o) {
-    return o.scope === 'whole' && (o.load === 20 || o.load === 40) && !o.loa && !o.fast && o.intake === planIntake(ctx) && o.start === planStart() && !(ctx.custom && ctx.plan.pace);
+    return o.scope === 'whole' && (o.load === 20 || o.load === 40) && !o.loa && !o.fast && o.intake === planIntake(ctx) && o.start === planStart() && o.cohort === planCohort(ctx) && !(ctx.custom && ctx.plan.pace);
+  }
+  // the structure a plan follows: a custom plan says, and otherwise it goes by the year Year 1 begins
+  function planCohort(ctx, start) {
+    if (ctx.custom && ctx.plan.cohort) return ctx.plan.cohort;
+    return startCohort(start || planStart());
   }
   function lastIn(ctx, load) {
     const years = timeline(ctx, load);
@@ -4727,7 +4844,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     const canSpring = !ctx.deg.intakeList.length || ctx.deg.intakeList.indexOf('Spring') >= 0;
     ui.repace = {
       scope: ctx.doneCP > 0 ? 'remaining' : 'whole', load: init && init.load ? init.load : now === 40 ? 20 : 40,
-      loa: false, intake: planIntake(ctx), start: planStart(), fast: false, summer: true, overload: true,
+      loa: false, intake: planIntake(ctx), start: planStart(), fast: false, summer: true, overload: true, cohort: planCohort(ctx), cohortSet: false,
     };
     const years = [];
     for (let yr = Math.min(planStart(), START_YEAR - 8); yr <= Math.max(planStart(), START_YEAR + 2); yr++) years.push(yr);
@@ -4752,7 +4869,9 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       '<div class="field rp-year"><label for="rp-start">Year 1 begins in</label><div class="select-wrap"><select id="rp-start">' + years.map(function (yr) {
         return '<option value="' + yr + '"' + (yr === ui.repace.start ? ' selected' : '') + '>' + yr + '</option>';
       }).join('') + '</select></div></div></div>' +
-      (canSpring ? '' : '<p class="cs-derived">' + esc(ctx.deg.code) + ' has an Autumn intake only.</p>') + '</fieldset>' +
+      (canSpring ? '' : '<p class="cs-derived">' + esc(ctx.deg.code) + ' has an Autumn intake only.</p>') +
+      cohortSet('rp-cohort', ui.repace.cohort) +
+      '<p class="cs-derived">Started before 2027? The pre-2027 structure leaves out LAWS 2019, LAWS 3099 and LAWS 3102 and has three more LLB Alternate slots.</p></fieldset>' +
       '<fieldset><legend><span class="idx">04→</span>Finish earlier</legend><div class="rp-row"><button type="button" class="tbtn tbtn-outline" data-action="rp-fast" aria-pressed="false">Fast-Track Remaining</button>' +
       '<p class="cs-derived rp-fast-note">Sets the full-time load, then looks for a finish one or two sessions earlier.</p></div>' +
       '<div class="rp-fast-opts" id="rp-fast-opts" hidden><label class="check-row"><input type="checkbox" id="rp-summer" checked><span>Move LLB Alternates and electives into a Summer session (up to ' + SUMMER_CP + ' CP each)</span></label>' +
@@ -4767,6 +4886,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     if (!o || !$('#rp-preview')) return;
     document.querySelectorAll('[data-action="rp-load"]').forEach(function (b) { b.setAttribute('aria-pressed', String(+b.dataset.v === o.load)); });
     document.querySelectorAll('[data-action="rp-intake"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === o.intake)); });
+    document.querySelectorAll('input[name="rp-cohort"]').forEach(function (r) { r.checked = r.value === o.cohort; });
     document.querySelectorAll('input[name="rp-scope"]').forEach(function (r) { r.checked = r.value === o.scope; });
     $('[data-action="rp-fast"]').setAttribute('aria-pressed', String(o.fast));
     $('#rp-fast-opts').hidden = !o.fast;
@@ -4813,6 +4933,9 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
         parts.push('<p class="pick-hint">Fast-Track found no earlier finish with these settings.</p>');
       }
     }
+    if (res.converted.length) parts.push('<p class="pick-hint"><b>Pre-2027 structure:</b> ' + esc(res.converted.join(', ')) + (res.converted.length === 1 ? ' becomes an LLB Alternate slot.' : ' become LLB Alternate slots.') + '</p>');
+    if (res.restored.length) parts.push('<p class="pick-hint"><b>2027 structure:</b> ' + esc(res.restored.join(', ')) + (res.restored.length === 1 ? ' takes the place of an open LLB Alternate slot.' : ' take the place of open LLB Alternate slots.') + '</p>');
+    if (res.dropped.length) parts.push('<p class="pick-hint">' + res.dropped.map(function (d) { return esc(d.code) + ' is not needed, as ' + esc(d.by) + ' counts for it'; }).join('. ') + '.</p>');
     const unsure = res.todo.filter(function (r) { return r.code && r.runs.unsure; }).map(function (r) { return r.code; });
     if (unsure.length) parts.push('<p class="pick-hint"><b>Check the Handbook:</b> ' + esc(unsure.join(', ')) + (unsure.length === 1 ? ' has' : ' have') + ' no published 2027 session, so each stays in the session type it was planned for.</p>');
     const late = res.todo.filter(function (r) { return PHASE_YEAR[r.code] && r.k >= 0 && o.start + Math.floor(r.k / 3) > PHASE_YEAR[r.code]; });
@@ -5961,6 +6084,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   }
   function openSetup(opts) {
     opts = opts || {};
+    ui.cohortPicked = !!(state.custom && state.custom.cohort && (opts.start || 'keep') === 'keep');
     const plan = state.custom;
     const start = opts.start || (plan ? 'keep' : 'blank');
     const key = opts.tpl || (plan && plan.tpl) || currentKey();
@@ -5988,7 +6112,9 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       '<div class="setup-row"><p class="cs-derived">Already studying? Choose the year you started, so Year 1 is that year and your plan shows your past years. Import my progress sets this from your results.</p>' +
       '<div class="field"><label for="cs-year">Year you started</label><div class="select-wrap"><select id="cs-year">' + years.map(function (yr) {
         return '<option value="' + yr + '"' + (yr === began ? ' selected' : '') + '>' + yr + (yr === START_YEAR ? ' (new students)' : '') + '</option>';
-      }).join('') + '</select></div></div></div></fieldset>' +
+      }).join('') + '</select></div></div></div>' +
+      cohortSet('cs-cohort', start === 'keep' && plan.cohort ? plan.cohort : startCohort(began)) +
+      '<p class="cs-derived">Started before 2027? A 2027 pathway copied in under the pre-2027 structure leaves out LAWS 2019, LAWS 3099 and LAWS 3102 and has three more LLB Alternate slots.</p></fieldset>' +
       '<fieldset><legend><span class="idx">02→</span>Credit points the degree requires</legend><div class="cp-row">' +
       '<div class="segmented cp-presets" role="group" aria-label="Common totals">' + CP_PRESETS.map(function (c) { return '<button type="button" data-action="cs-cp" data-v="' + c + '" aria-pressed="' + (c === cp) + '">' + c + '</button>'; }).join('') + '</div>' +
       '<div class="field cp-field"><label for="cs-cp">Exact total (CP)</label><input class="input" id="cs-cp" type="number" min="10" max="' + MAX_CP + '" step="10" inputmode="numeric" value="' + cp + '"></div></div>' +
@@ -6039,11 +6165,16 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     const prev = state.custom;
     const filled = prev ? prev.slots.filter(function (x) { return x.code; }).length : 0;
     if (filled && start !== 'keep' && !window.confirm('Start again? This replaces the ' + plural(filled, 'subject') + ' in your current custom plan.')) return;
-    const plan = { name: $('#cs-name').value.trim().slice(0, 120), code: $('#cs-code').value.trim().slice(0, 16), cp: clampCP(cpRaw), tpl: '', start: 0, pace: 0, slots: [] };
+    const plan = { name: $('#cs-name').value.trim().slice(0, 120), code: $('#cs-code').value.trim().slice(0, 16), cp: clampCP(cpRaw), tpl: '', start: 0, pace: 0, cohort: '', slots: [] };
     if (start === 'keep' && prev) { plan.tpl = prev.tpl; plan.slots = prev.slots; plan.pace = prev.pace; }
     else if (start === 'template') { plan.tpl = $('#cs-tpl-major').value; plan.slots = templateSlots(plan.tpl, $('#cs-tpl-mine').checked); }
     const began = +$('#cs-year').value;
     plan.start = began < START_YEAR ? began : 0;
+    const cohort = $('#cs-cohort-pre2027').checked ? 'pre2027' : '2027';
+    plan.cohort = cohort === startCohort(plan.start) ? '' : cohort;
+    // a 2027 pathway copied in, or a plan kept, moves to the structure chosen
+    const was = start === 'keep' && prev ? cohortOf(prev) : '2027';
+    if (plan.tpl && cohort !== was) plan.slots = restructure(plan.tpl, plan.slots, cohort);
     fitToCP(plan);
     noteChange(summerY ? 'added Year ' + summerY + ' Summer' : start === 'keep' ? 'edited your custom plan' : 'started a new custom plan');
     const addSummer = summerY && plan.slots.length < MAX_SLOTS && !plan.slots.some(function (x) { return x.y === summerY && x.s === 'Summer'; });
@@ -6195,7 +6326,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
         const words = line.slice(re.lastIndex).trim().split(/\s+/);
         const res = code && rowResult(words, audit);
         // zero credit point modules (the academic integrity module) are not part of a plan
-        if (!res || (res.cp === 0 && res.status === 'done')) continue;
+        if (!res || (res.cp === 0 && !GLOBAL_BY_CODE[code])) continue;
         const before = line.slice(0, m.index + m[1].length);
         const term = rowTerm(lines, li, before, words) || last;
         last = term;
@@ -6244,10 +6375,18 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     let name = '';
     let m = /Program\s+(.+?)\s*\((\d{4})\)/.exec(text);
     if (m) { name = m[1]; code = m[2]; }
-    else if ((m = /\b(\d{4})\s*-\s*((?:Bachelor|Master|Graduate|Diploma|Associate)[^\n]*)/.exec(text))) { code = m[1]; name = m[2]; }
+    else {
+      // "2785 - Bachelor of ...", or without the dash for a course that is one of the guides (a year can come first too)
+      const re = /\b(\d{4})(\s*[-–]\s*|\s+)((?:Bachelor|Master|Graduate|Diploma|Associate)[^\n]*)/g;
+      while ((m = re.exec(text))) {
+        if (/[-–]/.test(m[2]) || DEG[m[1]]) { code = m[1]; name = m[3]; break; }
+      }
+    }
     const major = (/\bMajor\s+(.+?)\s+(?:Minor|Program)\b/.exec(text) || [])[1] || '';
     const cp = /Credit points required:\s*(\d+)/i.exec(text) || /Total Credit Points Required\s+(\d+)/i.exec(text);
-    return { code: code, name: name.trim(), major: /^no major$/i.test(major) ? '' : major.trim(), cp: cp ? +cp[1] : 0 };
+    // the Handbook year the requirements come from: "Catalogue Term: 2024 AUTUMN", or "Catalogue Term 202430"
+    const cat = /Catalogu?e Term:?\s*(20\d\d)/i.exec(text);
+    return { code: code, name: name.trim(), major: /^no major$/i.test(major) ? '' : major.trim(), cp: cp ? +cp[1] : 0, catalogue: cat ? +cat[1] : 0 };
   }
   function pdfProgress(lines) {
     const text = lines.join('\n');
@@ -6370,19 +6509,21 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       return items;
     });
   }
+  function readPdfs(list) {
+    const pdfs = Array.from(list || []);
+    if (pdfs.length === 1 && (/\.json$/i.test(pdfs[0].name) || pdfs[0].type === 'application/json')) { restoreBackup(pdfs[0]); return; }
+    pdfs.reduce(function (chain, f) { return chain.then(function () { return readPdf(f); }); }, Promise.resolve());
+  }
   function readPdf(file) {
     const job = ui.importJob = (ui.importJob || 0) + 1;
     const live = function () { return ui.modal === 'progress' && ui.importJob === job; };
-    if (/\.json$/i.test(file.name) || file.type === 'application/json') { restoreBackup(file); return; }
     if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') {
       progressStatus('That file is not a PDF. Save your Degree Works audit or Subject Results page as a PDF, then choose it here.', 'error');
-      return;
+      return Promise.resolve();
     }
-    ui.progress = null;
-    renderProgress();
     progressStatus('Opening ' + file.name + '…', 'busy');
     let ocr = null;
-    Promise.all([loadPdfReader(), file.arrayBuffer()]).then(function (r) {
+    return Promise.all([loadPdfReader(), file.arrayBuffer()]).then(function (r) {
       return r[0].getDocument({ data: new Uint8Array(r[1]), isEvalSupported: false }).promise;
     }).then(function (doc) {
       const n = Math.min(doc.numPages, PDF_MAX_PAGES);
@@ -6409,7 +6550,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       }
       return chain.then(function () { doc.destroy(); return lines; }, function (e) { doc.destroy(); throw e; });
     }).then(function (lines) {
-      if (live()) showProgress(pdfProgress(lines));
+      if (live()) addProgressFile(file.name, pdfProgress(lines));
     }).catch(function (e) {
       if (e === STALE || !live()) return;
       progressStatus(e.lib ? 'The PDF reader could not load. Check your internet connection and try again.' :
@@ -6440,21 +6581,30 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   const PHASE_YEAR = {};
   PHASE_OUT.forEach(function (p) { p[1].forEach(function (s) { PHASE_YEAR[s[0]] = p[0]; }); });
   // the session type a subject runs in, when the 2027 guides offer it in only one
-  function offeredIn(code) {
-    const e = GLOBAL_BY_CODE[code];
-    if (!e) return '';
-    const a = !parseOffered(e.autumn).none;
-    const s = !parseOffered(e.spring).none;
-    return a && !s ? 'Autumn' : s && !a ? 'Spring' : '';
+  function offeredIn(code) { return runsIn([code]); }
+  // the session type a set of subjects runs in, when every one of them runs only in that one
+  function runsIn(codes) {
+    const runs = {};
+    codes.forEach(function (code) {
+      const e = GLOBAL_BY_CODE[code];
+      if (!e) { runs.Autumn = runs.Spring = 1; return; }
+      if (!parseOffered(e.autumn).none) runs.Autumn = 1;
+      if (!parseOffered(e.spring).none) runs.Spring = 1;
+    });
+    return runs.Autumn && !runs.Spring ? 'Autumn' : runs.Spring && !runs.Autumn ? 'Spring' : '';
   }
-  // Builds a custom plan from a PDF, based on the student's WSLSA pathway when the PDF's course is one
-  // of the guides. History keeps its real sessions, with Year 1 the year the student started. Each
-  // subject is tied to the pathway slot it fills: the same code, the pathway subject a Degree Works
-  // requirement names (ECON 2002 counted for Corporate Finance (UG) shows as replacing FINC 2003), or a
-  // choice whose list includes it. What is left comes from the audit's Still needed lists, or, without
-  // them, from the pathway slots not yet filled, and is laid out from the next session at 40 CP a
-  // session, subjects being phased out first. Open slots then make up any credit points still missing.
-  function buildProgress(info) {
+  // Builds a custom plan from a student's PDFs, based on their WSLSA pathway when the course is one of the guides.
+  // History keeps its real sessions, with Year 1 the year the student started. Each subject is tied to the pathway
+  // slot it fills: the same code, its pre-2027 or 2027 equivalent (LAWS 1009 fills Legal Methods), the pathway
+  // subject a Degree Works requirement names, or a choice whose list includes it, where a choice that stands for a
+  // whole list takes anything on that list, and a subject on two lists fills the narrower one first. What is left
+  // comes from the audit's Still needed lists when the audit follows the structure the student has chosen, or from
+  // the pathway slots not yet filled. A student who started before 2027 follows the pre-2027 structure: the three
+  // core subjects new in 2027 are LLB Alternate slots instead, and a pre-2027 subject still needed shows as the 2027
+  // subject that replaces it. The rest is laid out from the next session at 40 CP a session, subjects being phased
+  // out first, and open slots then make up any credit points still missing.
+  function buildProgress(info, opts) {
+    opts = opts || {};
     const deg = DEG[info.code] || null;
     let tpl = '';
     if (deg) {
@@ -6463,12 +6613,18 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     }
     const tdeg = tpl ? DEG[tpl.split('|')[0]] : null;
     const tctx = { deg: tdeg || BLANK_DEG, custom: false, slots: tpl ? PATH[tpl].map(function (raw) { return resolveSlot(raw, tdeg, OPT[tpl], {}, {}); }) : [] };
-    const history = info.found.filter(function (f) { return f.status !== 'failed' && f.term; });
+    const history = info.found.filter(function (f) { return f.status !== 'failed' && f.term && f.cp > 0; });
     if (!history.length) return null;
+    const start = Math.min.apply(null, history.map(function (f) { return f.term.year; }));
+    const began = info.catalogue ? Math.min(info.catalogue, start) : start;
+    const detected = began < START_YEAR ? 'pre2027' : '2027';
+    const cohort = opts.cohort || detected;
+    const pre = cohort === 'pre2027';
     const had = {};
-    history.forEach(function (f) { had[f.code] = 1; });
+    history.forEach(function (f) { sameAs(f.code).forEach(function (c) { had[c] = 1; }); });
     const used = {};
     const link = {};
+    const counted = [];
     const take = function (code, s) { used[s.id] = 1; link[code] = s; };
     const fixed = tctx.slots.filter(function (s) { return !s.pending && s.code; });
     history.forEach(function (f) {
@@ -6476,10 +6632,19 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       if (s) take(f.code, s);
     });
     history.forEach(function (f) {
+      if (link[f.code]) return;
+      const s = fixed.find(function (x) { return !used[x.id] && x.code !== f.code && sameAs(f.code).indexOf(x.code) >= 0; });
+      if (!s) return;
+      take(f.code, s);
+      counted.push({ from: f.code, to: s.code });
+    });
+    history.forEach(function (f) {
       const s = !link[f.code] && f.label && fixed.find(function (x) { return !used[x.id] && !had[x.code] && normQ(x.title) === normQ(f.label); });
       if (s) take(f.code, s);
     });
-    const open = tctx.slots.filter(function (s) { return s.pending; }).map(function (s) { return choiceList(tctx, s); }).filter(function (c) { return c.rank != null; });
+    const listSlot = function (s) { return s.kind === 'inline' && !!choiceComponent(tctx.deg, s.raw); };
+    const open = tctx.slots.filter(function (s) { return !used[s.id] && (s.pending || (listSlot(s) && !had[s.code])); })
+      .map(function (s) { return choiceList(tctx, s, true); }).filter(function (c) { return c.rank != null; });
     history.filter(function (f) { return !link[f.code]; }).map(function (f) {
       return { f: f, fits: open.filter(function (c) { return c.codes[f.code]; }).sort(function (a, b) { return a.rank - b.rank || a.at - b.at; }) };
     }).filter(function (x) { return x.fits.length; }).sort(function (a, b) { return a.fits.length - b.fits.length; }).forEach(function (x) {
@@ -6487,21 +6652,28 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       if (c) take(x.f.code, c.s);
     });
 
-    const start = Math.min.apply(null, history.map(function (f) { return f.term.year; }));
+    const inProgressDone = opts.inProgressDone !== false;
     const slots = history.map(function (f) {
       const known = GLOBAL_BY_CODE[f.code] || EXTRA_BY_CODE[f.code];
-      return { y: f.term.year - start + 1, s: f.term.session, code: f.code, title: known ? '' : (f.title || f.code).slice(0, 140), cp: f.cp, o: link[f.code] ? link[f.code].id : '', done: f.status === 'done' };
+      return { y: f.term.year - start + 1, s: f.term.session, code: f.code, title: known ? '' : (f.title || f.code).slice(0, 140), cp: f.cp, o: link[f.code] ? link[f.code].id : '', done: f.status === 'done' || (inProgressDone && f.status === 'progress') };
     });
+    const llbId = (tctx.slots.find(function (s) { return s.kind === 'llb'; }) || {}).id || '';
     const rest = [];
-    const fromAudit = !!(info.needed && info.needed.length);
+    // an audit lists what the student still needs under the structure of its own catalogue term
+    const auditPre = (info.catalogue || start) < START_YEAR;
+    const hasNeeded = !!(info.needed && info.needed.length);
+    const fromAudit = hasNeeded && auditPre === pre;
     if (fromAudit) {
       info.needed.forEach(function (r) {
         if (r.codes.length === 1 && !r.any && r.count === 1) {
-          const code = r.codes[0];
+          let code = r.codes[0];
           if (had[code]) return;
+          // a pre-2027 subject still needed shows as the 2027 subject that replaces it, with a note on its card
+          const was = LEGACY_EQUIVALENTS[code] ? code : '';
+          if (was) code = LEGACY_EQUIVALENTS[was];
           const t = fixed.find(function (x) { return x.code === code && !used[x.id]; });
           if (t) used[t.id] = 1;
-          rest.push({ code: code, cp: GLOBAL_BY_CODE[code] ? GLOBAL_BY_CODE[code].cp : r.cp, o: t ? t.id : '', sess: t ? t.session : offeredIn(code) });
+          rest.push({ code: code, was: was, first: PHASE_YEAR[was || code], cp: GLOBAL_BY_CODE[code] ? GLOBAL_BY_CODE[code].cp : r.cp, o: t ? t.id : '', sess: t ? t.session : offeredIn(code) });
           return;
         }
         // a list to choose from becomes open slots tied to the pathway choice that shares most of the list,
@@ -6515,39 +6687,84 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
         }
       });
     } else {
-      tctx.slots.forEach(function (s) { if (!used[s.id]) rest.push({ code: s.pending ? '' : s.code, cp: s.cp, o: s.id, sess: s.session }); });
+      tctx.slots.forEach(function (s) {
+        if (used[s.id]) return;
+        // passed already, or its pre-2027 or 2027 equivalent was
+        if (!s.pending && had[s.code]) return;
+        if (pre && NEW_2027_CORES.indexOf(s.code) >= 0) { rest.push({ code: '', cp: s.cp, o: llbId, sess: '', newCore: s.code }); return; }
+        // a 2027 subject that replaces a pre-2027 one the student has not passed
+        const was = pre && !s.pending && LEGACY_OF[s.code] && !had[LEGACY_OF[s.code]] ? LEGACY_OF[s.code] : '';
+        // an open choice can go in any session its options run in
+        rest.push({ code: s.pending ? '' : s.code, was: was, cp: s.cp, o: s.id, sess: s.pending ? (s.kind === 'inline' ? runsIn(s.raw.options.map(function (x) { return x.code; })) : '') : s.session });
+      });
     }
     const cp = clampCP(info.cp || (tdeg ? tdeg.cp : 0) || slots.concat(rest).reduce(function (a, x) { return a + x.cp; }, 0));
     for (let have = slots.concat(rest).reduce(function (a, x) { return a + x.cp; }, 0); have < cp; have += 10) rest.push({ code: '', cp: 10, o: '', sess: '' });
-    rest.sort(function (a, b) { return (PHASE_YEAR[a.code] || 9999) - (PHASE_YEAR[b.code] || 9999); });
+    rest.sort(function (a, b) { return (a.first || 9999) - (b.first || 9999); });
 
     const first = Math.max(slots.reduce(function (m, x) { return Math.max(m, orderIdx(x.y, x.s)); }, -1) + 1, firstOpenIdx(start));
     const load = {};
-    rest.forEach(function (r) {
+    // named subjects first, in order, and open slots then fill the room they leave
+    rest.filter(function (r) { return r.code; }).concat(rest.filter(function (r) { return !r.code; })).forEach(function (r) {
       let k = first;
       while (PLAN_SESSIONS[k % 3] === 'Summer' || (r.sess && PLAN_SESSIONS[k % 3] !== r.sess) || (load[k] && load[k] + r.cp > LOAD_CP.FT)) k++;
       load[k] = (load[k] || 0) + r.cp;
       slots.push({ y: Math.floor(k / 3) + 1, s: PLAN_SESSIONS[k % 3], code: r.code, title: '', cp: r.cp, o: r.o, done: false });
     });
-    const plan = sanitiseCustom({ name: tdeg ? tdeg.title : info.name || 'My degree', code: tdeg ? tdeg.code : info.code, cp: cp, tpl: tpl, start: start, slots: slots });
+    const plan = sanitiseCustom({ name: tdeg ? tdeg.title : info.name || 'My degree', code: tdeg ? tdeg.code : info.code, cp: cp, tpl: tpl, start: start, cohort: cohort, slots: slots });
     fitToCP(plan);
     const later = plan.slots.filter(function (x) { return orderIdx(x.y, x.s) >= first; });
     const next = later.reduce(function (m, x) { return Math.min(m, orderIdx(x.y, x.s)); }, Infinity);
     return {
-      info: info, plan: plan, tpl: tpl, tdeg: tdeg, start: start, fromAudit: fromAudit, history: history, rest: later,
+      info: info, plan: plan, tpl: tpl, tdeg: tdeg, start: start, began: began, cohort: cohort, detected: detected,
+      fromAudit: fromAudit, auditSetAside: hasNeeded && !fromAudit, history: history, rest: later,
+      counted: counted, swapped: rest.filter(function (r) { return r.was; }), newCores: rest.filter(function (r) { return r.newCore; }).map(function (r) { return r.newCore; }),
       next: next < Infinity ? termName(start + Math.floor(next / 3), PLAN_SESSIONS[next % 3]) : '',
       failed: info.found.filter(function (f) { return f.status === 'failed'; }),
     };
   }
+  // one record from several PDFs, such as a Subject Results page and a Degree Works audit: each subject once, with
+  // its best status and the term it was taken, and the audit's degree, catalogue term and Still needed lists
+  function mergeProgress(list) {
+    if (!list.length) return null;
+    if (list.length === 1) return list[0].info;
+    // the audit added last is the most recent one
+    const audit = list.map(function (x) { return x.info; }).filter(function (i) { return i.audit; }).pop();
+    const base = audit || list[0].info;
+    const out = Object.assign({}, base, {
+      kind: list.map(function (x) { return x.info.kind; }).filter(function (k, i, all) { return all.indexOf(k) === i; }).join(' and '),
+      needed: audit ? audit.needed : null, found: [],
+    });
+    ['code', 'name', 'major', 'cp', 'catalogue'].forEach(function (k) {
+      if (out[k]) return;
+      const other = list.map(function (x) { return x.info[k]; }).filter(Boolean)[0];
+      if (other) out[k] = other;
+    });
+    const best = {};
+    const order = [];
+    list.forEach(function (x) {
+      x.info.found.forEach(function (f) {
+        const prev = best[f.code];
+        if (!prev) { best[f.code] = Object.assign({}, f); order.push(f.code); return; }
+        if (STATUS_RANK[f.status] > STATUS_RANK[prev.status] || (STATUS_RANK[f.status] === STATUS_RANK[prev.status] && !prev.term && f.term)) {
+          best[f.code] = Object.assign({}, f, { label: f.label || prev.label, title: f.title || prev.title });
+        } else if (!prev.label && f.label) prev.label = f.label;
+      });
+    });
+    out.found = order.map(function (c) { return best[c]; });
+    return out;
+  }
   function openProgress() {
     ui.modal = 'progress';
     ui.progress = null;
+    ui.progressFiles = [];
+    ui.progressOpts = {};
     showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="progress-h">' +
-      '<div class="modal-head"><div><h2 id="progress-h">Import my progress</h2><p>Add your Degree Works audit or Subject Results page as a PDF and your plan is rebuilt from it: the subjects you have completed or are studying go in the sessions you took them, and what you still need is laid out from your next session, ready for you to change. Grades and marks are never shown or kept, and your file stays in this browser.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
+      '<div class="modal-head"><div><h2 id="progress-h">Import my progress</h2><p>Add your Degree Works audit, your Subject Results page or both as PDFs and your plan is rebuilt from them: the subjects you have completed or are studying go in the sessions you took them, and what you still need is laid out from your next session, ready for you to change. Grades and marks are never shown or kept, and your file stays in this browser.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
       '<div class="modal-body import-body">' +
-      '<div class="import-drop" id="progress-drop"><input type="file" id="progress-file" accept="application/pdf,.pdf,application/json,.json" hidden>' +
-      '<button type="button" class="btn btn-primary" data-action="progress-file">Choose a file</button>' +
-      '<p><b>Degree Works audit or Subject Results page</b>Save either one as a PDF (Print, then Save as PDF), then choose it here or drop it on this box. Your audit also lists what you still need, so it gives the most accurate plan. A plan backup (.json) goes here too, and restores everything in one step.</p></div>' +
+      '<div class="import-drop" id="progress-drop"><input type="file" id="progress-file" accept="application/pdf,.pdf,application/json,.json" multiple hidden>' +
+      '<button type="button" class="btn btn-primary" data-action="progress-file" id="progress-choose">Choose files</button>' +
+      '<p><b>Degree Works audit and Subject Results page</b>Save either one as a PDF (Print, then Save as PDF), then choose it here or drop it on this box. Add both and they are read together: your Subject Results page gives every result, and your audit adds the subjects you are studying now and what you still need. A plan backup (.json) goes here too, and restores everything in one step.</p></div>' +
       '<p class="import-status" id="progress-status" role="status" hidden></p>' +
       '<div id="progress-results"></div></div>' +
       '<div class="modal-foot"><span class="small muted">Import again whenever you have new results.</span><div style="display:flex;gap:8px;flex-wrap:wrap">' +
@@ -6555,11 +6772,21 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       '<button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="button" class="btn btn-primary" data-action="progress-apply" id="progress-apply" disabled>Build my plan</button></div></div></div></div>');
     lockScroll();
   }
-  function showProgress(info) {
-    ui.progress = buildProgress(info);
+  // each PDF read joins the ones before it; one with the same file name takes its place
+  function addProgressFile(name, info) {
+    ui.progressFiles = (ui.progressFiles || []).filter(function (f) { return f.name !== name; }).concat([{ name: name, info: info }]);
+    showProgress();
+  }
+  function showProgress() {
+    const list = ui.progressFiles || [];
+    const info = mergeProgress(list);
+    ui.progress = info ? buildProgress(info, ui.progressOpts || {}) : null;
     renderProgress();
-    if (ui.progress) progressStatus('Read your ' + info.kind + '. Check what was found, then build your plan.', 'ok');
-    else progressStatus('No subjects with results were found in that ' + info.kind + '. Use your Degree Works audit or Subject Results page saved as a PDF.', 'error');
+    const kinds = list.length > 1 ? plural(list.length, 'file') + ' (' + info.kind + ')' : 'your ' + (info ? info.kind : 'file');
+    if (ui.progress) progressStatus('Read ' + kinds + '. Check what was found, then build your plan.', 'ok');
+    else if (info) progressStatus('No subjects with results were found in ' + (list.length > 1 ? 'those files' : 'that ' + info.kind) + '. Use your Degree Works audit or Subject Results page saved as a PDF.', 'error');
+    const choose = $('#progress-choose');
+    if (choose) choose.textContent = list.length ? 'Add another PDF' : 'Choose files';
   }
   function renderProgress() {
     const p = ui.progress;
@@ -6572,6 +6799,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     const done = p.history.filter(function (f) { return f.status === 'done'; });
     const now = p.history.filter(function (f) { return f.status === 'progress'; });
     const fact = function (n, label, list) { return '<div><b>' + n + '</b><span>' + label + ' <small>' + cpOf(list) + ' CP</small></span></div>'; };
+    const files = ui.progressFiles || [];
     const titleOf = function (f) { const k = GLOBAL_BY_CODE[f.code] || EXTRA_BY_CODE[f.code]; return k ? k.title : f.title; };
     const groups = {};
     p.history.forEach(function (f) {
@@ -6583,21 +6811,32 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     if (!p.tdeg) notes.push((p.info.code ? 'Course ' + esc(p.info.code) + ' is' : 'This degree is') + ' not one of the 2027 WSLSA guides, so your plan has no WSLSA pathway behind it.');
     else if (isCustom() ? state.custom.tpl.split('|')[0] !== p.tdeg.code : state.degree !== p.tdeg.code) notes.push('Your PDF is for ' + esc(p.tdeg.code + ' ' + p.tdeg.title) + ', so your plan follows that degree.');
     if (p.failed.length) notes.push(esc(p.failed.map(function (f) { return f.code; }).join(', ')) + (p.failed.length === 1 ? ' looks' : ' look') + ' like a fail or withdrawal, so ' + (p.failed.length === 1 ? 'it is' : 'they are') + ' left out.');
+    if (p.counted.length) notes.push('Counted for the 2027 subjects they match: ' + p.counted.map(function (c) { return esc(c.from) + ' for ' + esc(c.to); }).join(', ') + '.');
+    if (p.newCores.length) notes.push('Under the pre-2027 structure, ' + esc(p.newCores.join(', ')) + (p.newCores.length === 1 ? ' is' : ' are') + ' not part of your degree, so ' + plural(p.newCores.length, 'more LLB Alternate slot') + ' take their place.');
+    if (p.swapped.length) notes.push('Still needed and shown as the 2027 subject that replaces it: ' + p.swapped.map(function (r) { return esc(r.code) + ' for ' + esc(r.was) + (PHASE_YEAR[r.was] ? ' (last offered ' + PHASE_YEAR[r.was] + ')' : ''); }).join(', ') + '. Check with the School of Law which one to enrol in.');
+    if (p.auditSetAside) notes.push('Your audit lists what you still need under the ' + (p.cohort === 'pre2027' ? '2027' : 'pre-2027') + ' structure, so with the structure chosen here the rest follows the WSLSA 2027 pathway instead.');
     const filled = state.custom ? state.custom.slots.filter(function (x) { return x.code; }).length : 0;
     const first = Object.keys(groups).map(Number).sort(function (a, b) { return a - b; })[0];
+    const a = document.activeElement && document.activeElement.id;
     box.innerHTML =
+      (files.length > 1 ? '<p class="pp-files">Read together: ' + files.map(function (f) { return '<b>' + esc(f.name) + '</b> (' + esc(f.info.kind) + ')'; }).join(', ') + ' <button type="button" class="linkish" data-action="progress-reset">Start again</button></p>' : '') +
       '<div class="progress-head"><p class="kicker">Your degree</p><h3>' + esc(deg) + '</h3><p>Started ' + esc(groups[first].label) + ' · ' + p.plan.cp + ' CP required</p></div>' +
-      '<div class="progress-facts">' + fact(done.length, 'Completed', done) + fact(now.length, 'Studying now', now) + fact(p.rest.length, 'Still to plan', p.rest) + '</div>' +
-      '<p class="pick-hint">' + (p.fromAudit ? 'What you still need comes from the Still needed lists in your audit' : 'Your Subject Results page does not list what you still need, so the rest follows the WSLSA 2027 pathway. Your Degree Works audit lists it, so import that for a plan that matches your own requirements') +
+      cohortSet('pp-cohort', p.cohort, { [p.detected]: '(from your record: ' + (p.began < START_YEAR ? 'started ' : 'starting ') + p.began + ')' }) +
+      (now.length ? '<label class="check-row pp-inprogress"><input type="checkbox" id="pp-inprogress"' + ((ui.progressOpts || {}).inProgressDone !== false ? ' checked' : '') + '><span>Mark In-Progress subjects as completed/enrolled in their session</span></label>' : '') +
+      '<div class="progress-facts">' + fact(done.length, 'Completed', done) + fact(now.length, 'In progress', now) + fact(p.rest.length, 'Still to plan', p.rest) + '</div>' +
+      '<p class="pick-hint">' + (p.fromAudit ? 'What you still need comes from the Still needed lists in your audit'
+        : p.auditSetAside ? 'The rest follows the WSLSA 2027 pathway' + (p.cohort === 'pre2027' ? ' under the pre-2027 structure' : '')
+          : 'Your ' + esc(p.info.kind) + ' does not list what you still need, so the rest follows the WSLSA 2027 pathway' + (p.cohort === 'pre2027' ? ' under the pre-2027 structure' : '') + '. Your Degree Works audit lists it, so add that too for a plan that matches your own requirements') +
       (p.next ? ', laid out from ' + esc(p.next) + '. Choices stay open for you to fill.' : '.') + '</p>' +
       notes.map(function (n) { return '<p class="pick-hint">' + n + '</p>'; }).join('') +
       '<div class="pick-section"><h3><span>Your subjects so far</span><span>' + p.history.length + '</span></h3><div class="progress-sessions">' +
       Object.keys(groups).map(Number).sort(function (a, b) { return a - b; }).map(function (k) {
         return '<div class="ps-row"><span class="ps-when">' + esc(groups[k].label) + '</span><div class="chiplist">' + groups[k].list.map(function (f) {
-          return '<span class="chipbtn' + (f.status === 'progress' ? ' is-open' : '') + '"><code>' + esc(f.code) + '</code>' + esc(titleOf(f)) + (f.status === 'progress' ? ' <span>studying</span>' : '') + '</span>';
+          return '<span class="chipbtn' + (f.status === 'progress' ? ' is-open' : '') + '"><code>' + esc(f.code) + '</code>' + esc(titleOf(f)) + (f.status === 'progress' ? ' <span class="pp-badge">In Progress (' + f.term.year + ' ' + f.term.session + ')</span>' : '') + '</span>';
         }).join('') + '</div></div>';
       }).join('') + '</div></div>' +
       (filled ? '<p class="cs-warn">Building replaces your current custom plan and its ' + plural(filled, 'subject') + '.</p>' : '');
+    if (a && document.getElementById(a)) document.getElementById(a).focus({ preventScroll: true });
   }
   function applyProgress() {
     const p = ui.progress;
@@ -6611,7 +6850,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     const now = p.history.length - done;
     closeModal(true);
     renderEntering();
-    toast('Plan rebuilt from your ' + p.info.kind + ': ' + done + ' completed' + (now ? ', ' + now + ' under way' : '') + ' and ' + p.rest.length + ' still to plan.');
+    toast('Plan rebuilt from your ' + p.info.kind + ': ' + done + ' completed' + (now ? ', ' + now + ' in progress' : '') + ' and ' + p.rest.length + ' still to plan.');
     const head = $('.section-head');
     if (head) head.scrollIntoView({ behavior: scrollMode(), block: 'start' });
   }
@@ -6622,27 +6861,62 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   // to check, and a passed subject outside the plan fills the open choice whose list includes it.
   // Nothing pasted is stored or sent anywhere.
   const FAIL_MARK = /(^|[^A-Za-z])(F|FF|AF|FAIL|FAILED|W|WD|WN|WITHDRAWN|INCOMPLETE|DNS)(?![A-Za-z])/i;
+  // a grade with its credit points straight after a code ("D 10", or "NA (10)" for a subject in progress)
+  function gradeRow(words) {
+    for (let i = 0; i < words.length - 1; i++) {
+      const status = gradeStatus(words[i]);
+      if (!status || !RESULT_NUM.test(words[i + 1])) continue;
+      let j = i + 1;
+      while (j + 1 < words.length && RESULT_NUM.test(words[j + 1])) j++;
+      return { status: /^\(/.test(words[j]) ? 'progress' : status, cp: parseFloat(words[j].replace(/[()]/g, '')) };
+    }
+    return null;
+  }
   function parseResults(text) {
     const found = [];
     const seen = {};
-    String(text || '').split(/\r?\n/).forEach(function (line) {
+    const lines = String(text || '').split(/\r?\n/);
+    for (let li = 0; li < lines.length; li++) {
+      let line = lines[li];
+      // a Degree Works "Still needed" requirement is a list of what is still to do, and can run over several lines
+      if (/Still needed/i.test(line)) {
+        while (/\b(or|and)\s*$|,\s*$/i.test(line) && li + 1 < lines.length) line = lines[++li];
+        continue;
+      }
       const hits = [];
       const re = /(^|[^A-Za-z0-9])([A-Za-z]{4})\s?(\d{4})(?![0-9])/g;
       let m;
-      while ((m = re.exec(line))) hits.push({ code: m[2].toUpperCase() + ' ' + m[3], end: re.lastIndex, start: m.index });
+      while ((m = re.exec(line))) hits.push({ code: m[2].toUpperCase() + ' ' + m[3], end: re.lastIndex, start: m.index + m[1].length });
       hits.forEach(function (h, i) {
         if (seen[h.code]) return;
-        seen[h.code] = 1;
         // the grade belongs to the text between this code and the next one on the line
-        found.push({ code: h.code, status: FAIL_MARK.test(line.slice(h.end, i + 1 < hits.length ? hits[i + 1].start : line.length)) ? 'failed' : 'done' });
+        const tail = line.slice(h.end, i + 1 < hits.length ? hits[i + 1].start : line.length);
+        const before = line.slice(i ? hits[i - 1].end : 0, h.start);
+        // a code in a list of options ("LAWS 2005 or 2007") is something to choose from, not a result
+        if (/^\s*or(\s|$)/i.test(tail) || /(^|\s)or\s*$/i.test(before)) return;
+        const row = gradeRow(tail.trim().split(/\s+/));
+        // a 0 CP module (the academic integrity module) is not part of a degree
+        if (row && row.cp === 0 && !GLOBAL_BY_CODE[h.code]) return;
+        seen[h.code] = 1;
+        found.push({ code: h.code, status: row ? (row.status === 'failed' ? 'failed' : row.status) : FAIL_MARK.test(tail) ? 'failed' : 'done' });
       });
-    });
+    }
     return found;
   }
   // the subjects an open choice takes, which Import my progress also uses to tie history to the pathway
-  function choiceList(ctx, s) {
+  // a choice whose options all come from one list (in 2785, FINC 2002 is the Autumn option among the Alternate
+  // Accounting subjects) stands for that list: a subject already passed from the list counts for it
+  function choiceComponent(deg, raw) {
+    if (!raw || !raw.options || !raw.options.length || !deg.components) return '';
+    const comps = deg.components.filter(function (c) {
+      return c !== 'Core' && raw.options.every(function (o) { return (deg.byComp[c] || []).some(function (e) { return e.code === o.code; }); });
+    });
+    return comps.length === 1 ? comps[0] : '';
+  }
+  function choiceList(ctx, s, wide) {
     const k = ctx.custom ? (s.orig ? s.orig.kind : '') : s.kind;
-    const entries = ctx.custom ? (s.orig ? suggestionsFor(ctx, s) : []) : s.kind === 'inline' ? s.raw.options : s.kind === 'llb' || s.kind === 'pool' || s.kind === 'elective' ? poolEntries(ctx, s.raw) : [];
+    const listed = !ctx.custom && wide && s.kind === 'inline' ? choiceComponent(ctx.deg, s.raw) : '';
+    const entries = ctx.custom ? (s.orig ? suggestionsFor(ctx, s) : []) : listed ? ctx.deg.byComp[listed] : s.kind === 'inline' ? s.raw.options : s.kind === 'llb' || s.kind === 'pool' || s.kind === 'elective' ? poolEntries(ctx, s.raw) : [];
     const codes = {};
     entries.forEach(function (e) { codes[e.code] = e; });
     // the most specific choice first: a named option, then a pool, then LLB Alternates and electives
@@ -6653,13 +6927,16 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     ctx.slots.forEach(function (s) { if (!s.pending && s.code) (inPlan[s.code] = inPlan[s.code] || []).push(s); });
     // text such as "Year 2027" also looks like a code, so only real subjects (or ones in the plan) count
     const out = found.map(function (f) {
-      const slots = inPlan[f.code] || [];
+      let slots = inPlan[f.code] || [];
+      // a pre-2027 subject ticks off the 2027 subject that replaces it, and the other way round
+      const alt = slots.length ? '' : sameAs(f.code).filter(function (c) { return c !== f.code && inPlan[c]; })[0] || '';
+      if (alt) slots = inPlan[alt];
       const known = GLOBAL_BY_CODE[f.code] || EXTRA_BY_CODE[f.code];
-      return { code: f.code, status: f.status, slots: slots, known: !!known, place: null, entry: null, title: slots.length ? slots[0].title : known ? known.title : '', done: slots.length > 0 && slots.every(function (s) { return s.done; }) };
+      return { code: f.code, status: f.status, counts: alt, slots: slots, known: !!known, place: null, entry: null, title: known ? known.title : slots.length ? slots[0].title : '', done: slots.length > 0 && slots.every(function (s) { return s.done; }) };
     }).filter(function (f) { return f.slots.length || f.known; });
     const claimed = {};
     const open = ctx.slots.filter(function (s) { return s.pending; }).map(function (s) { return choiceList(ctx, s); }).filter(function (c) { return c.rank != null; });
-    out.filter(function (f) { return f.status === 'done' && !f.slots.length; }).map(function (f) {
+    out.filter(function (f) { return f.status !== 'failed' && !f.slots.length; }).map(function (f) {
       return { f: f, fits: open.filter(function (c) { return c.codes[f.code]; }).sort(function (a, b) { return a.rank - b.rank || a.at - b.at; }) };
     }).filter(function (x) { return x.fits.length; }).sort(function (a, b) { return a.fits.length - b.fits.length; }).forEach(function (x) {
       const c = x.fits.find(function (o) { return !claimed[o.s.id]; });
@@ -6690,9 +6967,10 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     const done = !place && f.done;
     const note = done ? '<span class="status status-major">Already ticked</span>' :
       f.status === 'failed' ? '<span class="status status-non">Looks like a fail or withdrawal</span>' :
+      f.status === 'progress' ? '<span class="status status-best">In progress</span>' :
       place ? '<span class="status status-best">Fills a choice</span>' : '';
-    const at = place ? where(f.place) + ' · ' + esc(f.place.typeLabel || 'Open slot') : f.slots.map(where).join(', ');
-    return '<label class="import-row"><input type="checkbox" name="import-pick" value="' + i + '"' + (done ? ' checked disabled' : f.status === 'done' ? ' checked' : '') + '>' +
+    const at = (place ? where(f.place) + ' · ' + esc(f.place.typeLabel || 'Open slot') : f.slots.map(where).join(', ')) + (f.counts ? ' · counts for ' + esc(f.counts) : '');
+    return '<label class="import-row"><input type="checkbox" name="import-pick" value="' + i + '"' + (done ? ' checked disabled' : f.status !== 'failed' ? ' checked' : '') + '>' +
       '<code>' + esc(f.code) + '</code><span class="import-title">' + esc(f.title) + ' <small>' + at + '</small></span>' + note + '</label>';
   }
   function renderImportResults() {
@@ -6707,8 +6985,12 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     };
     const plan = found.filter(function (f) { return f.slots.length; });
     const fill = found.filter(function (f) { return f.place; });
-    const other = found.filter(function (f) { return !f.slots.length && !f.place && f.status === 'done'; });
+    const other = found.filter(function (f) { return !f.slots.length && !f.place && f.status !== 'failed'; });
     let html = '';
+    // a record for another degree: offer to match it to that degree instead
+    const named = pdfDegree(text);
+    const here = isCustom() ? '' : state.degree;
+    if (named.code && DEG[named.code] && named.code !== here) html += '<p class="pick-hint import-degree">This record is for <b>' + esc(DEG[named.code].label) + '</b>. <button type="button" class="linkish" data-action="import-degree" data-code="' + named.code + '">Match it to ' + named.code + ' instead</button></p>';
     if (plan.length) html += section('In your plan', plan.length, '', rows(false));
     if (fill.length) html += section('Fills an open choice', fill.length, 'Each of these is on the list for an open choice in your plan, so ticking it places it there as completed.', rows(true));
     if (other.length) {
@@ -7359,6 +7641,24 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       case 'import-apply': applyImport(); break;
       case 'progress-open': openProgress(); break;
       case 'progress-file': $('#progress-file').click(); break;
+      case 'progress-reset':
+        ui.progressFiles = [];
+        ui.progress = null;
+        renderProgress();
+        progressStatus('');
+        $('#progress-choose').textContent = 'Choose files';
+        break;
+      case 'import-degree': {
+        const from = lastCtx;
+        const completed = completedIn(from);
+        state.mode = 'guide';
+        state.degree = el.dataset.code;
+        const carried = carryOver(sourceLabel(from), currentKey(), completed);
+        render();
+        announceCarry(carried);
+        renderImportResults();
+        break;
+      }
       case 'progress-apply': applyProgress(); break;
       case 'summer-add': {
         const y = +el.dataset.y;
@@ -7486,10 +7786,15 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       if (s && other) doSwap(s, other);
     } else if (t.name === 'import-pick') { updateImportCount(); }
     else if (t.id === 'progress-file') {
-      if (t.files[0]) readPdf(t.files[0]);
+      if (t.files.length) readPdfs(t.files);
       t.value = '';
     }
+    else if (t.name === 'pp-cohort') { ui.progressOpts.cohort = t.value; showProgress(); }
+    else if (t.id === 'pp-inprogress') { ui.progressOpts.inProgressDone = t.checked; showProgress(); }
     else if (t.name === 'cs-start') { setupSync('start'); }
+    // the structure follows the year started until the student picks one
+    else if (t.id === 'cs-year' && !ui.cohortPicked) { $(+t.value < START_YEAR ? '#cs-cohort-pre2027' : '#cs-cohort-2027').checked = true; }
+    else if (t.name === 'cs-cohort') { ui.cohortPicked = true; }
     else if (t.id === 'cs-tpl-deg') { $('#cs-tpl-major').innerHTML = tplMajorOptions(t.value, DEG[t.value].options[0]); setupSync('tpl'); }
     else if (t.id === 'sel-major') {
       const from = lastCtx;
@@ -7501,8 +7806,13 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       announceCarry(carried);
     }
     else if (t.name === 'rp-scope') { ui.repace.scope = t.value; renderRePace(); }
+    else if (t.name === 'rp-cohort') { ui.repace.cohort = t.value; ui.repace.cohortSet = true; renderRePace(); }
     else if (t.id === 'rp-loa') { ui.repace.loa = t.checked; renderRePace(); }
-    else if (t.id === 'rp-start') { ui.repace.start = +t.value; renderRePace(); }
+    else if (t.id === 'rp-start') {
+      ui.repace.start = +t.value;
+      if (!ui.repace.cohortSet) ui.repace.cohort = planCohort(lastCtx, ui.repace.start);
+      renderRePace();
+    }
     else if (t.id === 'rp-summer') { ui.repace.summer = t.checked; renderRePace(); }
     else if (t.id === 'rp-over') { ui.repace.overload = t.checked; renderRePace(); }
     else if (t.id === 'tr-from') { ui.transfer.from = t.value; renderTransfer(); }
@@ -7618,8 +7928,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     if (ui.modal !== 'progress') return;
     ev.preventDefault();
     $('#progress-drop').classList.remove('is-over');
-    const f = ev.dataTransfer && ev.dataTransfer.files[0];
-    if (f) readPdf(f);
+    if (ev.dataTransfer && ev.dataTransfer.files.length) readPdfs(ev.dataTransfer.files);
   });
 
   window.addEventListener('resize', function () { if (ui.modal === 'export') renderExportPreview(); });
@@ -7691,7 +8000,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     pace: function (o, tickYears) {
       const ctx = buildContext();
       if (tickYears) ctx.slots.forEach(function (s) { if (s.year <= tickYears) s.done = true; });
-      const r = layoutPace(ctx, Object.assign({ scope: 'whole', load: 40, loa: false, intake: 'Autumn', start: START_YEAR, fast: false, summer: true, overload: true }, o));
+      const r = layoutPace(ctx, Object.assign({ scope: 'whole', load: 40, loa: false, intake: 'Autumn', start: START_YEAR, fast: false, summer: true, overload: true, cohort: planCohort(ctx) }, o));
       return { finish: r.finishLabel, unplaced: r.unplaced.length, forced: r.forced, groups: REQ_GROUPS, rows: r.rows.map(function (x) { return { code: x.code, k: x.k, cp: x.cp, locked: x.locked, done: x.s.done, list: x.runs ? x.runs.list : null }; }) };
     },
     unscramble: function (code) { return unscrambleCode(code); },
@@ -7699,7 +8008,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     preparePrint: function (opts) { Object.assign(state.exp, opts || {}); preparePrint(); },
     // lines as a PDF's pages would give them, for checks that run without loading the PDF reader, and
     // the date to treat as today, so which sessions have begun does not depend on when the checks run
-    importPdfLines: function (lines, now) { ui.now = now || null; showProgress(pdfProgress(lines)); },
+    importPdfLines: function (lines, now, name) { ui.now = now || null; addProgressFile(name || 'record.pdf', pdfProgress(lines)); },
     // the session commute check, given the campus lists of a session's subjects
     commute: function (lists) { return commutePill(lists.map(function (codes) { return { done: false, pending: false, offer: { codes: codes } }; })); },
   };
