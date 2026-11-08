@@ -677,6 +677,11 @@ async function renderPdf(page, key, mode, orient, file) {
   check(super_ && super_.done && term(super_) === '2026 Spring' && /^3S[34]$/.test(super_.o) && super_.kind !== 'LLB Alternate', `LAWS 3067 should fill an Alternate Accounting choice before an LLB Alternate slot, got ${JSON.stringify(super_)}`);
   check(pre.slots.find(x => x.code === 'LAWS 2020').note === 'Replaces pre-2027 LAWS 2015 · last offered 2028' && /Replaces pre-2027 LAWS 4004/.test(pre.slots.find(x => x.code === 'LAWS 3100').note) && !pre.slots.find(x => x.code === 'LAWS 3018').note, 'a 2027 subject shown for a pre-2027 one should say which it replaces');
   check(['LAWS 1009', 'ECON 2002', 'ACCT 3001', 'LAWS 2008'].every(c => { const x = pre.slots.find(y => y.code === c); return x && x.done; }) && term(pre.slots.find(x => x.code === 'ACCT 3001')) === '2026 Spring', 'history should keep its sessions, with subjects in progress enrolled');
+  // a returning student opens the page with that plan saved
+  await pr.reload();
+  const reopened = await pr.evaluate(() => window.WSLSA ? { mode: WSLSA.state().mode, start: WSLSA.custom() && WSLSA.custom().start, cards: document.querySelectorAll('#grid .subj').length } : null);
+  check(!!reopened && reopened.mode === 'custom' && reopened.start === 2024 && reopened.cards === pre.slots.length && pr.errors.length === 0, `the page should open with a saved plan that has past years, got ${JSON.stringify(reopened)} ${pr.errors.join('; ')}`);
+  check(JSON.stringify(await prPlan()) === JSON.stringify(pre), 'reopening the page should keep the plan as it was');
   // either code of a pair meets the general order: LAWS 1009 is Usually first for a later Law subject
   const eqId = await pr.evaluate(() => WSLSA.context().slots.find(s => s.code === 'LAWS 3018').id);
   await pr.click(`#slot-${eqId} .chain-btn`);

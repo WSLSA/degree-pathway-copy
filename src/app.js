@@ -17,6 +17,9 @@
   // publish Autumn and Spring offerings only, so Summer subjects carry no session or campus data.
   const PLAN_SESSIONS = ['Autumn', 'Spring', 'Summer'];
   const LOAD_CP = { FT: 40, PT: 20 };
+  // The intake these guides are for. It is read while a saved plan loads (a plan with past years goes by the year
+  // the student started), so it is declared here, before the plan is read.
+  const START_YEAR = 2027;
   const LAW_ENQUIRY = 'lawenquiry@westernsydney.edu.au';
   const MOD_KEY = /Mac|iPhone|iPad/.test(navigator.platform || '') ? 'Cmd' : 'Ctrl';
   const UNDO_KEYS = MOD_KEY + '+Z';
@@ -965,10 +968,9 @@
     }
     return Object.keys(years).map(Number).sort(function (a, b) { return a - b; }).map(function (y) { return years[y]; });
   }
-  // Calendar dates assume a start in Autumn 2027, the intake these guides are for, except in a plan
+  // Calendar dates assume a start in Autumn 2027 (START_YEAR), the intake these guides are for, except in a plan
   // imported from a student's results, which starts the year they did. Summer runs over the break after
   // Spring, so it spans two calendar years.
-  const START_YEAR = 2027;
   function planStart() { return isCustom() && state.custom.start ? state.custom.start : START_YEAR; }
   function calYear(y) { return planStart() + y - 1; }
   function termName(year, sess) { return sess === 'Summer' ? 'Summer ' + year + '/' + String(year + 1).slice(2) : sess + ' ' + year; }
