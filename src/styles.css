@@ -264,7 +264,7 @@ a.hero-pill:hover { border-color: var(--gold-soft); color: var(--gold-soft); }
   border-bottom: 1px solid transparent;
 }
 .dock-card {
-  display: grid; grid-template-columns: minmax(0, 2.3fr) minmax(0, 2fr) minmax(0, 1.25fr) auto minmax(170px, 1.35fr);
+  display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(0, 1.55fr) minmax(0, 1fr) minmax(220px, 1.45fr) auto minmax(170px, 1.25fr);
   gap: 10px 14px; align-items: center; padding: 7px 14px 8px;
   background: var(--surface); border: 1px solid var(--hairline); border-top: 2px solid var(--crimson); border-radius: var(--radius); box-shadow: var(--shadow);
 }
@@ -300,6 +300,50 @@ a.hero-pill:hover { border-color: var(--gold-soft); color: var(--gold-soft); }
 .progress-meta { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- advisory callout (charcoal, gold capitals) */
+/* pasted results in Import my progress */
+.paste-box { margin-top: 10px; border: 1px dashed var(--hairline-2); border-radius: 2px; padding: 8px 12px; }
+.paste-box > summary { cursor: pointer; font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); min-height: 28px; display: flex; align-items: center; }
+.paste-box textarea { width: 100%; margin-top: 8px; min-height: 120px; font: 500 12.5px/1.45 var(--mono); }
+.paste-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; }
+/* ---------- suggested remaining guide */
+.guide { background: var(--surface); border: 1px solid var(--hairline); border-left: 3px solid var(--gold); border-radius: var(--radius); box-shadow: var(--shadow); }
+.guide > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; min-height: 48px; padding: 10px 16px; cursor: pointer; list-style: none; }
+.guide > summary::-webkit-details-marker { display: none; }
+.guide > summary:focus-visible { outline-offset: -4px; }
+.guide-label { font: 700 10.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--amber-ink); }
+.guide-counts { flex: 1; min-width: 0; font-size: 14px; color: var(--text); }
+.guide-counts b { color: var(--ink); }
+.guide .adv-cta { font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--hairline-2); }
+.guide-body { display: grid; gap: 14px; padding: 0 16px 16px; }
+.guide-intro { margin: 0; max-width: 92ch; font-size: 13.5px; color: var(--muted); }
+.guide-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 18px 24px; }
+.guide h3 { margin: 0 0 8px; font: 700 10.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.guide-check ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13.5px; color: var(--text); }
+.guide-check b { color: var(--ink); }
+.guide-check .gc-total { padding-top: 6px; border-top: 1px solid var(--hairline); }
+.guide-counted { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); }
+.guide-sessions { display: grid; gap: 12px; }
+.guide-sess h4 { margin: 0 0 6px; font: 600 17px/1.2 var(--serif); color: var(--ink); }
+.guide-sess h4 small { margin-left: 8px; font: 600 11px var(--sans); letter-spacing: .04em; color: var(--muted); }
+.guide-items { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.guide-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 7px 10px; border: 1px solid var(--hairline-2); border-radius: 2px; background: var(--surface-2); cursor: grab; }
+.guide-item:active { cursor: grabbing; }
+.gi-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; flex: 1 1 260px; }
+.gi-main code { font: 600 12.5px var(--mono); color: var(--crimson-ink); }
+.gi-title { font-size: 13.5px; color: var(--text); }
+.gi-open { font-weight: 600; }
+.gi-cp { font: 600 11px var(--mono); color: var(--muted); }
+.gi-note { flex-basis: 100%; font-size: 11.5px; color: var(--amber-ink); }
+.gi-add { display: flex; align-items: center; gap: 6px; }
+.gi-add .select-wrap select { min-height: 34px; padding: 4px 28px 4px 8px; font-size: 12.5px; }
+.gi-btn { min-height: 34px; color: var(--crimson-ink); border-color: var(--crimson-ink); }
+.guide-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.next-sub { margin: 4px 0 0; font-size: 13.5px; color: var(--muted); }
+@media (max-width: 760px) {
+  .guide-cols { grid-template-columns: 1fr; }
+  .gi-add { width: 100%; }
+  .gi-add .select-wrap { flex: 1; min-width: 0; }
+}
 .advisory { border-radius: var(--radius); background: var(--surface); border: 1px solid var(--hairline); box-shadow: var(--shadow); overflow: hidden; }
 .advisory > summary {
   display: flex; align-items: center; gap: 14px; padding: 7px 18px; cursor: pointer; list-style: none;
@@ -453,6 +497,21 @@ body.has-campus .pill.online { background: var(--ok-tint); border-color: var(--l
 .mark-all:hover { color: var(--crimson); border-color: var(--crimson); }
 .slots { display: grid; gap: 8px; }
 .slot-empty { padding: 18px; border: 1px dashed var(--hairline-2); color: var(--muted); font-size: 13px; text-align: center; }
+.slot-empty b { color: var(--text); font-weight: 600; }
+/* every card's edit tools: Change, Move and Remove */
+.subj-edit { margin-top: 8px; gap: 6px 12px; }
+.move-wrap { position: relative; display: inline-flex; }
+.move-sel {
+  appearance: none; -webkit-appearance: none; min-height: 24px; max-width: 150px; padding: 0 2px; background: none; border: 0; border-bottom: 1px solid var(--hairline-2);
+  font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); cursor: pointer; border-radius: 0;
+}
+.move-sel:hover, .move-sel:focus-visible { color: var(--crimson); border-color: var(--crimson); }
+.move-sel option, .move-sel optgroup { font: 500 13px var(--sans); letter-spacing: 0; text-transform: none; color: var(--ink); background: var(--surface); }
+.rm-btn:hover { color: var(--crimson); }
+body.drag-on .subj-edit { pointer-events: none; }
+.add-pop .pop-menu { min-width: 230px; }
+.pbadge-edit { background: var(--gold); color: #1c1a17; border-color: var(--gold); }
+.pbadge-pre { background: transparent; border: 1px solid var(--gold); color: inherit; }
 
 /* ---------- subject cards */
 .subj {
@@ -671,7 +730,7 @@ table.cat tr.extra td.c-code { color: var(--slate); }
 
 /* ---------- responsive */
 @media (max-width: 1180px) {
-  .dock-card { grid-template-columns: minmax(0, 2fr) minmax(0, 1.7fr) minmax(136px, 1.2fr) auto minmax(160px, 1.2fr); gap: 10px; }
+  .dock-card { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.35fr) minmax(110px, .9fr) minmax(196px, 1.3fr) auto minmax(150px, 1.1fr); gap: 10px; }
   .select-wrap select { padding-right: 28px; }
   .select-wrap::after { right: 11px; }
   .segmented button { padding-inline: 10px; }
@@ -682,7 +741,7 @@ table.cat tr.extra td.c-code { color: var(--slate); }
   :root { --stick-h: calc(var(--bar-h) + 60px); }
   .dock { position: static; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
   .dock-card { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); }
-  .dock-card .progress { grid-column: span 2; }
+  .dock-card .progress { grid-column: auto; }
 }
 @media (max-width: 980px) {
   .foot-inner { grid-template-columns: 1fr 1fr; }
@@ -1251,8 +1310,8 @@ html[data-theme="dark"] .pdoc { background: #fff; color: #2A282B; color-scheme: 
 
 /* ---------- the tools on each card wait until the card is in use; a touch screen always shows them */
 @media (hover: hover) and (pointer: fine) {
-  .chain-btn, .defer-btn, .subj-actions .text-btn { opacity: 0; transition: opacity .12s, border-color .15s, color .15s; }
-  .subj:hover .chain-btn, .subj:hover .defer-btn, .subj:hover .subj-actions .text-btn, .subj:focus-within .chain-btn, .subj:focus-within .defer-btn, .subj:focus-within .subj-actions .text-btn, .chain-btn[aria-pressed="true"] { opacity: 1; }
+  .chain-btn, .defer-btn, .subj-actions .text-btn, .subj-edit .move-sel { opacity: 0; transition: opacity .12s, border-color .15s, color .15s; }
+  .subj:hover .chain-btn, .subj:hover .defer-btn, .subj:hover .subj-actions .text-btn, .subj:hover .subj-edit .move-sel, .subj:focus-within .chain-btn, .subj:focus-within .defer-btn, .subj:focus-within .subj-actions .text-btn, .subj:focus-within .subj-edit .move-sel, .chain-btn[aria-pressed="true"] { opacity: 1; }
 }
 
 /* ---------- practice areas, session load, defer, compare */
@@ -1313,4 +1372,9 @@ html[data-theme="dark"] .pdoc { background: #fff; color: #2A282B; color-scheme: 
 }
 @media (prefers-reduced-motion: reduce) {
   .advisory::details-content { transition: none; }
+}
+/* a phone stacks the dock, so the Handbook choice shows in full */
+@media (max-width: 600px) {
+  .dock-card { grid-template-columns: minmax(0, 1fr); }
+  .dock-card > .field, .dock-card .progress { grid-column: 1 / -1; }
 }

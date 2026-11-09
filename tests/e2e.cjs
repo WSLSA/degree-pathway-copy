@@ -254,20 +254,20 @@ async function renderPdf(page, key, mode, orient, file) {
   await lp2.goto(guideLink);
   check(await lp2.evaluate(plan) === guideBefore, `a pathway link should restore the typed elective, tick, campus and load, got ${await lp2.evaluate(plan)}`);
   check(await lp2.evaluate(() => location.hash) === '', 'opening a link should clear it from the address bar');
-  // a custom copy of a pathway links as ranges of untouched template slots
+  // an edited pathway links as ranges of untouched template slots
   await lp.click('[data-action="load"][data-load="FT"]');
   await lp.evaluate(() => WSLSA.select('2788|T046'));
   await lp.click('[data-action="summer-add"][data-y="1"]');
-  await lp.click('button[type=submit][form=setup-form]');
   await lp.click(`#slot-${await lp.evaluate(() => WSLSA.context().slots.find(s => s.session === 'Summer').id)} [data-action="picker-open"]`);
   await lp.click('[data-action="cbring"]');
   const customLinkUrl = await lp.evaluate(() => WSLSA.planUrl());
   const customText = await lp.evaluate(() => WSLSA.linkText());
-  check(/^my\/tp=2788-T046\/s=[\d,:\-AUS]+/.test(customText) && customText.length < 80, `a custom copy should link by template ranges, got ${customText}`);
+  check(/^ed\/tp=2788-T046\/s=[\d,:\-AUS]+/.test(customText) && customText.length < 80, `an edited pathway should link by template ranges, got ${customText}`);
   const customBefore = await lp.evaluate(() => JSON.stringify(WSLSA.custom()));
   const lp3 = await links.newPage();
   await lp3.goto(customLinkUrl);
-  check(await lp3.evaluate(() => JSON.stringify(WSLSA.custom())) === customBefore, 'a custom plan link should restore the plan exactly');
+  check(await lp3.evaluate(() => JSON.stringify(WSLSA.custom())) === customBefore, 'an edited pathway link should restore the plan exactly');
+  check(await lp3.evaluate(() => WSLSA.context().edit === '2788|T046' && WSLSA.state().mode === 'guide' && document.getElementById('sel-degree').value === '2788'), 'an edited pathway link should open as that pathway');
   // links shared or printed before the short format still open
   const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const lp4 = await links.newPage();
@@ -401,14 +401,11 @@ async function renderPdf(page, key, mode, orient, file) {
   await sp.goto(APP);
   await sp.evaluate(() => { localStorage.clear(); WSLSA.select('2788|T046'); });
   check((await sp.$$('[data-action="summer-add"]')).length === 5, '2788 should offer + Add Summer on each of its five years');
-  // from a WSLSA pathway, Summer opens the setup for an editable copy, then adds the session
+  // on a WSLSA pathway, Summer is added straight away, in the pathway's own edited copy
   await sp.click('[data-action="summer-add"][data-y="1"]');
-  await sp.waitForSelector('#setup-form');
-  check(/Summer is planned in your own copy/.test(await sp.textContent('#setup-form')), 'Summer from a pathway should explain the editable copy');
-  await sp.click('button[type=submit][form=setup-form]');
-  await sp.waitForTimeout(200);
-  let sc = await sp.evaluate(() => { const c = WSLSA.context(); const s = c.slots.find(x => x.session === 'Summer'); return { custom: c.custom, total: c.totalCP, id: s && s.id, year: s && s.year, pending: s && s.pending }; });
-  check(sc.custom && sc.year === 1 && sc.pending && sc.total === 410, `Summer should add one open 10 CP slot to Year 1 of a custom copy, got ${JSON.stringify(sc)}`);
+  await sp.waitForTimeout(100);
+  let sc = await sp.evaluate(() => { const c = WSLSA.context(); const s = c.slots.find(x => x.session === 'Summer'); return { custom: c.custom, edit: c.edit, mode: WSLSA.state().mode, total: c.totalCP, id: s && s.id, year: s && s.year, pending: s && s.pending }; });
+  check(!(await sp.$('#setup-form')) && sc.edit === '2788|T046' && sc.mode === 'guide' && sc.year === 1 && sc.pending && sc.total === 410, `Summer should add one open 10 CP slot to Year 1 of the pathway's edited copy, got ${JSON.stringify(sc)}`);
   check((await sp.$$('#year-1 .session-summer')).length === 1 && !(await sp.$('#year-1 [data-action="summer-add"]')), 'Year 1 should show its Summer session and drop the add button');
   // bringing a later subject forward fills the Summer slot and keeps the plan's credit points
   await sp.click(`#slot-${sc.id} [data-action="picker-open"]`);
@@ -435,7 +432,7 @@ async function renderPdf(page, key, mode, orient, file) {
   check(summerDoc.includes('pd-t-summer') && /<b>Summer:<\/b>/.test(summerDoc), 'the PDF should print the Summer table and its check');
   // adding Summer inside a custom plan needs no setup step; open slots never land in Summer
   await sp.click('[data-action="summer-add"][data-y="3"]');
-  check(await sp.evaluate(() => WSLSA.custom().slots.filter(x => x.s === 'Summer').length) === 2 && !(await sp.$('#setup-form')), 'Summer in a custom plan should add the session straight away');
+  check(await sp.evaluate(() => WSLSA.custom().slots.filter(x => x.s === 'Summer').length) === 2 && !(await sp.$('#setup-form')), 'Summer in an edited pathway should add the session straight away');
   await sp.evaluate(() => { WSLSA.select('2848|BASE'); });
   check(await sp.evaluate(() => !WSLSA.context().custom && !WSLSA.context().slots.some(s => s.session === 'Summer')), 'WSLSA pathways should stay free of Summer slots');
   check(sp.errors.length === 0 && sp2.errors.length === 0, 'Summer console errors: ' + sp.errors.concat(sp2.errors).join('; '));
@@ -490,7 +487,7 @@ async function renderPdf(page, key, mode, orient, file) {
   await ip.goto(APP);
   const planOf = () => ip.evaluate(() => {
     const c = WSLSA.context();
-    return { start: WSLSA.custom().start, cp: c.plan.cp, total: c.totalCP, slots: c.slots.map(s => ({ code: s.pending ? '' : s.code, y: s.year, s: s.session, done: s.done, kind: s.typeLabel, replaced: s.replaced ? s.replaced.code : '' })) };
+    return { start: WSLSA.custom().start, cp: c.plan.cp, total: c.totalCP, slots: c.slots.map(s => ({ code: s.pending ? '' : s.code, y: s.year, s: s.session, done: s.done, kind: s.typeLabel, replaced: s.replaced ? s.replaced.code : '', twin: s.twin ? s.twin.code : '' })) };
   });
   const at = (plan, code) => plan.slots.find(x => x.code === code) || {};
   await ip.evaluate(() => { localStorage.clear(); WSLSA.select('2848|BASE'); });
@@ -521,7 +518,7 @@ async function renderPdf(page, key, mode, orient, file) {
   check(/Degree Works audit/.test(await ip.textContent('#progress-status')) && await ip.isEnabled('#progress-apply'), `the audit should be read, got "${await ip.textContent('#progress-status')}"`);
   const preview = await ip.innerText('#progress-results');
   check(/2785 Bachelor of Accounting\/Bachelor of Laws/.test(preview) && /Started Autumn 2025/.test(preview) && /5\s*Completed/.test(preview) && /1\s*In progress/.test(preview), `the preview should name the degree, start and counts, got ${preview.replace(/\n+/g, ' | ').slice(0, 240)}`);
-  check(/LAWS 2013 looks like a fail/.test(preview) && /follows that degree/.test(preview) && /Still needed lists in your audit/.test(preview) && /laid out from Autumn 2027/.test(preview), 'the preview should explain the fail, the degree change and where the rest comes from');
+  check(/LAWS 2013 looks like a fail/.test(preview) && /follows that degree/.test(preview) && /Still needed lists in your audit/.test(preview) && /Suggested Remaining Guide with a suggested session for each, from Autumn 2027/.test(preview), 'the preview should explain the fail, the degree change and where the rest goes');
   check(!/\b(D|H|C|P|NA)\b \(?10\)?|2025 Autumn, SC|\(10\)/.test(preview), 'the preview should show no grades, credit point columns or raw terms');
   await ip.click('#progress-apply');
   const dw = await planOf();
@@ -529,22 +526,24 @@ async function renderPdf(page, key, mode, orient, file) {
   check(await ip.evaluate(() => !WSLSA.context().custom) && /Undid: imported your progress/.test(await ip.textContent('#toast')), 'an import should be undoable');
   await ip.click('#section-tools [data-action="redo"]');
   check(JSON.stringify(await planOf()) === JSON.stringify(dw), 'redo should bring the imported plan back');
-  check(dw.start === 2025 && dw.cp === 400 && dw.total === 400, `the plan should start in 2025 and hold 400 CP, got start ${dw.start}, ${dw.total}/${dw.cp}`);
+  const dg = await ip.evaluate(() => WSLSA.guide());
+  check(dw.start === 2025 && dw.cp === 400 && dw.total + dg.cp === 400 && dw.slots.every(x => x.y <= 2), `the plan should hold only the sessions taken so far, with the guide making up 400 CP, got start ${dw.start}, ${dw.total} + ${dg.cp} of ${dw.cp}`);
   const where = c => { const x = at(dw, c); return x.y + x.s + (x.done ? '+' : '-'); };
   check(['LAWS 1003', 'MATH 1030', 'ECON 2002', 'LAWS 1009', 'LAWS 2012', 'LAWS 2008'].map(where).join(' ') === '1Autumn+ 1Autumn+ 1Spring+ 1Spring+ 1Summer+ 2Spring+',
     `history should sit in its real sessions, with passes and subjects in progress ticked, got ${['LAWS 1003', 'MATH 1030', 'ECON 2002', 'LAWS 1009', 'LAWS 2012', 'LAWS 2008'].map(where).join(' ')}`);
-  check(at(dw, 'ECON 2002').replaced === 'FINC 2003' && at(dw, 'MATH 1030').kind === 'Choice' && at(dw, 'LAWS 2012').kind === 'LLB Alternate', 'history should be tied to the pathway slots it fills');
-  check(where('LAWS 2020') === '3Autumn-' && !at(dw, 'LAWS 2015').code && where('LAWS 3018') === '3Autumn-' && where('LAWS 2013') === '3Spring-', `what is still needed should start in Autumn 2027, LAWS 2015 shown as LAWS 2020 and first, each in its session, got ${['LAWS 2020', 'LAWS 3018', 'LAWS 2013'].map(where).join(' ')}`);
-  check(!dw.slots.some(x => ['LAWS 1010', 'LAWS 2019', 'LAWS 3099', 'LAWS 3102'].indexOf(x.code) >= 0), 'a pre-2027 audit should add no 2027 subject its record already counts for, and none of the three new 2027 cores');
-  check(dw.slots.filter(x => !x.code && x.kind === 'LLB Alternate').length === 2 && !dw.slots.some(x => ['LAWS 3001', 'JUST 2013', 'NOAW 0004', 'FINC 2003'].indexOf(x.code) >= 0), 'a list to choose from should become open LLB Alternate slots, with no listed code placed');
+  check(at(dw, 'ECON 2002').twin === 'FINC 2003' && !at(dw, 'ECON 2002').replaced && at(dw, 'MATH 1030').kind === 'Choice' && at(dw, 'LAWS 2012').kind === 'LLB Alternate', 'history should be tied to the pathway slots it fills, a pre-2027 subject counting for its 2027 twin');
+  const gAt = c => { const r = dg.items.find(x => x.code === c); return r ? r.y + r.s : ''; };
+  check(gAt('LAWS 2020') === '3Autumn' && !dg.items.some(x => x.code === 'LAWS 2015') && gAt('LAWS 3018') === '3Autumn' && gAt('LAWS 2013') === '3Spring', `the guide should suggest from Autumn 2027, LAWS 2015 as LAWS 2020 and first, each in its session, got ${['LAWS 2020', 'LAWS 3018', 'LAWS 2013'].map(gAt).join(' ')}`);
+  check(!dw.slots.concat(dg.items).some(x => ['LAWS 1010', 'LAWS 2019', 'LAWS 3099', 'LAWS 3102'].indexOf(x.code) >= 0), 'a pre-2027 audit should add no 2027 subject its record already counts for, and none of the three new 2027 cores');
+  check(dg.items.filter(x => x.kind === 'llb').length === 2 && !dg.items.concat(dw.slots).some(x => ['LAWS 3001', 'JUST 2013', 'NOAW 0004', 'FINC 2003'].indexOf(x.code) >= 0), 'a list to choose from should become LLB Alternate slots in the guide, with no listed code placed');
   check(JSON.stringify(await ip.$$eval('.year-bar h2 small', s => s.slice(0, 3).map(x => x.textContent))) === JSON.stringify(['2025', '2026', '2027']) && /started 2025/i.test(await ip.getAttribute('.hp-finish', 'title')) && /started 2025/.test(await ip.textContent('#details')), 'year bars and facts should show the real calendar years');
-  check(/Next to enrol/.test(await ip.textContent('#next')) && /Autumn 2027/.test(await ip.textContent('#next')), `Next to enrol should pass over sessions that have begun, got ${(await ip.textContent('#next')).slice(0, 80)}`);
+  check(/Next to enrol/.test(await ip.textContent('#next')) && /Autumn 2027/.test(await ip.textContent('#next')) && /nothing planned yet/.test(await ip.textContent('#next')), `Next to enrol should pass over sessions that have begun and point to the guide, got ${(await ip.textContent('#next')).slice(0, 80)}`);
   check(!/TBC|2026 data|Summer/.test(await ip.textContent('#advisory summary')), 'completed subjects should raise no session or Summer warnings');
   const finishedFolded = await ip.$$eval('#grid .year', ys => ys.filter(y => { const c = y.querySelectorAll('.subj'); return c.length && Array.from(c).every(x => x.classList.contains('is-done')); }).map(y => y.classList.contains('is-folded')));
-  check(finishedFolded.length > 0 && finishedFolded.every(Boolean) && !!(await ip.$('#dmap .dm-s.is-next[data-y="3"][data-s="Autumn"]')), `an imported plan should open with finished years folded and the map on the next session, got ${JSON.stringify(finishedFolded)}`);
+  check(finishedFolded.length > 0 && finishedFolded.every(Boolean) && !!(await ip.$('#dmap .dm-s[data-y="3"][data-s="Autumn"]')) && (await ip.$$('#grid #year-3 .slot-empty')).length === 2, `an imported plan should open with finished years folded and its sessions ahead empty, got ${JSON.stringify(finishedFolded)}`);
   await ip.click('[data-action="load"][data-load="PT"]');
   const ptYears = await ip.$$eval('.year', ys => ys.map(y => y.querySelector('h2 small').textContent.slice(0, 4) + ':' + y.querySelectorAll('.subj').length));
-  check(ptYears[0] === '2025:5' && ptYears[1] === '2026:1' && ptYears.length > 4, `part-time should keep sessions that have begun and spread the rest, got ${ptYears.join(' ')}`);
+  check(ptYears[0] === '2025:5' && ptYears[1] === '2026:1', `part-time should keep sessions that have begun as they are, got ${ptYears.join(' ')}`);
   await ip.click('[data-action="load"][data-load="FT"]');
   // the plan and its start year travel in a share link
   const sharedLink = await ip.evaluate(() => WSLSA.planUrl());
@@ -580,9 +579,11 @@ async function renderPdf(page, key, mode, orient, file) {
   check(/Subject Results page/.test(await ip.textContent('#progress-status')) && /3\s*Completed/.test(srText) && /does not list what you still need/.test(srText) && /ACCT 1007 looks like a fail/.test(srText), `the results page should give 3 passes, the fail and a note on the rest, got ${srText.replace(/\n+/g, ' | ').slice(0, 240)}`);
   await ip.click('#progress-apply');
   const sr = await planOf();
+  const sg = await ip.evaluate(() => WSLSA.guide());
   const srAt = c => { const x = at(sr, c); return x.y + x.s + (x.done ? '+' : '-'); };
-  check(sr.start === 2025 && ['LAWS 2003', 'ACCT 2005', 'ACCT 3007', 'ACCT 1007'].map(srAt).join(' ') === '1Autumn+ 1Autumn+ 2Autumn+ 3Spring-' && sr.total === 400,
-    `results should place passes in their sessions and the rest of the pathway from 2027, got start ${sr.start} ${['LAWS 2003', 'ACCT 2005', 'ACCT 3007', 'ACCT 1007'].map(srAt).join(' ')} ${sr.total} CP`);
+  const sgAt = c => { const r = sg.items.find(x => x.code === c); return r ? r.y + r.s : ''; };
+  check(sr.start === 2025 && ['LAWS 2003', 'ACCT 2005', 'ACCT 3007'].map(srAt).join(' ') === '1Autumn+ 1Autumn+ 2Autumn+' && sgAt('ACCT 1007') === '3Spring' && sr.total + sg.cp === 400,
+    `results should place passes in their sessions and suggest the rest of the pathway from 2027, got start ${sr.start} ${['LAWS 2003', 'ACCT 2005', 'ACCT 3007'].map(srAt).join(' ')} ${sgAt('ACCT 1007')} ${sr.total} + ${sg.cp} CP`);
   check(ip.errors.length === 0, 'Import my progress console errors: ' + ip.errors.join('; '));
   await ip.close();
 
@@ -666,9 +667,27 @@ async function renderPdf(page, key, mode, orient, file) {
   check(/LAWS 1009 for LAWS 1010/.test(both) && /LAWS 2004 for LAWS 2018/.test(both) && /LAWS 2001 for LAWS 3101/.test(both) && /ECON 2002 for FINC 2003/.test(both), 'the preview should say which subjects count for their 2027 replacements');
   check(/LAWS 2020 for LAWS 2015 \(last offered 2028\)/.test(both) && /LAWS 3100 for LAWS 4004/.test(both) && /LAWS 3103 for LAWS 4013/.test(both) && /Still needed lists in your audit/.test(both), 'the preview should show the pre-2027 subjects still needed as their 2027 replacements');
   await pr.click('#progress-apply');
+  const imported = await prPlan();
+  const pg = await pr.evaluate(() => WSLSA.guide());
+  check(imported.cohort === 'pre2027' && imported.start === 2024 && imported.total === 240 && imported.done === 240 && pg.cp === 160, `the plan should hold only the 240 CP done or in progress, with 160 CP in the guide, got ${imported.total} and ${pg.cp} (${imported.cohort})`);
+  check(!imported.slots.concat(pg.items).some(x => NEVER.indexOf(x.code) >= 0), `neither the plan nor the guide should hold any of ${NEVER.join(', ')}`);
+  check(JSON.stringify(pg.items.filter(x => x.code).map(x => x.code).sort()) === JSON.stringify(CORES.slice().sort()) && pg.items.filter(x => x.kind === 'law').length === 9, `the guide should list the nine Law core subjects, got ${pg.items.map(x => x.code || x.kind).join(' ')}`);
+  check(pg.items.filter(x => x.kind === 'llb').length === 6 && pg.items.filter(x => x.kind === 'choice').length === 1, `the guide should list six LLB Alternate slots and one Alternate Accounting choice, got ${pg.items.filter(x => !x.code).map(x => x.kind).join(', ')}`);
+  check(Array.from(new Set(pg.items.map(term))).join(', ') === '2027 Autumn, 2027 Spring, 2028 Autumn, 2028 Spring', `the guide should suggest Autumn 2027 to Spring 2028, got ${Array.from(new Set(pg.items.map(term))).join(', ')}`);
+  const panel = await pr.innerText('#guide');
+  check(/Suggested Remaining Guide/i.test(panel) && /160 CP to place/.test(panel) && /9 Law core subjects/.test(panel) && /6 LLB Alternate slots/.test(panel) && /Already counted, so not listed again: .*LAWS 1009 for LAWS 1010/.test(panel) && /Replaces pre-2027 LAWS 2015 · last offered 2028/.test(panel), `the guide should sum up what is left, got ${panel.replace(/\n+/g, ' | ').slice(0, 300)}`);
+  check((await pr.$$('#grid .year')).length === 5 && (await pr.$$('#grid .slot-empty')).length === 4 && /nothing planned yet/.test(await pr.textContent('#next')) && /following the guide/.test(await pr.textContent('.hp-finish')), 'Years 4 and 5 should be shown empty and ready to fill, with the finish following the guide');
+  // one subject from the guide into a session of the student's choosing, then the rest in one step
+  const firstItem = pg.items[0];
+  await pr.selectOption('#gi-0', '5|Spring');
+  await pr.click('[data-action="guide-add"][data-gi="0"]');
+  check(await pr.evaluate(c => WSLSA.custom().slots.some(x => x.code === c && x.y === 5 && x.s === 'Spring' && !x.done), firstItem.code) && (await pr.evaluate(() => WSLSA.guide().items.length)) === 15, 'adding one subject from the guide should place it where chosen and take it off the list');
+  await pr.click('#section-tools [data-action="undo"]');
+  check((await pr.evaluate(() => WSLSA.guide().items.length)) === 16, 'Undo should put it back in the guide');
+  await pr.click('[data-action="guide-fill"]');
   const pre = await prPlan();
   const rest = pre.slots.filter(x => !x.done);
-  check(pre.cohort === 'pre2027' && pre.start === 2024 && pre.total === 400 && pre.done === 240 && rest.reduce((a, x) => a + x.cp, 0) === 160, `the plan should hold 240 CP done or in progress and 160 CP to go, got ${pre.done} and ${pre.total} (${pre.cohort})`);
+  check(!(await pr.evaluate(() => WSLSA.guide())) && await pr.isHidden('#guide') && pre.total === 400 && rest.reduce((a, x) => a + x.cp, 0) === 160, `filling from the guide should place the 160 CP, got ${pre.total}`);
   check(!pre.slots.some(x => NEVER.indexOf(x.code) >= 0), `the plan should hold none of ${NEVER.join(', ')}, got ${pre.slots.filter(x => NEVER.indexOf(x.code) >= 0).map(x => x.code)}`);
   check(JSON.stringify(rest.filter(x => x.code).map(x => x.code).sort()) === JSON.stringify(CORES.slice().sort()), `what is left should be the nine Law core subjects, got ${rest.filter(x => x.code).map(x => x.code).join(' ')}`);
   check(rest.filter(x => !x.code && x.kind === 'LLB Alternate').length === 6 && rest.filter(x => !x.code && x.kind !== 'LLB Alternate').length === 1, `six open LLB Alternate slots and one Alternate Accounting choice should be left, got ${rest.filter(x => !x.code).map(x => x.kind || 'open').join(', ')}`);
@@ -707,9 +726,9 @@ async function renderPdf(page, key, mode, orient, file) {
   check(await pr.isChecked('#pp-cohort-2027') && /under the pre-2027 structure, so with the structure chosen here the rest follows the WSLSA 2027 pathway/.test(as2027), 'choosing the 2027 structure should say the audit lists are set aside');
   await pr.click('#progress-apply');
   const neu = await prPlan();
-  const neuRest = neu.slots.filter(x => !x.done);
-  check(neu.cohort === '2027' && neu.stored === '2027' && neu.total === 400 && ['LAWS 2019', 'LAWS 3099', 'LAWS 3102'].every(c => neuRest.some(x => x.code === c)) && !neu.slots.some(x => ['LAWS 1010', 'LAWS 2018', 'FINC 2003', 'LAWS 3101'].indexOf(x.code) >= 0), `the 2027 structure should add its three new cores and still count the pre-2027 passes, got ${neuRest.map(x => x.code || '[' + x.kind + ']').join(' ')}`);
-  check(neuRest.filter(x => !x.code && x.kind === 'LLB Alternate').length === 3 && !neu.slots.some(x => x.note), 'the 2027 structure should leave three LLB Alternate slots and no replacement notes');
+  const ng = await pr.evaluate(() => WSLSA.guide());
+  check(neu.cohort === '2027' && neu.stored === '2027' && neu.total + ng.cp === 400 && ['LAWS 2019', 'LAWS 3099', 'LAWS 3102'].every(c => ng.items.some(x => x.code === c)) && !neu.slots.concat(ng.items).some(x => ['LAWS 1010', 'LAWS 2018', 'FINC 2003', 'LAWS 3101'].indexOf(x.code) >= 0), `the 2027 structure should add its three new cores and still count the pre-2027 passes, got ${ng.items.map(x => x.code || '[' + x.kind + ']').join(' ')}`);
+  check(ng.items.filter(x => x.kind === 'llb').length === 3 && !/Replaces pre-2027/.test(await pr.innerText('#guide')), 'the 2027 structure should leave three LLB Alternate slots and no replacement notes');
   // Re-Pace switches the structure both ways
   await pr.clickRaw('[data-action="repace-open"]');
   check(await pr.isChecked('#rp-cohort-2027') && /Cohort Structure/.test(await pr.textContent('#rp-form')), 'Re-Pace should show the plan\'s structure');
@@ -756,6 +775,137 @@ async function renderPdf(page, key, mode, orient, file) {
   check(await pr.evaluate(() => ['LAWS 1010', 'LAWS 2008', 'LAWS 1003', 'LAWS 2003'].every(c => WSLSA.context().slots.find(s => s.code === c).done)), 'applying should tick LAWS 1010 for LAWS 1009 and the subject in progress');
   check(pr.errors.length === 0, 'pre-2027 import console errors: ' + pr.errors.join('; '));
   await pr.close();
+  }
+
+  // ---------------------------------------------------------------- every pathway in the pre-2027 structure, edited in place
+  {
+  const ed = await newPage(browser, { viewport: { width: 1440, height: 1100 } });
+  ed.on('dialog', d => d.accept());
+  await ed.goto(APP);
+  await ed.evaluate(() => { localStorage.clear(); WSLSA.setNow('2026-11-09'); WSLSA.select('2785|BASE'); });
+  const opts = await ed.$$eval('#sel-cohort option', o => o.map(x => x.value + '=' + x.textContent));
+  check(JSON.stringify(opts) === JSON.stringify(['2027=2027 Handbook', 'pre2027=Pre-2027 (started ≤ 2026)']) && await ed.$eval('#sel-cohort', s => s.value) === '2027' && await ed.$eval('label[for="sel-cohort"]', l => l.textContent) === 'Handbook', `the dock should offer the Handbook structure, got ${JSON.stringify(opts)}`);
+  // the pre-2027 structure as a live view of the pathway: no LAWS 1010 and none of the 2027-only cores
+  await ed.selectOption('#sel-cohort', 'pre2027');
+  const view = await ed.evaluate(() => {
+    const c = WSLSA.context();
+    const law = c.slots.filter(s => !s.pending && /^LAWS /.test(s.code) && (s.kind === 'fixed'));
+    return { custom: c.custom, codes: c.slots.filter(s => !s.pending).map(s => s.code), lawCP: law.reduce((a, s) => a + s.cp, 0), llb: c.slots.filter(s => s.kind === 'llb').reduce((a, s) => a + s.cp, 0), notes: Array.from(document.querySelectorAll('#grid .flag-legacy')).map(f => f.textContent), stand: document.querySelectorAll('#grid .subj-note').length, badge: !!document.querySelector('.pbadge-pre') };
+  });
+  check(!view.custom && ['LAWS 1010', 'LAWS 2018', 'LAWS 3101', 'LAWS 2019', 'LAWS 3099', 'LAWS 3102'].every(c => view.codes.indexOf(c) < 0) && ['LAWS 1009', 'LAWS 2004', 'LAWS 2001', 'LAWS 2020', 'LAWS 3100', 'LAWS 3103'].every(c => view.codes.indexOf(c) >= 0), `the pre-2027 view should show the pre-2027 subjects and none of the 2027-only ones, got ${view.codes.join(' ')}`);
+  check(view.lawCP === 160 && view.llb === 80 && view.badge, `the pre-2027 view should have 160 CP of Law core and 80 CP of LLB Alternates, got ${view.lawCP} and ${view.llb}`);
+  check(view.notes.indexOf('Or LAWS 1010 Legal Methods from 2027') >= 0 && view.notes.indexOf('Pre-2027 subject · last offered 2027') >= 0 && view.notes.some(n => /^Replaces pre-2027 LAWS 2015 · last offered 2028$/.test(n)), `the pre-2027 subjects should say what they stand for, got ${view.notes.join(' | ')}`);
+  // an LLB Alternate chosen in the place of a 2027-only core is kept, and the view travels in a link
+  const stand = await ed.evaluate(() => WSLSA.context().slots.find(s => s.newCore).id);
+  await ed.click(`#slot-${stand} [data-action="picker-open"]`);
+  await ed.fill('#pick-q', 'LAWS 4010');
+  await ed.click('#pick-results [data-action="pick"][data-code="LAWS 4010"]');
+  check(await ed.evaluate(id => WSLSA.context().byId[id].code === 'LAWS 4010' && !WSLSA.context().custom, stand), 'an LLB Alternate should go in the place of a 2027-only core without copying the pathway');
+  const preLink = await ed.evaluate(() => WSLSA.linkText());
+  check(/^2785\/co=p\//.test(preLink), `a link should carry the pre-2027 view, got ${preLink}`);
+  await ed.reload();
+  check(await ed.evaluate(id => WSLSA.context().byId[id].code === 'LAWS 4010' && document.getElementById('sel-cohort').value === 'pre2027', stand), 'the pre-2027 view and its choice should survive a reload');
+  // Move ▾ on any card: every session, marked by whether the subject runs there, and the edited copy in place
+  const torts = await ed.evaluate(() => WSLSA.context().slots.find(s => s.code === 'LAWS 2013').id);
+  const moveOpts = await ed.$$eval(`#slot-${torts} .move-sel option`, o => o.map(x => x.textContent + (x.disabled ? ' [off]' : '')));
+  check(moveOpts[0] === 'Move ▾' && moveOpts.some(t => /^Year 1 · Spring \(here\) \[off\]$/.test(t)) && moveOpts.some(t => /^Year 2 · Spring  ✓ Offered$/.test(t)) && moveOpts.some(t => /^Year 2 · Autumn  ⚠ Check offering$/.test(t)) && moveOpts.some(t => /^\+ New Year 6 · Autumn/.test(t)), `Move should list every session with its offering, got ${moveOpts.slice(0, 8).join(' | ')}`);
+  await ed.selectOption(`#slot-${torts} .move-sel`, '2|Autumn');
+  const after = await ed.evaluate(() => { const c = WSLSA.context(); const s = c.slots.find(x => x.code === 'LAWS 2013'); return { edit: c.edit, mode: WSLSA.state().mode, at: s.year + s.session, deg: document.getElementById('sel-degree').value, kicker: document.getElementById('section-kicker').textContent, badge: !!document.querySelector('.pbadge-edit'), pick: c.slots.some(x => x.code === 'LAWS 4010'), pre: !c.slots.some(x => x.code === 'LAWS 1010') }; });
+  check(after.edit === '2785|BASE' && after.mode === 'guide' && after.at === '2Autumn' && after.deg === '2785' && /Your edited pathway/.test(after.kicker) && after.badge && after.pick && after.pre, `moving a card should edit the pathway in place, keeping its choices and structure, got ${JSON.stringify(after)}`);
+  check(/LAWS 2013 moved to Year 2 Autumn\. Check: Not offered in Autumn/.test(await ed.textContent('#toast')), `moving to a session it does not run in should be allowed and say so, got ${await ed.textContent('#toast')}`);
+  await ed.click('#section-tools [data-action="undo"]');
+  check(await ed.evaluate(() => !WSLSA.context().edit && !WSLSA.context().custom && WSLSA.context().slots.some(s => s.code === 'LAWS 4010')), 'Undo should give back the pathway as it was');
+  // Change / Replace on a core card: closing the window changes nothing, choosing replaces the subject
+  const crim = await ed.evaluate(() => WSLSA.context().slots.find(s => s.code === 'LAWS 2004').id);
+  await ed.click(`#slot-${crim} [data-action="change-open"]`);
+  check(!!(await ed.$('#pick-q')) && /Change or move this subject/.test(await ed.textContent('#picker-h')), 'Change / Replace should open the subject picker');
+  await ed.keyboard.press('Escape');
+  check(await ed.evaluate(() => !WSLSA.context().edit), 'closing the picker without a change should leave the pathway as it was');
+  await ed.click(`#slot-${crim} [data-action="change-open"]`);
+  await ed.fill('#pick-q', 'LAWS 2018');
+  await ed.click('#pick-results [data-action="cpick"][data-code="LAWS 2018"]');
+  check(await ed.evaluate(() => WSLSA.context().edit === '2785|BASE' && WSLSA.context().slots.some(s => s.code === 'LAWS 2018') && !WSLSA.context().slots.some(s => s.code === 'LAWS 2004')), 'choosing a subject should replace the card in the edited pathway');
+  // Remove ×, + Add slot with the pathway's kinds, + Add a year, then Reset to Default Sequence keeps ticks
+  await ed.click(`#slot-${await ed.evaluate(() => WSLSA.context().slots.find(s => s.code === 'LAWS 1003').id)} .tick`);
+  const consult = await ed.evaluate(() => WSLSA.context().slots.find(s => s.code === 'ACCT 3011').id);
+  await ed.click(`#slot-${consult} [data-action="cremove"]`);
+  check(await ed.evaluate(() => !WSLSA.context().slots.some(s => s.code === 'ACCT 3011')) && /Removed the Year 3 Autumn slot \(ACCT 3011\)/.test(await ed.textContent('#toast')), 'Remove should take the card out');
+  const kinds = await ed.$$eval('#year-3 .session[data-s="Autumn"] .add-menu [data-action="cadd"]', b => b.map(x => x.textContent));
+  check(JSON.stringify(kinds) === JSON.stringify(['Subject slot (any WSU subject)', 'LLB Alternate slot', 'Choice: Alternate Accounting subject']), `+ Add slot should offer the pathway's kinds of slot, got ${JSON.stringify(kinds)}`);
+  await ed.click('#year-3 .session[data-s="Autumn"] [data-action="cadd"][data-o]');
+  check(await ed.evaluate(() => WSLSA.context().slots.some(s => s.year === 3 && s.session === 'Autumn' && s.pending && s.orig && s.orig.kind === 'llb')), 'an LLB Alternate slot should be added to Year 3 Autumn');
+  await ed.click('[data-action="cyear"]');
+  check(await ed.evaluate(() => WSLSA.context().slots.filter(s => s.year === 6).length) === 8, '+ Add a year should add Year 6 with open slots');
+  await ed.click('[data-action="reset-sequence"]');
+  const reset = await ed.evaluate(() => { const c = WSLSA.context(); return { edit: c.edit, custom: c.custom, done: c.slots.filter(s => s.done).map(s => s.code), years: Math.max.apply(null, c.slots.map(s => s.year)), cohort: document.getElementById('sel-cohort').value, back: c.slots.some(s => s.code === 'ACCT 3011') && c.slots.some(s => s.code === 'LAWS 2004') }; });
+  check(!reset.edit && !reset.custom && JSON.stringify(reset.done) === JSON.stringify(['LAWS 1003']) && reset.years === 5 && reset.cohort === 'pre2027' && reset.back, `Reset to Default Sequence should put the pathway back, keeping its ticks and structure, got ${JSON.stringify(reset)}`);
+  // the 2027 structure again: LAWS 1010 and the 2027 cores come back
+  await ed.selectOption('#sel-cohort', '2027');
+  check(await ed.evaluate(() => ['LAWS 1010', 'LAWS 2019', 'LAWS 3099', 'LAWS 3102'].every(c => WSLSA.context().slots.some(s => s.code === c))), 'the 2027 structure should show the 2027 subjects again');
+  check(ed.errors.length === 0, 'edit in place console errors: ' + ed.errors.join('; '));
+  await ed.close();
+  }
+
+  // ---------------------------------------------------------------- reading records: split terms, a missing term, pasted MySR text, and the guide
+  {
+  const rd = await newPage(browser, { viewport: { width: 1440, height: 1300 } });
+  await rd.goto(APP);
+  await rd.evaluate(() => { localStorage.clear(); WSLSA.select('2848|BASE'); });
+  const NOW2 = '2026-11-09T10:00:00';
+  // the term split across cells, with the session at the end of the row, and table cells copied with bars and tabs
+  await rd.click('[data-action="progress-open"]');
+  await rd.evaluate(([l, now]) => WSLSA.importPdfLines(l, now, 'results.pdf'), [[
+    'Subject Results', '2848 - Bachelor of Laws',
+    '2024 LAWS1003 Fundamentals of Australian Law D 77 10 ✓ Autumn',
+    '2024 | LAWS2004 | Criminal Law | D | 77 | 10 | ✓ | Autumn',
+    'LAWS1009 Legal Analysis and Critique C 65 10',
+    '2025\tLAWS2003\tContracts\tH\t89\t10\t✓\tSpring',
+    'Total Credit Points Required 320',
+  ], NOW2]);
+  await rd.click('#progress-apply');
+  const terms = await rd.evaluate(() => WSLSA.custom().slots.map(x => x.code + '@' + x.y + x.s).join(' '));
+  check(terms === 'LAWS 1003@1Autumn LAWS 2004@1Autumn LAWS 1009@1Autumn LAWS 2003@2Spring', `terms split across cells should be read, and a row without one should take the nearest, got ${terms}`);
+  // a record with no terms at all goes in Year 1, and says so
+  await rd.click('[data-action="progress-open"]');
+  await rd.evaluate(([l, now]) => WSLSA.importPdfLines(l, now, 'list.pdf'), [['2848 - Bachelor of Laws', 'LAWS1003 Fundamentals of Australian Law D 77 10', 'LAWS2003 Contracts C 65 10'], NOW2]);
+  check(/No session was found for LAWS 1003, LAWS 2003, so they go in Autumn 2026/.test(await rd.innerText('#progress-results')), `subjects with no session should be kept, in Year 1, got ${(await rd.innerText('#progress-results')).replace(/\n+/g, ' | ').slice(0, 300)}`);
+  await rd.keyboard.press('Escape');
+  // results pasted from MySR, read the same way
+  await rd.click('[data-action="progress-open"]');
+  await rd.click('#progress-paste-box summary');
+  await rd.fill('#progress-text', ['Term\tSubject\tTitle\tGrade\tMark\tCredit Points', '2024\tAutumn\tLAWS1003\tFundamentals of Australian Law\tD\t77\t10', '2024\tSpring\tLAWS2013\tTorts Law\tC\t66\t10', '2025\tAutumn\tLAWS2003\tContracts\tNA\t(10)'].join('\n'));
+  await rd.click('[data-action="progress-paste"]');
+  const pasted = await rd.innerText('#progress-results');
+  check(/Read your pasted results/.test(await rd.textContent('#progress-status')) && /2\s*Completed/.test(pasted) && /1\s*In progress/.test(pasted) && /does not name its degree, so your plan follows 2848 Bachelor of Laws, the degree on screen/.test(pasted), `pasted MySR results should be read like a PDF, got ${(await rd.textContent('#progress-status'))} ${pasted.replace(/\n+/g, ' | ').slice(0, 200)}`);
+  await rd.click('#progress-apply');
+  const g = await rd.evaluate(() => WSLSA.guide());
+  check(!!g && g.items.length > 0 && (await rd.$$('#grid .year')).length >= 4, 'the pasted record should build a plan with a guide and its years ahead');
+  // a guide item dragged onto a session ahead in the plan, with both on screen
+  await rd.setViewportSize({ width: 1440, height: 4200 });
+  await rd.evaluate(() => window.scrollTo(0, 0));
+  const code = await rd.$eval('.guide-item', e => e.querySelector('code') ? e.querySelector('code').textContent : '');
+  const src = await (await rd.$('.guide-item')).boundingBox();
+  await rd.mouse.move(src.x + 20, src.y + 10);
+  await rd.mouse.down();
+  await rd.mouse.move(src.x + 40, src.y + 30, { steps: 4 });
+  await rd.waitForTimeout(120);
+  const zone = await (await rd.$('#year-4 .session[data-s="Spring"] .session-head')).boundingBox();
+  await rd.mouse.move(zone.x + 30, zone.y + 8, { steps: 6 });
+  await rd.mouse.move(zone.x + 34, zone.y + 9);
+  await rd.waitForTimeout(80);
+  const marked = await rd.evaluate(() => document.querySelector('#year-4 .session[data-s="Spring"]').className);
+  await rd.mouse.up();
+  const placed = await rd.evaluate(c => WSLSA.custom().slots.some(x => x.code === c && x.y === 4 && x.s === 'Spring'), code);
+  check(/drop-(ok|warn)/.test(marked) && placed && !(await rd.evaluate(c => WSLSA.guide() && WSLSA.guide().items.some(x => x.code === c), code)), `dragging ${code} from the guide onto a session should place it there, got ${marked}`);
+  await rd.setViewportSize({ width: 1440, height: 1300 });
+  // Re-Pace lays out what the guide still lists
+  await rd.clickRaw('[data-action="repace-open"]');
+  check(/Remaining \d+ CP/.test(await rd.textContent('.rp-summary')) && await rd.isEnabled('#rp-apply'), `Re-Pace should lay out the guide's subjects, got ${await rd.textContent('.rp-summary')}`);
+  await rd.clickRaw('#rp-apply');
+  await rd.waitForFunction(() => !document.getElementById('rp-form'));
+  check(await rd.evaluate(() => !WSLSA.guide() && WSLSA.context().totalCP >= 320), 'applying Re-Pace should place everything the guide listed');
+  check(rd.errors.length === 0, 'reading records console errors: ' + rd.errors.join('; '));
+  await rd.close();
   }
 
   // ---------------------------------------------------------------- import real PDF files (loads the PDF reader and text recogniser from jsDelivr)
@@ -868,9 +1018,7 @@ async function renderPdf(page, key, mode, orient, file) {
 
   // ---------------------------------------------------------------- drag between sessions in a custom plan
   await ux.evaluate(() => { localStorage.clear(); WSLSA.select('2785|BASE'); });
-  check((await ux.$$('.subj[draggable="true"]')).length === 0, 'a WSLSA pathway should not be draggable');
-  await ux.click('[data-action="custom-from-current"]');
-  await ux.click('button[type=submit][form=setup-form]');
+  check((await ux.$$('.subj[draggable="true"]')).length === 40, 'every card in a WSLSA pathway should be draggable');
   const dragged = await slotOf(ux, 'LAWS 1003');
   const from = await (await ux.$(`#slot-${dragged} .subj-title`)).boundingBox();
   await ux.mouse.move(from.x + 10, from.y + 5);
@@ -886,6 +1034,7 @@ async function renderPdf(page, key, mode, orient, file) {
   await ux.mouse.up();
   const moved = await ux.evaluate(() => { const c = WSLSA.custom().slots.find(x => x.code === 'LAWS 1003'); return c.y + c.s; });
   check(moved === '1Spring' && /moved to Year 1 Spring/.test(await ux.textContent('#toast')) && !(await ux.$('.drop-badge, .drop-warn, .drop-ok')), `dropping should move the subject and clear the highlights, got ${moved}`);
+  check(await ux.evaluate(() => WSLSA.context().edit === '2785|BASE' && WSLSA.state().mode === 'guide'), 'the drop should make the pathway its edited copy, in place');
   await ux.click('[data-action="load"][data-load="PT"]');
   check((await ux.$$('.subj[draggable="true"]')).length === 0, 'the part-time view should not be draggable');
   await ux.click('[data-action="load"][data-load="FT"]');
@@ -1101,7 +1250,7 @@ async function renderPdf(page, key, mode, orient, file) {
     await pt.click(`#slot-${await idOf('ACCT 2001')} [data-action="defer"]`);
     const afterPre = await place('ACCT 2001');
     const afterDep = await place('ACCT 3011');
-    check(await pt.evaluate(() => WSLSA.context().custom && WSLSA.custom().tpl === '2785|BASE'), 'deferring from a pathway should make an editable copy');
+    check(await pt.evaluate(() => WSLSA.context().edit === '2785|BASE' && WSLSA.custom().tpl === '2785|BASE' && WSLSA.state().mode === 'guide'), 'deferring on a pathway should make its edited copy, in place');
     check(afterPre.i > prereq.i && !afterPre.none && afterDep.i > afterPre.i && !afterDep.none, `deferring should move the subject to an offered session and cascade what needs it, got ${JSON.stringify({ afterPre, afterDep })}`);
     check(/Deferred ACCT 2001 to .*moved ACCT 3011/.test(await pt.textContent('#toast')) && !!(await pt.$('#toast [data-action="undo"]')), `the toast should sum up the moves and offer Undo, got "${await pt.textContent('#toast')}"`);
     await pt.click('#toast [data-action="undo"]');
@@ -1121,12 +1270,16 @@ async function renderPdf(page, key, mode, orient, file) {
     await pt.click(`#slot-${c2} [data-action="picker-open"]`);
     await pt.click('.modal [data-action="defer"]');
     check(!(await pt.$('.modal')) && (await place('ACCT 1005')).i > before2.i, 'the Move window should defer and close');
-    // replacing an existing custom plan asks first, and declining changes nothing
+    // each pathway keeps its own edited copy: editing another one leaves this one as it is, with nothing to confirm
+    const edit2785 = await pt.evaluate(() => JSON.stringify(WSLSA.custom()));
     await pt.evaluate(() => { WSLSA.select('2848|BASE'); });
-    const planBefore = await pt.evaluate(() => JSON.stringify(WSLSA.custom()));
-    pt.once('dialog', d => d.dismiss());
     await pt.click(`#slot-${await idOf('LAWS 1003')} [data-action="defer"]`);
-    check(await pt.evaluate(() => JSON.stringify(WSLSA.custom())) === planBefore && await pt.evaluate(() => !WSLSA.context().custom), 'declining should keep the custom plan and stay on the pathway');
+    check(await pt.evaluate(() => WSLSA.context().edit === '2848|BASE' && WSLSA.custom().tpl === '2848|BASE'), 'deferring on another pathway should edit that pathway');
+    await pt.evaluate(() => { WSLSA.select('2785|BASE'); });
+    check(await pt.evaluate(() => JSON.stringify(WSLSA.custom())) === edit2785 && await pt.evaluate(() => WSLSA.context().edit === '2785|BASE'), 'the first pathway should keep its own edited copy');
+    await pt.evaluate(() => { WSLSA.select('2848|BASE'); });
+    await pt.click('[data-action="reset-sequence"]');
+    check(await pt.evaluate(() => !WSLSA.context().edit && !WSLSA.context().custom), 'Reset to Default Sequence should put the pathway back');
 
     // pin a snapshot, change things, compare; it survives a reload
     await pt.evaluate(() => { localStorage.clear(); WSLSA.select('2788|T046'); });
@@ -1490,7 +1643,7 @@ async function renderPdf(page, key, mode, orient, file) {
   await as.$eval(catRow(alt.code), r => r.scrollIntoView({ block: 'center' }));
   const tableTop = await as.$eval('#cat-results .table-scroll', t => t.scrollTop);
   await as.click(catRow(alt.code) + ' .assign-btn');
-  const assignRows = await as.$$eval('.modal .assign-slot', rs => rs.map(r => ({ id: r.dataset.slot, flag: r.querySelector('.flag').textContent, ok: r.querySelector('.flag').classList.contains('flag-done') })));
+  const assignRows = await as.$$eval('.modal .assign-slot[data-slot]', rs => rs.map(r => ({ id: r.dataset.slot, flag: r.querySelector('.flag').textContent, ok: r.querySelector('.flag').classList.contains('flag-done') })));
   const openLlb = await as.evaluate(() => { const seen = {}; let all = 0; WSLSA.context().slots.forEach(s => { if (s.pending && (s.kind === 'llb' || s.kind === 'elective')) { seen[s.year + s.session + s.title] = 1; all++; } }); return { rows: Object.keys(seen).length, all }; });
   check(assignRows.length === openLlb.rows && await as.$eval('.modal .pick-section h3 span:last-child', c => +c.textContent) === openLlb.all && /\d open/.test(await as.textContent('.modal .pick-list')), `the window should list every open slot that can take it, identical ones as one row, got ${assignRows.length} rows for ${JSON.stringify(openLlb)}`);
   check(assignRows.some(r => r.ok && /^Offered in Autumn: /.test(r.flag)) && assignRows.some(r => !r.ok && r.flag === 'Not offered in Spring'), `each slot should say whether its session runs the subject, got ${JSON.stringify(assignRows.slice(0, 4))}`);
@@ -1508,9 +1661,9 @@ async function renderPdf(page, key, mode, orient, file) {
   await as.selectOption('#cat-comp', '__extra__');
   const extraCode = await as.textContent('#cat-results tr.extra td.c-code');
   await as.click('#cat-results tr.extra .assign-btn');
-  const extraRows = await as.$$eval('.modal .assign-slot', rs => rs.map(r => r.dataset.slot));
+  const extraRows = await as.$$eval('.modal .assign-slot[data-slot]', rs => rs.map(r => r.dataset.slot));
   check(extraRows.length > 0 && await as.evaluate(ids => ids.every(i => WSLSA.context().byId[i].kind === 'elective'), extraRows), 'a WSU list subject should be offered only the elective slots');
-  check(/No session data/.test(await as.textContent('.modal .assign-slot .flag')), 'a subject with no session data should say so');
+  check(/No session data/.test(await as.textContent('.modal .assign-slot[data-slot] .flag')), 'a subject with no session data should say so');
   await as.click(`.modal .assign-slot[data-slot="${extraRows[0]}"]`);
   check(await as.evaluate(i => WSLSA.context().byId[i].listSubject, extraRows[0]) && await as.evaluate(i => WSLSA.context().byId[i].code, extraRows[0]) === extraCode, 'it should go in as a WSU list subject');
   await as.selectOption('#cat-comp', '');
@@ -1519,7 +1672,9 @@ async function renderPdf(page, key, mode, orient, file) {
   await as.evaluate(k => WSLSA.select(k), noElective);
   await as.selectOption('#cat-comp', '__extra__');
   await as.click('#cat-results tr.extra .assign-btn');
-  check(!(await as.$('.modal .assign-slot')) && /No open slot/.test(await as.textContent('.modal .pick-empty')) && !!(await as.$('.modal [data-action="custom-from-current"]')), 'a pathway with no slot for it should say so and offer its own copy');
+  check(/No open slot/.test(await as.textContent('.modal .pick-empty')) && !!(await as.$('.modal [data-action="assign-new"]')), 'a pathway with no slot for it should say so and offer a new slot');
+  await as.click('.modal [data-action="assign-new"]');
+  check(await as.evaluate(k => WSLSA.context().edit === k && WSLSA.custom().slots.some(x => x.code && !WSLSA.context().deg.byCode[x.code]), noElective), 'a new slot should hold it in the pathway\'s edited copy');
   await as.keyboard.press('Escape');
   await as.selectOption('#cat-comp', '');
   // a custom plan takes anything, says which slots list it, and can make room
@@ -1595,6 +1750,7 @@ async function renderPdf(page, key, mode, orient, file) {
   await sw.evaluate(() => { const u = WSLSA.history(); return u; });
   if (await sw.evaluate(() => /moved/.test(WSLSA.history().undoLabel))) await sw.click('#section-tools [data-action="undo"]');
   // within a session
+  await sw.evaluate(() => { const t = document.getElementById('year-1').getBoundingClientRect().top + scrollY; window.scrollTo(0, t - 150); });
   const order = () => sw.evaluate(() => { const c = WSLSA.context(); return c.slots.filter(s => s.year === 1 && s.session === 'Autumn').map(s => s.code); });
   const startOrder = await order();
   const orderIds = await sw.evaluate(() => WSLSA.context().slots.filter(s => s.year === 1 && s.session === 'Autumn').map(s => s.id));
@@ -2298,9 +2454,9 @@ async function renderPdf(page, key, mode, orient, file) {
     const c = WSLSA.context();
     const by = {};
     c.slots.filter(s => !s.done).forEach(s => { const k = s.year + s.session; by[k] = (by[k] || 0) + s.cp; });
-    return { pace: c.plan.pace, mode: WSLSA.state().mode, load: WSLSA.state().load, kept: c.slots.filter(s => s.done).map(s => s.code + '@' + s.year + s.session).sort(), by: by, notOffered: c.risks.notOffered.map(s => s.code), finish: document.querySelector('.hp-finish').textContent, pressed: document.querySelector('[data-action="load"][aria-pressed="true"]').textContent, meta: document.getElementById('progress-meta').textContent, note: document.querySelector('.pt-note').textContent, slots: c.plan.slots.length };
+    return { pace: c.plan.pace, edit: c.edit, mode: WSLSA.state().mode, load: WSLSA.state().load, kept: c.slots.filter(s => s.done).map(s => s.code + '@' + s.year + s.session).sort(), by: by, notOffered: c.risks.notOffered.map(s => s.code), finish: document.querySelector('.hp-finish').textContent, pressed: document.querySelector('[data-action="load"][aria-pressed="true"]').textContent, meta: document.getElementById('progress-meta').textContent, note: document.querySelector('.pt-note').textContent, slots: c.plan.slots.length };
   });
-  check(afterRepace.pace === 20 && afterRepace.mode === 'custom' && afterRepace.load === 'FT', `applying should make the student's own copy at that pace, got ${JSON.stringify(afterRepace).slice(0, 200)}`);
+  check(afterRepace.pace === 20 && afterRepace.edit === '2785|BASE' && afterRepace.mode === 'guide' && afterRepace.load === 'FT', `applying should make the pathway's edited copy at that pace, got ${JSON.stringify(afterRepace).slice(0, 200)}`);
   check(JSON.stringify(afterRepace.kept) === JSON.stringify(beforeRepace), 'completed subjects should stay exactly where they were');
   check(Object.keys(afterRepace.by).every(k => afterRepace.by[k] <= 20) && Object.keys(afterRepace.by).every(k => +k[0] >= 3), `the rest should run at 20 CP a session from Year 3, got ${JSON.stringify(afterRepace.by)}`);
   check(afterRepace.notOffered.length === 0, `no subject should land in a session it is not offered in, got ${afterRepace.notOffered.join(', ')}`);
