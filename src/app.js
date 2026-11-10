@@ -2032,10 +2032,10 @@
     if ((choice || s.kind === 'cslot') && picked) out.push(tool('clear', 'Clear', 'Take ' + name + ' out and leave the slot open'));
     else if (s.kind === 'option' && s.pick) out.push(tool('clear', 'Reset', 'Back to the WSLSA pick for this slot'));
     else if (s.kind === 'inline' && s.chosen && s.raw.options.length > 1) out.push(tool('clear', 'Clear', 'Clear your choice for this slot'));
-    if (!pt) out.push(moveSelect(s, ctx));
+    if (!pt) out.push(moveSelect(s));
     if (picked && s.code && hasChain(s.code, ctx)) out.push(tool('xray', 'Chain', 'Show what this subject depends on and unlocks', 'chain-btn', ' aria-pressed="' + (ui.xrayPin === s.id) + '"'));
     if (picked && !s.done && s.code && !pt) out.push(tool('defer', 'Defer ↷', 'Move to the next session it runs in, and move any subject that needs it' + (ctx.custom ? '' : ', in your edited copy of this pathway'), 'defer-btn', ' aria-label="Defer ' + esc(s.code) + ' to its next offered session"'));
-    if (!pt) out.push(tool('cremove', 'Remove ×', 'Remove ' + name + ' from your plan', 'rm-btn', ' aria-label="Remove ' + esc(name) + ' from your plan"'));
+    if (!pt) out.push(tool('cremove', '<span class="tl">Remove </span>×', 'Remove ' + name + ' from your plan', 'rm-btn', ' aria-label="Remove ' + esc(name) + ' from your plan"'));
     return out.join('');
   }
   function slotHTML(s, ctx) {
@@ -2043,6 +2043,8 @@
     const cls = ['subj', kc];
     if (kc === 'k-slot') cls.push(s.pending ? 'is-pending' : 'is-chosen');
     if (s.done) cls.push('is-done');
+    // a card's tools stay folded away until its ••• button is pressed, one card at a time
+    if (ui.openCard === s.id) cls.push('is-open');
     const offCampus = state.campus && ctx.risks.campus.indexOf(s) >= 0;
     if (offCampus) cls.push('offcampus');
     let body = '';
@@ -2069,13 +2071,21 @@
     return '<div class="' + cls.join(' ') + '" id="slot-' + s.id + '" data-slot="' + s.id + '"' + (state.load !== 'PT' ? ' draggable="true"' : '') + (s.vt ? ' style="--vt:' + s.vt + '"' : '') + '>' +
       '<div class="subj-lead">' + check + '<span class="code-pill">' + esc(codeTxt) + '</span></div>' +
       '<div class="subj-main"><div class="subj-title">' + esc(s.title) + '</div><div class="subj-meta"><span class="cat">' + esc(s.typeLabel) + '</span>' + slotFlags(s, ctx) + '</div>' + body + '</div>' +
-      '<div class="subj-side"><span class="pills">' + slotOffer(s, ctx) + '</span><span class="cp-badge">' + s.cp + ' CP</span></div>' +
-      '<div class="subj-edit" role="group" aria-label="Tools for ' + esc(s.pending ? 'this open slot' : s.code) + '">' + tools + '</div></div>';
+      '<div class="subj-side"><span class="pills">' + slotOffer(s, ctx) + '</span><span class="subj-end">' + (tools ? '<button type="button" class="subj-more" data-action="card-tools" data-slot="' + s.id + '" aria-expanded="' + (ui.openCard === s.id) + '" aria-controls="tools-' + s.id + '" aria-label="Tools for ' + esc(s.pending ? 'this open slot' : s.code) + '" title="Change, move or remove"><span aria-hidden="true">•••</span></button>' : '') + '<span class="cp-badge">' + s.cp + ' CP</span></span></div>' +
+      '<div class="subj-edit" id="tools-' + s.id + '" role="group" aria-label="Tools for ' + esc(s.pending ? 'this open slot' : s.code) + '">' + tools + '</div></div>';
   }
 
   // Move to ▾ on a card: any session of the plan, or a new year, each with the credit points it holds and whether the
   // subject runs there
-  function moveSelect(s, ctx) {
+  function moveSelect(s) {
+    return '<span class="move-wrap"><select class="move-sel" data-slot="' + s.id + '" data-lazy="1" aria-label="Move ' + esc(s.pending ? 'this open slot' : s.code) + ' to another session" title="Move to another session"><option value="">Move to</option></select></span>';
+  }
+  function fillMove(sel) {
+    if (!sel || !sel.dataset.lazy) return;
+    const ctx = lastCtx;
+    const s = ctx.byId[sel.dataset.slot];
+    if (!s) return;
+    delete sel.dataset.lazy;
     const years = ctx.shownYears || 1;
     const maxY = Math.min(MAX_YEARS, years + 1);
     const held = {};
@@ -2089,8 +2099,11 @@
         return '<option value="' + y + '|' + ss + '"' + (here ? ' disabled' : '') + '>' + (fresh ? '+ New Year ' : 'Year ') + y + ' · ' + ss + (fresh ? '' : ' · ' + (held[orderIdx(y, ss)] || 0) + ' CP') + mark + '</option>';
       }).join('') + '</optgroup>';
     }
-    return '<span class="move-wrap"><select class="move-sel" data-slot="' + s.id + '" aria-label="Move ' + esc(s.pending ? 'this open slot' : s.code) + ' to another session" title="Move to another session">' + opts + '</select></span>';
+    sel.innerHTML = opts;
   }
+  ['focusin', 'pointerdown'].forEach(function (type) {
+    document.addEventListener(type, function (ev) { if (ev.target.classList && ev.target.classList.contains('move-sel')) fillMove(ev.target); }, true);
+  });
   // + Add slot: a slot for any subject, or one tied to the pathway's own kinds of choice
   function slotKinds(ctx) {
     const key = ctx.custom ? ctx.plan.tpl : ctx.key;
@@ -2581,7 +2594,7 @@
     { title: 'Next to enrol', text: 'This is your next session. Copy Codes gives you the subject codes for MySR and Export .ics saves a calendar reminder. Already studying? Import my progress rebuilds your plan from a PDF, and Tick off from my results ticks subjects from text you paste.', targets: ['#next'] },
     { title: 'Plan tools', text: 'Undo and Redo step through your changes (' + UNDO_KEYS + ' and ' + REDO_KEYS + '). Re-Pace / Switch Load changes your load for the rest of your degree, with a Leave of Absence, a Spring start and Fast-Track. Plan Tools holds Auto-fill, Pin Snapshot, Simulate Degree Transfer and your own custom plan.', targets: ['#section-tools'] },
     { title: 'Filter bar and degree map', text: 'Show everything, only what remains, or only what needs action. Type in the box, or press /, to filter your plan by code or title. The degree map shows every session, stays on screen as you scroll and jumps to a session when you press it.', targets: ['#gridbar', '#dmap'] },
-    { title: 'Subject cards', text: 'Tick a subject when you pass it. The row under each card holds its tools: Change swaps the subject, Move to sends it to any session, Chain shows what it depends on and unlocks, Defer ↷ moves it to the next session it runs in, and Remove × takes it out. Open slots let you pick an LLB Alternate, and you can drag one subject onto another to swap them.', targets: ['#grid .subj'], fallback: '#grid' },
+    { title: 'Subject cards', text: 'Tick a subject when you pass it. Press ••• on a card for its tools: Change swaps the subject, Move to sends it to any session, Chain shows what it depends on and unlocks, Defer ↷ moves it to the next session it runs in, and Remove × takes it out. Open slots let you pick an LLB Alternate, and you can drag one subject onto another to swap them.', targets: ['#grid .subj'], fallback: '#grid' },
     { title: 'Degree details and catalogue', text: 'Credit breakdown, admission, accreditation and exit awards are here. In the subject catalogue tab, + Assign puts a subject straight into an open slot in your plan.', targets: ['#details'] },
     { title: 'Law Enquiry and your PDF', text: 'The Law Enquiry box in the corner holds the School of Law\'s 2027 advice and drafts an email to the School with your plan attached as a link. Print / Save PDF, at the top of the page or in the Menu, saves a sharp A4 guide of your plan, and PDF Options under More sets it up.', targets: ['#enquiry-box'], also: '[data-action="print"]', top: true, corner: true },
   ];
@@ -4075,7 +4088,8 @@
     const slots = res.rows.slice().sort(function (a, b) { return a.k - b.k || a.order - b.order; }).map(function (r) {
       return Object.assign({}, r.slot, { y: Math.floor(r.k / 3) + 1, s: PLAN_SESSIONS[r.k % 3] });
     });
-    return sanitiseCustom(Object.assign(head, { start: o.start === START_YEAR ? 0 : o.start, pace: o.load, cohort: o.cohort, slots: slots }));
+    // a re-paced plan runs at one load, so loads set by hand go; the student's notes stay with their sessions
+    return sanitiseCustom(Object.assign(head, { start: o.start === START_YEAR ? 0 : o.start, pace: o.load, cohort: o.cohort, slots: slots, notes: ctx.custom ? ctx.plan.notes : {} }));
   }
   function paceSummary(res, o) {
     const rest = res.todo.reduce(function (a, r) { return a + r.cp; }, 0);
@@ -5483,12 +5497,24 @@
     renderMoving();
     toast(plural(out.length, 'unticked slot') + ' cleared from Year ' + y + '. Anything your degree still needs is listed in the Suggested Remaining Guide.', { action: 'undo', label: 'Undo' });
   }
-  function setSessionNote(y, sess) {
+  function openNote(y, sess) {
     const k = orderIdx(y, sess);
     const now = (editPlan() && editPlan().notes[k]) || '';
-    const text = window.prompt('Your note for Year ' + y + ' ' + sess + ' (leave empty to remove it):', now);
-    if (text == null) return;
-    const clean = text.replace(/\s+/g, ' ').trim().slice(0, 140);
+    ui.modal = 'note';
+    ui.note = { y: y, sess: sess };
+    showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal modal-note" role="dialog" aria-modal="true" aria-labelledby="note-h">' +
+      '<div class="modal-head"><div><h2 id="note-h">Note for ' + esc(sessionLabel(y, sess)) + '</h2><p>Year ' + y + ' ' + sess + '. A reminder of your own, such as an exchange, a placement, work or a subject to ask about. It is kept with your plan, in its share link and in your PDF.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
+      '<form class="note-body" id="note-form" novalidate><label class="sr-only" for="note-text">Your note</label><textarea class="input" id="note-text" rows="3" maxlength="140" placeholder="e.g. Exchange semester, so no WSU subjects">' + esc(now) + '</textarea><p class="small muted" style="margin:6px 0 0">Up to 140 characters.</p></form>' +
+      '<div class="modal-foot">' + (now ? '<button type="button" class="btn btn-ghost" data-action="note-remove">Remove note</button>' : '<span></span>') + '<div style="display:flex;gap:8px"><button type="button" class="btn btn-ghost" data-action="modal-close">Cancel</button><button type="submit" form="note-form" class="btn btn-primary">Save note</button></div></div></div></div>');
+    const t = $('#note-text');
+    t.focus();
+    t.setSelectionRange(t.value.length, t.value.length);
+  }
+  function setSessionNote(y, sess, text) {
+    const k = orderIdx(y, sess);
+    const now = (editPlan() && editPlan().notes[k]) || '';
+    const clean = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 140);
+    closeModal(true);
     if (clean === now) return;
     ensureEditable();
     const plan = editPlan();
@@ -5496,6 +5522,7 @@
     if (clean) plan.notes[k] = clean; else delete plan.notes[k];
     if (y > plan.years) plan.years = Math.min(MAX_YEARS, y);
     renderMoving();
+    toast(clean ? 'Note saved on ' + sessionLabel(y, sess) + '.' : 'Note removed.', { action: 'undo', label: 'Undo' });
   }
   function addCustomYear() {
     const plan = editPlan();
@@ -7234,10 +7261,26 @@
       }
       case 'guide-fill': addFromGuide(lastCtx.guide.items.map(function (r, i) { return i; }), ''); break;
       case 'plan-fix': fixPlan(); break;
+      case 'card-tools': {
+        const id = el.dataset.slot;
+        const opening = ui.openCard !== id;
+        document.querySelectorAll('#grid .subj.is-open').forEach(function (c) {
+          c.classList.remove('is-open');
+          const b = c.querySelector('.subj-more');
+          if (b) b.setAttribute('aria-expanded', 'false');
+        });
+        ui.openCard = opening ? id : '';
+        if (opening) {
+          el.closest('.subj').classList.add('is-open');
+          el.setAttribute('aria-expanded', 'true');
+        }
+        break;
+      }
       case 'year-delete': deleteYear(+el.dataset.y); break;
       case 'year-insert': insertYear(+el.dataset.y); break;
       case 'year-clear': clearYear(+el.dataset.y); break;
-      case 'session-note': setSessionNote(+el.dataset.y, el.dataset.s); break;
+      case 'session-note': openNote(+el.dataset.y, el.dataset.s); break;
+      case 'note-remove': setSessionNote(ui.note.y, ui.note.sess, ''); break;
       case 'guide-pin':
         state.guidePinned = !state.guidePinned;
         if (state.guidePinned) ui.guideOpen = true;
@@ -7313,6 +7356,7 @@
   });
 
   document.addEventListener('submit', function (ev) {
+    if (ev.target.id === 'note-form') { ev.preventDefault(); setSessionNote(ui.note.y, ui.note.sess, $('#note-text').value); return; }
     if (ev.target.id === 'setup-form') { ev.preventDefault(); applySetup(); return; }
     if (ev.target.id !== 'custom-form') return;
     ev.preventDefault();

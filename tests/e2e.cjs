@@ -66,6 +66,9 @@ async function renderPdf(page, key, mode, orient, file) {
       const top = el.closest('#top-actions');
       const menu = document.querySelector('.top-menu-btn');
       if (top && menu.offsetParent && !top.classList.contains('is-open')) menu.click();
+      // a card's tools are behind its ••• button
+      const card = el.closest('.subj-edit') ? el.closest('.subj') : null;
+      if (card && !card.classList.contains('is-open')) card.querySelector('.subj-more').click();
       const pop = el.closest('.pop-menu');
       if (pop && pop.hidden && pop.previousElementSibling.offsetParent) pop.previousElementSibling.click();
     }, selector).catch(() => {});
@@ -76,6 +79,21 @@ async function renderPdf(page, key, mode, orient, file) {
       await plainClick.call(this, '#rp-apply');
     }
   };
+  // a student reaches a select by focusing it, which is when a card's Move to list is filled in
+  const plainSelect = pageProto.selectOption;
+  pageProto.selectOption = async function (selector, values, options) {
+    await this.evaluate(s => { let el = null; try { el = document.querySelector(s); } catch (e) { return; } const card = el && el.closest('.subj-edit') ? el.closest('.subj') : null; if (card && !card.classList.contains('is-open')) card.querySelector('.subj-more').click(); }, selector).catch(() => {});
+    await this.focus(selector).catch(() => {});
+    return plainSelect.call(this, selector, values, options);
+  };
+  // hovering or focusing one of a card's tools means the card's tools are open
+  for (const name of ['hover', 'focus']) {
+    const plain = pageProto[name];
+    pageProto[name] = async function (selector, options) {
+      await this.evaluate(s => { let el = null; try { el = document.querySelector(s); } catch (e) { return; } const card = el && el.closest('.subj-edit') ? el.closest('.subj') : null; if (card && !card.classList.contains('is-open')) card.querySelector('.subj-more').click(); }, selector).catch(() => {});
+      return plain.call(this, selector, options);
+    };
+  }
   const page = await newPage(browser);
   await page.goto(APP);
   await page.evaluate(() => localStorage.clear());
@@ -808,6 +826,8 @@ async function renderPdf(page, key, mode, orient, file) {
   check(await ed.evaluate(id => WSLSA.context().byId[id].code === 'LAWS 4010' && document.getElementById('sel-cohort').value === 'pre2027', stand), 'the pre-2027 view and its choice should survive a reload');
   // Move ▾ on any card: every session, marked by whether the subject runs there, and the edited copy in place
   const torts = await ed.evaluate(() => WSLSA.context().slots.find(s => s.code === 'LAWS 2013').id);
+  check((await ed.$$(`#slot-${torts} .move-sel option`)).length === 1, 'a card should not build its list of sessions until Move to is used');
+  await ed.focus(`#slot-${torts} .move-sel`);
   const moveOpts = await ed.$$eval(`#slot-${torts} .move-sel option`, o => o.map(x => x.textContent + (x.disabled ? ' [off]' : '')));
   check(moveOpts[0] === 'Move to' && moveOpts.some(t => /^Year 1 · Spring · 40 CP \(here\) \[off\]$/.test(t)) && moveOpts.some(t => /^Year 2 · Spring · 40 CP  ✓ Offered$/.test(t)) && moveOpts.some(t => /^Year 2 · Autumn · 40 CP  ⚠ Check offering$/.test(t)) && moveOpts.some(t => /^\+ New Year 6 · Autumn/.test(t)), `Move should list every session with its offering, got ${moveOpts.slice(0, 8).join(' | ')}`);
   await ed.selectOption(`#slot-${torts} .move-sel`, '2|Autumn');
@@ -1403,14 +1423,18 @@ async function renderPdf(page, key, mode, orient, file) {
   await lay.keyboard.press('Escape');
   // per-card tools are always there, and quiet until the card is in use
   const quiet = await lay.evaluate(() => { const b = document.querySelector('#grid .defer-btn'); b.closest('.subj').scrollIntoView({ block: 'center' }); return b.dataset.slot; });
-  const toolOpacity = () => lay.$eval(`#slot-${quiet} .subj-edit`, b => getComputedStyle(b).opacity);
-  await lay.mouse.move(0, 0);
-  check(await toolOpacity() === '1' && await lay.$eval(`#slot-${quiet}`, c => c.getBoundingClientRect().height < 112), 'a card at rest should show its tools quietly, with no empty room under them');
-  await lay.hover(`#slot-${quiet} .subj-title`);
-  check(await toolOpacity() === '1', 'hovering a card should show its tools');
-  await lay.mouse.move(0, 0);
-  await lay.focus(`#slot-${quiet} .defer-btn`);
-  check(await toolOpacity() === '1', 'keyboard focus should show a card\'s tools');
+  const tools = id => lay.$eval(`#slot-${id}`, c => ({ shown: getComputedStyle(c.querySelector('.subj-edit')).display !== 'none', tall: Math.round(c.getBoundingClientRect().height), open: c.querySelector('.subj-more').getAttribute('aria-expanded') }));
+  let cardT = await tools(quiet);
+  check(!cardT.shown && cardT.tall < 84 && cardT.open === 'false', `a card at rest should keep its tools folded away and take no room for them, got ${JSON.stringify(cardT)}`);
+  await lay.click(`#slot-${quiet} .subj-more`);
+  cardT = await tools(quiet);
+  check(cardT.shown && cardT.open === 'true' && await lay.isVisible(`#slot-${quiet} .defer-btn`), `pressing ••• should open the card's tools in place, got ${JSON.stringify(cardT)}`);
+  const otherCard = await lay.evaluate(q => Array.from(document.querySelectorAll('#grid .subj-more')).map(b => b.dataset.slot).find(id => id !== q), quiet);
+  await lay.focus(`#slot-${otherCard} .subj-more`);
+  await lay.keyboard.press('Enter');
+  check((await tools(otherCard)).shown && !(await tools(quiet)).shown, 'opening another card from the keyboard should close the first');
+  await lay.keyboard.press('Enter');
+  check(!(await tools(otherCard)).shown, 'pressing ••• again should fold the tools away');
   await lay.evaluate(() => { document.activeElement.blur(); window.scrollTo(0, 0); });
   // the degree map
   const segments = (y, s) => lay.$$eval(`#dmap .dm-s[data-y="${y}"][data-s="${s}"] .dm-seg i`, is => is.map(i => i.className || 'todo').join(' '));
@@ -2792,14 +2816,17 @@ async function renderPdf(page, key, mode, orient, file) {
   for (let i = 0; i < 4; i++) await hb.click('#section-tools [data-action="undo"]');
   check(!(await shape()).edit, 'Undo should take the year changes back to the pathway');
   // a note on a session, kept with the plan, in its link and on paper
-  await hb.evaluate(() => { window.prompt = () => 'Exchange semester in Leiden'; });
   await hb.click('#year-3 .session[data-s="Spring"] [data-action="session-note"]');
+  check(/Note for Spring 2029/.test(await hb.textContent('#note-h')) && await hb.evaluate(() => document.activeElement.id === 'note-text'), 'a note should open its own window, ready to type in');
+  await hb.fill('#note-text', 'Exchange semester in Leiden');
+  await hb.click('.modal-note [type="submit"]');
   const noted = await hb.evaluate(() => { WSLSA.preparePrint({ mode: 'A', orient: 'portrait' }); return { text: document.querySelector('#year-3 .session[data-s="Spring"] .session-note').textContent, link: WSLSA.linkText(), paper: (document.querySelector('#print-root .pd-notes') || {}).textContent || '', button: document.querySelector('#year-3 .session[data-s="Spring"] .note-btn').textContent }; });
   check(noted.text === 'NoteExchange semester in Leiden' && /\/nt=7:Exchange%20semester%20in%20Leiden/.test(noted.link) && /Spring 2029: Exchange semester in Leiden/.test(noted.paper) && noted.button === 'Edit note', `a session note should show on the session, in the link and on paper, got ${JSON.stringify(noted)}`);
   await hb.click('#year-2 [data-action="year-insert"]');
   check(await hb.evaluate(() => WSLSA.custom().notes[10] === 'Exchange semester in Leiden' && !WSLSA.custom().notes[7]), 'a note should move with its session when a year is inserted');
-  await hb.evaluate(() => { window.prompt = () => ''; });
   await hb.click('#year-4 .session[data-s="Spring"] [data-action="session-note"]');
+  check(await hb.inputValue('#note-text') === 'Exchange semester in Leiden', 'editing a note should start from what it says');
+  await hb.click('[data-action="note-remove"]');
   check(!(await hb.$('#grid .session-note')), 'an empty note should remove it');
   for (let i = 0; i < 3; i++) await hb.click('#section-tools [data-action="undo"]');
   check(!(await shape()).edit, 'Undo should take the notes back');

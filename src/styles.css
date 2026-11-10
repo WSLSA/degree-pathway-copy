@@ -807,7 +807,7 @@ table.cat tr.extra td.c-code { color: var(--slate); }
   .subj { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "lead cp" "main main" "pills pills" "edit edit"; }
   .subj-lead { grid-area: lead; }
   .subj-side { display: contents; }
-  .subj-side .cp-badge { grid-area: cp; justify-self: end; }
+  .subj-side .subj-end { grid-area: cp; justify-self: end; }
   .subj-side .pills { grid-area: pills; justify-content: flex-start; }
   .subj-side .pills:empty { display: none; }
   .subj-main { grid-area: main; }
@@ -1554,3 +1554,35 @@ html[data-theme="dark"] .year, html[data-theme="dark"] .dock-card { box-shadow: 
 html[data-theme="dark"] .subj:hover { box-shadow: 0 10px 24px -12px rgba(0, 0, 0, .7); }
 @media (prefers-reduced-motion: reduce) { .subj:hover { transform: none; } }
 @media (hover: none) { .subj:hover { transform: none; box-shadow: none; } }
+
+/* ---------- lighter cards: a card's tools stay folded away until its ••• button is pressed, so a plan reads as a list */
+.subj-end { display: inline-flex; align-items: center; gap: 6px; }
+.subj-more { display: inline-grid; place-items: center; width: 30px; height: 24px; padding: 0; border: 1px solid transparent; border-radius: 999px; background: none; color: var(--muted); font: 700 9px/1 var(--sans); letter-spacing: .12em; cursor: pointer; transition: background .12s, border-color .12s, color .12s; }
+.subj:hover .subj-more, .subj-more:focus-visible { border-color: var(--hairline-2); background: var(--surface); color: var(--text); }
+.subj-more:hover { border-color: var(--crimson); color: var(--crimson); }
+.subj-more[aria-expanded="true"] { border-color: var(--gold); background: var(--gold-tint); color: var(--ink); }
+.subj { padding-bottom: 10px; }
+.subj .subj-edit { display: none; }
+.subj.is-open { padding-bottom: 6px; box-shadow: 0 12px 28px -16px rgba(30, 29, 32, .38); border-color: var(--hairline-2); border-left-color: var(--k); }
+.subj.is-open .subj-edit, .subj.tour-target .subj-edit { display: flex; animation: tools-in .16s ease-out; }
+@keyframes tools-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.subj.is-open .tool-btn, .subj.is-open .move-sel { color: var(--text); }
+.subj.is-open .tool-btn:hover { color: var(--crimson); }
+.modal-note { width: min(520px, 100%); }
+.note-body { padding: 16px 20px 6px; }
+.note-body textarea { width: 100%; resize: vertical; min-height: 84px; font: 14.5px/1.5 var(--sans); }
+@media (hover: hover) and (pointer: fine) {
+  /* a session's and a year's secondary tools wait until it is in use */
+  .session-tools .note-btn, .session-tools [data-action="session-done"] { opacity: 0; transition: opacity .12s, color .15s, border-color .15s; }
+  .session:hover .session-tools .note-btn, .session:hover .session-tools [data-action="session-done"], .session-tools:focus-within .note-btn, .session-tools:focus-within [data-action="session-done"] { opacity: 1; }
+  .year-foot .text-btn, .yf-label { opacity: 0; transition: opacity .12s; }
+  .year:hover .year-foot .text-btn, .year:hover .yf-label, .year-foot:focus-within .text-btn, .year-foot:focus-within .yf-label { opacity: 1; }
+  .year-foot { padding-block: 2px 4px; background: none; border-top-color: transparent; }
+  .year:hover .year-foot, .year-foot:focus-within { border-top-color: var(--hairline); }
+}
+@media (pointer: coarse) { .subj-more { width: 40px; height: 32px; border-color: var(--hairline-2); } }
+@media (max-width: 760px) {
+  .rm-btn .tl { display: none; }
+  .tool-btn.rm-btn { font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { .subj.is-open .subj-edit { animation: none; } }
