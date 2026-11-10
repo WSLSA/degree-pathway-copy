@@ -264,7 +264,7 @@ a.hero-pill:hover { border-color: var(--gold-soft); color: var(--gold-soft); }
   border-bottom: 1px solid transparent;
 }
 .dock-card {
-  display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(0, 1.55fr) minmax(0, 1fr) minmax(220px, 1.45fr) auto minmax(170px, 1.25fr);
+  display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.5fr) minmax(0, 1fr) minmax(188px, 1.1fr) auto minmax(170px, 1.2fr);
   gap: 10px 14px; align-items: center; padding: 7px 14px 8px;
   background: var(--surface); border: 1px solid var(--hairline); border-top: 2px solid var(--crimson); border-radius: var(--radius); box-shadow: var(--shadow);
 }
@@ -498,17 +498,6 @@ body.has-campus .pill.online { background: var(--ok-tint); border-color: var(--l
 .slots { display: grid; gap: 8px; }
 .slot-empty { padding: 18px; border: 1px dashed var(--hairline-2); color: var(--muted); font-size: 13px; text-align: center; }
 .slot-empty b { color: var(--text); font-weight: 600; }
-/* every card's edit tools: Change, Move and Remove */
-.subj-edit { margin-top: 8px; gap: 6px 12px; }
-.move-wrap { position: relative; display: inline-flex; }
-.move-sel {
-  appearance: none; -webkit-appearance: none; min-height: 24px; max-width: 150px; padding: 0 2px; background: none; border: 0; border-bottom: 1px solid var(--hairline-2);
-  font: 700 10.5px var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); cursor: pointer; border-radius: 0;
-}
-.move-sel:hover, .move-sel:focus-visible { color: var(--crimson); border-color: var(--crimson); }
-.move-sel option, .move-sel optgroup { font: 500 13px var(--sans); letter-spacing: 0; text-transform: none; color: var(--ink); background: var(--surface); }
-.rm-btn:hover { color: var(--crimson); }
-body.drag-on .subj-edit { pointer-events: none; }
 .add-pop .pop-menu { min-width: 230px; }
 .pbadge-edit { background: var(--gold); color: #1c1a17; border-color: var(--gold); }
 .pbadge-pre { background: transparent; border: 1px solid var(--gold); color: inherit; }
@@ -730,7 +719,7 @@ table.cat tr.extra td.c-code { color: var(--slate); }
 
 /* ---------- responsive */
 @media (max-width: 1180px) {
-  .dock-card { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.35fr) minmax(110px, .9fr) minmax(196px, 1.3fr) auto minmax(150px, 1.1fr); gap: 10px; }
+  .dock-card { grid-template-columns: minmax(0, 1.8fr) minmax(0, 1.4fr) minmax(100px, .85fr) minmax(184px, 1fr) auto minmax(136px, 1fr); gap: 10px; }
   .select-wrap select { padding-right: 28px; }
   .select-wrap::after { right: 11px; }
   .segmented button { padding-inline: 10px; }
@@ -787,7 +776,7 @@ table.cat tr.extra td.c-code { color: var(--slate); }
   .ct-lsa { font-size: 12.5px; }
   .dock { padding-block: 8px 0; }
   .dock-card { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 10px; }
-  .dock-card > .field:nth-child(-n+2), .dock-card .progress { grid-column: 1 / -1; }
+  .dock-card > .field:nth-child(-n+2), .dock-card > .field:nth-child(5), .dock-card .progress { grid-column: 1 / -1; }
   .dock .segmented { display: flex; }
   .dock .segmented button { flex: 1; padding: 0 4px; letter-spacing: .06em; }
   .progress { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; align-items: baseline; }
@@ -815,7 +804,7 @@ table.cat tr.extra td.c-code { color: var(--slate); }
   .year-bar h2 { font-size: 25px; }
   .year-bar::after { font-size: 72px; }
   /* a card reads top down: tick, code and credit points; title; type and tools; campuses */
-  .subj { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "lead cp" "main main" "pills pills"; }
+  .subj { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "lead cp" "main main" "pills pills" "edit edit"; }
   .subj-lead { grid-area: lead; }
   .subj-side { display: contents; }
   .subj-side .cp-badge { grid-area: cp; justify-self: end; }
@@ -1232,7 +1221,7 @@ body.has-tour-prompt #xray-note { bottom: 160px; }
 .tour-actions .btn { min-height: 36px; padding: 7px 11px; letter-spacing: .1em; }
 .tour-actions [data-action="tour-skip"] { margin-right: auto; padding-inline: 4px; }
 .tour-clone { position: fixed; margin: 0; background: var(--surface); outline: 2px solid var(--gold); outline-offset: 2px; pointer-events: none; }
-.subj.tour-target .chain-btn, .subj.tour-target .defer-btn { opacity: 1; }
+.subj.tour-target .subj-edit { opacity: 1; }
 @media (max-width: 760px) {
   .tour-card { top: auto !important; left: 16px !important; right: 16px; bottom: 16px; width: auto; }
   body.enq-is-open .tour-prompt { display: none; }
@@ -1308,12 +1297,6 @@ html[data-theme="dark"] .pdoc { background: #fff; color: #2A282B; color-scheme: 
 .subj.reorder-before::before { top: -6px; }
 .subj.reorder-after::before { bottom: -6px; }
 
-/* ---------- the tools on each card wait until the card is in use; a touch screen always shows them */
-@media (hover: hover) and (pointer: fine) {
-  .chain-btn, .defer-btn, .subj-actions .text-btn, .subj-edit .move-sel { opacity: 0; transition: opacity .12s, border-color .15s, color .15s; }
-  .subj:hover .chain-btn, .subj:hover .defer-btn, .subj:hover .subj-actions .text-btn, .subj:hover .subj-edit .move-sel, .subj:focus-within .chain-btn, .subj:focus-within .defer-btn, .subj:focus-within .subj-actions .text-btn, .subj:focus-within .subj-edit .move-sel, .chain-btn[aria-pressed="true"] { opacity: 1; }
-}
-
 /* ---------- practice areas, session load, defer, compare */
 .area-chips { margin-top: 2px; }
 .area-note { margin: 6px 0 10px; font-size: 12px; color: var(--muted); }
@@ -1372,6 +1355,96 @@ html[data-theme="dark"] .pdoc { background: #fff; color: #2A282B; color-scheme: 
 }
 @media (prefers-reduced-motion: reduce) {
   .advisory::details-content { transition: none; }
+}
+/* ---------- each card's tools: one compact row that is always there, quiet until the card is in use */
+.subj { gap: 6px 14px; padding: 10px 12px 6px 10px; }
+.subj-edit { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 2px -4px 0; padding-top: 4px; border-top: 1px solid var(--hairline); opacity: .78; transition: opacity .12s; }
+.subj-edit:empty { display: none; }
+.subj:hover .subj-edit, .subj:focus-within .subj-edit { opacity: 1; }
+.is-pending .subj-edit { border-top-color: var(--line-amber); }
+.tool-btn {
+  min-height: 24px; padding: 0 8px; border: 0; border-radius: 2px; background: none; color: var(--muted); cursor: pointer;
+  font: 700 10px/1 var(--sans); letter-spacing: .11em; text-transform: uppercase; white-space: nowrap; transition: background .12s, color .12s;
+}
+.tool-btn:hover { background: var(--surface-2); color: var(--crimson); }
+.tool-btn.chain-btn, .tool-btn.defer-btn { min-height: 24px; padding: 0 8px; border: 0; border-radius: 2px; background: none; font: 700 10px/1 var(--sans); letter-spacing: .11em; }
+.tool-btn.chain-btn:hover, .tool-btn.defer-btn:hover { background: var(--surface-2); color: var(--crimson); }
+.tool-btn.chain-btn[aria-pressed="true"] { background: var(--gold); color: var(--on-gold); }
+.tool-btn.rm-btn { margin-left: auto; }
+.move-wrap { position: relative; display: inline-flex; align-items: center; }
+.move-wrap::after { content: "▾"; position: absolute; right: 8px; font-size: 10px; color: var(--crimson); pointer-events: none; }
+.move-sel {
+  appearance: none; -webkit-appearance: none; min-height: 24px; width: 88px; padding: 0 20px 0 9px; background: var(--surface); border: 1px solid var(--hairline-2); border-radius: 999px;
+  font: 700 10px var(--sans); letter-spacing: .11em; text-transform: uppercase; color: var(--muted); cursor: pointer;
+}
+.move-sel:hover, .move-sel:focus-visible { color: var(--crimson); border-color: var(--crimson); }
+.move-sel option, .move-sel optgroup { font: 500 13px var(--sans); letter-spacing: 0; text-transform: none; color: var(--ink); background: var(--surface); }
+body.drag-on .subj-edit { pointer-events: none; }
+.subj-actions { margin-top: 8px; }
+.flag-pool { min-height: 22px; border: 1px dashed var(--line-amber); background: var(--amber-tint); color: var(--amber-ink); cursor: pointer; }
+.flag-pool b { color: var(--ink); }
+.flag-pool:hover { border-style: solid; }
+.slot-empty { padding: 14px 16px; }
+
+/* ---------- a session's own load */
+.load-btn { min-height: 24px; padding: 0 2px; background: none; border: 0; border-bottom: 1px dotted var(--hairline-2); cursor: pointer; }
+.load-btn:hover, .load-btn[aria-expanded="true"] { color: var(--crimson); border-bottom-color: var(--crimson); }
+.load-btn.is-set { color: var(--amber-ink); border-bottom: 1px solid var(--gold); }
+.load-btn.over { color: var(--crimson); }
+.load-menu { min-width: 190px; }
+.pop-label { padding: 4px 10px 6px; font: 700 10px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.load-menu .pop-item[aria-pressed="true"] { color: var(--crimson); background: var(--surface-2); }
+.load-menu .pop-item[aria-pressed="true"]::after { content: "✓"; margin-left: auto; }
+
+/* ---------- the guide: sessions that fold, and a tray that stays at the bottom of the screen */
+.guide-pin { min-height: 26px; padding: 0 10px; border: 1px solid var(--hairline-2); border-radius: 999px; background: var(--surface); color: var(--text); font: 700 10.5px var(--sans); letter-spacing: .06em; cursor: pointer; white-space: nowrap; }
+.guide-pin:hover, .guide-pin[aria-pressed="true"] { border-color: var(--gold); background: var(--gold-tint); }
+.guide-sessions { gap: 6px; }
+.guide-plan, .guide-check { min-width: 0; }
+.guide-sess { min-width: 0; }
+.guide-sess { border: 1px solid var(--hairline); border-radius: 2px; background: var(--surface); }
+.guide-sess > summary { display: flex; align-items: baseline; gap: 4px 10px; min-height: 38px; padding: 8px 12px; cursor: pointer; list-style: none; }
+.guide-sess > summary::-webkit-details-marker { display: none; }
+.guide-sess > summary::before { content: "▸"; color: var(--crimson); font-size: 11px; }
+.guide-sess[open] > summary::before { content: "▾"; }
+.gs-name { font: 600 17px/1.2 var(--serif); color: var(--ink); white-space: nowrap; }
+.guide-sess > summary small { font: 600 11px var(--sans); letter-spacing: .04em; color: var(--muted); white-space: nowrap; }
+.gs-codes { flex: 1; min-width: 0; font: 500 11.5px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+.guide-sess[open] .gs-codes { visibility: hidden; }
+.guide-sess .guide-items { padding: 0 8px 8px; }
+.guide-compare { margin-top: 12px; text-align: left; }
+#guide.is-pinned { position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: min(1232px, calc(100vw - 16px)); max-height: 38vh; overflow-y: auto; z-index: 42; box-shadow: 0 -8px 28px rgba(30, 29, 32, .22); border-radius: var(--radius) var(--radius) 0 0; }
+#guide.is-pinned .guide { border-radius: var(--radius) var(--radius) 0 0; box-shadow: none; border-top: 2px solid var(--gold); }
+#guide.is-pinned .guide > summary { position: sticky; top: 0; z-index: 2; background: var(--surface); min-height: 42px; padding-block: 6px; }
+#guide.is-pinned .guide-intro, #guide.is-pinned .guide-check, #guide.is-pinned .guide-plan > h3, #guide.is-pinned .guide-foot .small { display: none; }
+#guide.is-pinned .guide-cols { grid-template-columns: 1fr; }
+#guide.is-pinned .guide-body { gap: 8px; padding-bottom: 10px; }
+body.guide-pinned { padding-bottom: 40vh; }
+body.guide-pinned .enq { bottom: calc(38vh + 12px); }
+body.guide-pinned #toast { bottom: calc(38vh + 16px); }
+@media (max-width: 1040px) {
+  #guide.is-pinned { bottom: 56px; max-height: 34vh; z-index: 44; }
+}
+@media (max-width: 760px) {
+  .guide-kinds { display: none; }
+  .gs-codes { display: none; }
+}
+
+/* ---------- Handbook structures side by side, and the breakdown note */
+.structure-note { margin: 0 0 10px; padding: 8px 10px; border-left: 2px solid var(--gold); background: var(--gold-tint); }
+.modal-compare { width: min(860px, 100%); }
+.hc-table tbody th { width: 28%; }
+.hc-now { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 999px; background: var(--gold); color: var(--on-gold); font: 700 9.5px var(--sans); letter-spacing: .08em; }
+.hc-warn { margin: 12px 0 0; padding: 10px 12px 10px 28px; border-left: 2px solid var(--amber-solid); background: var(--amber-tint); color: var(--text); font-size: 13.5px; }
+.hc-warn li + li { margin-top: 4px; }
+@media (pointer: coarse) {
+  .tool-btn, .tool-btn.chain-btn, .tool-btn.defer-btn, .move-sel, .load-btn, .guide-pin { min-height: 34px; }
+  .move-sel { font-size: 11px; width: 96px; }
+}
+@media (max-width: 760px) {
+  .subj-edit { grid-area: edit; }
+  .hc-table { font-size: 12.5px; }
+  .hc-table tbody th { width: 30%; }
 }
 /* a phone stacks the dock, so the Handbook choice shows in full */
 @media (max-width: 600px) {

@@ -46,9 +46,15 @@
     'LAWS 2015': 'Professional Responsibility and Legal Ethics', 'LAWS 4004': 'Criminal Procedure and Evidence',
     'LAWS 4013': 'Civil Procedure and Arbitration', 'ECON 2002': 'Corporate Financial Management',
   };
-  // In the pre-2027 structure these 2027 core subjects show as the pre-2027 subject a student who started earlier
-  // takes while it is still offered, with the 2027 subject as the alternative. The other pairs show the 2027 subject.
-  const SHOW_AS_OLD = { 'LAWS 1010': 'LAWS 1009', 'LAWS 2018': 'LAWS 2004', 'LAWS 3101': 'LAWS 2001' };
+  // The code a subject not yet completed goes by in a session of a given calendar year. From 2027 a student enrols in
+  // the 2027 subject, whichever structure they follow; before 2027 a student on the pre-2027 structure took the
+  // pre-2027 one. A completed subject keeps the code it was passed under, so this is never asked of one.
+  function codeFor(code, cohort, year) {
+    const old = cohort === 'pre2027' && year < START_YEAR;
+    if (LEGACY_EQUIVALENTS[code]) return old ? code : LEGACY_EQUIVALENTS[code];
+    return LEGACY_OF[code] && old ? LEGACY_OF[code] : code;
+  }
+  function isNewCore(row) { return !!row && row.kind === 'fixed' && NEW_2027_CORES.indexOf(row.code) >= 0; }
   function cohortSet(name, value, note) {
     return '<fieldset class="cohort-set"><legend>Cohort Structure</legend>' + ['pre2027', '2027'].map(function (c) {
       return '<label class="check-row"><input type="radio" name="' + name + '" id="' + name + '-' + c + '" value="' + c + '"' + (value === c ? ' checked' : '') + '><span>' + COHORT_LABEL[c] + (note && note[c] ? ' <small>' + note[c] + '</small>' : '') + '</span></label>';
@@ -349,11 +355,25 @@
       years: Math.min(MAX_YEARS, Math.max(0, Math.floor(+c.years) || 0)),
       // what an imported plan still needs (from the student's audit or the pathway), for its Suggested Remaining Guide
       need: Array.isArray(c.need) ? c.need.slice(0, MAX_SLOTS).map(function (n) { return sanitiseNeed(n, tpl); }).filter(Boolean) : [],
+      // the load a student has set for a session, by its place in the plan; a session without one runs at 40 CP
+      loads: sanitiseLoads(c.loads),
       slots: (Array.isArray(c.slots) ? c.slots : []).slice(0, MAX_SLOTS).map(function (x) { return sanitiseCSlot(x, tpl); }).filter(Boolean),
     };
     if (out.cohort === startCohort(out.start)) out.cohort = '';
     return out;
   }
+  const SESSION_LOADS = [[0, 'Leave of Absence'], [10, ''], [20, 'Part-time'], [30, ''], [40, 'Standard'], [50, 'Overload']];
+  function sanitiseLoads(l) {
+    const out = {};
+    if (!l || typeof l !== 'object') return out;
+    Object.keys(l).forEach(function (k) {
+      const cp = +l[k];
+      if (/^\d+$/.test(k) && +k < MAX_YEARS * 3 && cp !== LOAD_CP.FT && SESSION_LOADS.some(function (x) { return x[0] === cp; })) out[+k] = cp;
+    });
+    return out;
+  }
+  // the credit points a session is planned to carry
+  function sessionCap(plan, k) { return plan && plan.loads && plan.loads[k] != null ? plan.loads[k] : LOAD_CP.FT; }
   function sanitiseNeed(n, tpl) {
     if (!n || typeof n !== 'object') return null;
     const code = normCode(str(n.code, 16));
@@ -392,6 +412,7 @@
       edits: {},
       cohortFor: {},
       view: s.view === 'remaining' || s.view === 'action' ? s.view : 'all',
+      guidePinned: !!s.guidePinned,
     };
     if (s.majorFor && typeof s.majorFor === 'object') {
       Object.keys(s.majorFor).forEach(function (d) {
@@ -514,7 +535,64 @@
     if (runs.length) parts.push('s=' + runs.map(function (r) { return r.n > 1 ? r.it + '*' + r.n : r.it; }).join(','));
     const d = packBits(plan.slots.map(function (x) { return x.done; }));
     if (d) parts.push('d=' + d);
+    // an imported plan's empty sessions ahead and what it still needs travel too, so its guide opens the same
+    if (plan.years) parts.push('yr=' + plan.years);
+    const lk = Object.keys(plan.loads || {});
+    if (lk.length) parts.push('ld=' + lk.map(function (k) { return k + '.' + plan.loads[k]; }).join(','));
+    if (plan.need.length) parts.push('nd=' + needLink(plan.need, tIdx, plan.tpl));
     return parts;
+  }
+  // What a pathway row still needed looks like, which is how most of an imported plan's list reads: these travel in a
+  // link as the row's number, and anything else in full as n<code>:<cp>:<row>:<session>:<pre-2027 code>.
+  function rowNeeds(tpl) {
+    return guideSlots(tpl, {}, {}, '2027').map(function (s) {
+      return { code: s.pending ? '' : s.code, was: '', cp: s.cp, o: s.id, sess: s.pending ? (s.kind === 'inline' ? runsIn(s.raw.options.map(function (x) { return x.code; })) : '') : s.session };
+    });
+  }
+  function needLink(need, tIdx, tpl) {
+    const base = tpl ? rowNeeds(tpl) : [];
+    const items = [];
+    let run = null;
+    const flush = function () { if (run) items.push(run[0] === run[1] ? String(run[0]) : run[0] + '-' + run[1]); run = null; };
+    need.forEach(function (n) {
+      const i = n.o && tIdx[n.o] != null ? tIdx[n.o] : -1;
+      const b = i >= 0 ? base[i] : null;
+      if (b && b.code === n.code && b.cp === n.cp && b.sess === n.sess && !n.was) {
+        if (run && run[1] === i - 1) run[1] = i; else { flush(); run = [i, i]; }
+        return;
+      }
+      flush();
+      const f = [n.code ? linkCode(n.code) : '', n.cp !== 10 ? String(n.cp) : '', i >= 0 ? String(i) : '', n.sess ? SESS_LETTER[n.sess] : '', n.was ? linkCode(n.was) : ''];
+      while (f.length && !f[f.length - 1]) f.pop();
+      items.push('n' + f.join(':'));
+    });
+    flush();
+    const runs = [];
+    items.forEach(function (it) {
+      const last = runs[runs.length - 1];
+      if (last && last.it === it && it.charAt(0) === 'n') last.n++; else runs.push({ it: it, n: 1 });
+    });
+    return runs.map(function (r) { return r.n > 1 ? r.it + '*' + r.n : r.it; }).join(',');
+  }
+  function needFromLink(text, tpl) {
+    const base = tpl ? rowNeeds(tpl) : [];
+    const code = function (s) { const typed = dec(s || ''); return normCode(typed) || typed; };
+    const out = [];
+    (text ? text.split(',') : []).forEach(function (item) {
+      const rep = /^(.*)\*(\d+)$/.exec(item);
+      const it = rep ? rep[1] : item;
+      const range = /^(\d+)(?:-(\d+))?$/.exec(it);
+      if (range) {
+        for (let i = +range[1]; i <= +(range[2] || range[1]) && i < base.length && out.length < MAX_SLOTS; i++) out.push(Object.assign({}, base[i]));
+        return;
+      }
+      if (it.charAt(0) !== 'n') return;
+      const v = it.slice(1).split(':');
+      const b = v[2] ? base[+v[2]] || null : null;
+      const n = { code: code(v[0]), cp: v[1] ? +v[1] : 10, o: b ? b.o : '', sess: LETTER_SESS[v[3]] || '', was: code(v[4]) };
+      for (let k = rep ? +rep[2] : 1; k > 0 && out.length < MAX_SLOTS; k--) out.push(Object.assign({}, n));
+    });
+    return out;
   }
   function encodeLink() {
     const edited = !isCustom() && editPlan();
@@ -603,7 +681,9 @@
     return sanitiseCustom({
       name: 'n' in f ? dec(f.n) : tdeg ? tdeg.title : '',
       code: 'k' in f ? dec(f.k) : tdeg ? tdeg.code : '',
-      cp: f.cp ? +f.cp : tdeg ? tdeg.cp : 10, tpl: tpl, start: +f.st || 0, pace: +f.pc || 0, cohort: f.co === 'p' ? 'pre2027' : f.co === 'n' ? '2027' : '', slots: slots,
+      cp: f.cp ? +f.cp : tdeg ? tdeg.cp : 10, tpl: tpl, start: +f.st || 0, pace: +f.pc || 0, cohort: f.co === 'p' ? 'pre2027' : f.co === 'n' ? '2027' : '',
+      years: +f.yr || 0, need: needFromLink(typeof f.nd === 'string' ? f.nd : '', tpl), slots: slots,
+      loads: (typeof f.ld === 'string' ? f.ld.split(',') : []).reduce(function (o, it) { const v = it.split('.'); o[v[0]] = +v[1]; return o; }, {}),
     });
   }
   function applyLink(s) {
@@ -774,8 +854,8 @@
     return indexSlots({ key: key, deg: deg, opt: opt, slots: slots, custom: false });
   }
   // A WSLSA pathway's slots. In the pre-2027 structure the three core subjects new in 2027 are LLB Alternate slots
-  // (each keeps its place and takes an LLB Alternate as a choice), and LAWS 1010, LAWS 2018 and LAWS 3101 show as the
-  // pre-2027 subjects they replaced.
+  // (each keeps its place and takes an LLB Alternate as a choice). Its sessions all fall in 2027 or later, so every
+  // subject shows under its 2027 code, the one a student enrols in.
   function guideSlots(key, picks, done, cohort) {
     const deg = DEG[key.split('|')[0]];
     const opt = OPT[key];
@@ -788,14 +868,7 @@
         s.newCore = raw;
         return s;
       }
-      const s = resolveSlot(raw, deg, opt, picks, done);
-      if (pre && raw.kind === 'fixed' && SHOW_AS_OLD[raw.code]) {
-        s.code = SHOW_AS_OLD[raw.code];
-        s.title = LEGACY[s.code];
-        s.offer = null;
-        s.legacyFor = raw;
-      }
-      return s;
+      return resolveSlot(raw, deg, opt, picks, done);
     });
   }
   // A WSLSA pathway as the student has it, as plan slots: their choices and ticks, in the structure it is shown in.
@@ -858,6 +931,26 @@
       const s = pool.find(function (x) { return !used[x.id] && x.orig && x.orig.id === r.o; });
       if (s) { used[s.id] = 1; r.by = s; }
     });
+    // any slot for the same kind of choice meets it as well: one LLB Alternate slot is as good as another
+    const choiceKey = function (row) {
+      if (!row) return '';
+      if (row.kind === 'llb' || row.kind === 'elective') return row.kind;
+      return row.kind === 'pool' ? 'pool:' + (row.pool || []).join('|') : row.kind === 'inline' ? 'inline:' + row.options.map(function (o) { return o.code; }).join('|') : '';
+    };
+    reqs.forEach(function (r) {
+      const key = r.by || r.type !== 'choice' ? '' : choiceKey(rows[r.o]);
+      if (!key) return;
+      const s = pool.find(function (x) { return !used[x.id] && x.orig && choiceKey(x.orig) === key; });
+      if (s) { used[s.id] = 1; r.by = s; }
+    });
+    // in the pre-2027 structure a core subject new in 2027 that is in the plan counts as an LLB Alternate
+    if (cohortOf(plan) === 'pre2027') {
+      reqs.forEach(function (r) {
+        if (r.by || r.type !== 'choice' || !rows[r.o] || rows[r.o].kind !== 'llb') return;
+        const s = pool.find(function (x) { return !used[x.id] && !x.pending && NEW_2027_CORES.indexOf(x.code) >= 0; });
+        if (s) { used[s.id] = 1; r.by = s; }
+      });
+    }
     // an open slot with nothing chosen yet stands for an open requirement
     reqs.forEach(function (r) {
       if (r.by || r.o || r.code) return;
@@ -893,7 +986,7 @@
     let firstK = Infinity;
     order.forEach(function (r) {
       const fits = function (k, strict) {
-        if (PLAN_SESSIONS[k % 3] === 'Summer' || (r.sess && PLAN_SESSIONS[k % 3] !== r.sess) || (load[k] || 0) + r.cp > LOAD_CP.FT) return false;
+        if (PLAN_SESSIONS[k % 3] === 'Summer' || (r.sess && PLAN_SESSIONS[k % 3] !== r.sess) || (load[k] || 0) + r.cp > sessionCap(plan, k)) return false;
         return !strict || !r.code || paceReady(r.code, k, placedAt, inPlan);
       };
       let k = open;
@@ -960,16 +1053,26 @@
         '<button type="button" class="tbtn tbtn-outline gi-btn" data-action="guide-add" data-gi="' + x.i + '" aria-label="Add ' + esc(name) + ' to the chosen session">+ Add</button></span></li>';
     };
     const open = ui.guideOpen !== false;
+    const pinned = !!state.guidePinned;
+    box.classList.toggle('is-pinned', pinned);
+    document.body.classList.toggle('guide-pinned', pinned);
+    const sessions = guideSessions(g);
+    // the first session to enrol in is open, and the rest wait folded until asked for, unless the list is short
+    const sessOpen = function (gs, i) { return ui.guideSess && ui.guideSess[gs.k] != null ? ui.guideSess[gs.k] : i === 0 || g.items.length <= 8; };
     setHTML(box, '<details class="guide" id="guide-box"' + (open ? ' open' : '') + '>' +
-      '<summary><span class="guide-label">Suggested Remaining Guide</span><span class="guide-counts"><b>' + g.cp + ' CP</b> to place · ' + order.map(count).join(' · ') + '</span><span class="adv-cta">' + (open ? 'Hide guide' : 'View guide') + '</span></summary>' +
-      '<div class="guide-body"><p class="guide-intro">Your plan holds what you have completed or are studying, and the sessions ahead are yours to fill. Add each subject below to the session you choose, drag it onto a session in your plan, or fill them all from this guide in one step. Each is suggested for a session it runs in, after its known prerequisites, at up to 40 CP a session.</p>' +
+      '<summary><span class="guide-label">Suggested Remaining Guide</span><span class="guide-counts"><b>' + g.cp + ' CP</b> to place<span class="guide-kinds"> · ' + order.map(count).join(' · ') + '</span></span>' +
+      '<button type="button" class="guide-pin" data-action="guide-pin" aria-pressed="' + pinned + '" title="' + (pinned ? 'Put the guide back in the page' : 'Keep the guide at the bottom of the screen while you scroll your plan') + '">📌 ' + (pinned ? 'Unpin Guide' : 'Pin Guide to Bottom') + '</button>' +
+      '<span class="adv-cta">' + (open ? 'Hide guide' : 'View guide') + '</span></summary>' +
+      '<div class="guide-body"><p class="guide-intro">Your plan holds what you have completed or are studying, and the sessions ahead are yours to fill. <b>+ Add</b> puts a subject in the session chosen beside it, or drag it onto a session in your plan.</p>' +
       '<div class="guide-cols"><div class="guide-check"><h3>Remaining degree checklist</h3><ul>' +
       order.map(function (k) { return '<li><b>' + count(k) + '</b> (' + cpOf(kinds[k]) + ' CP)' + (k === 'law' || k === 'core' ? ': ' + kinds[k].map(function (r) { return esc(r.code); }).join(', ') : '') + '</li>'; }).join('') +
       '<li class="gc-total"><b>' + g.cp + ' CP</b> remaining of ' + ctx.plan.cp + ' CP</li></ul>' +
-      (g.counted.length ? '<p class="guide-counted">Already counted, so not listed again: ' + g.counted.map(function (c) { return esc(c.from) + ' for ' + esc(c.to); }).join(', ') + '.</p>' : '') + '</div>' +
-      '<div class="guide-plan"><h3>Suggested session by session</h3><div class="guide-sessions">' + guideSessions(g).map(function (gs) {
+      (g.counted.length ? '<p class="guide-counted">Already counted, so not listed again: ' + g.counted.map(function (c) { return esc(c.from) + ' for ' + esc(c.to); }).join(', ') + '.</p>' : '') +
+      (ctx.tdeg ? '<button type="button" class="text-btn strong guide-compare" data-action="handbook-compare">Compare Pre-2027 vs 2027 Handbook for my progress →</button>' : '') + '</div>' +
+      '<div class="guide-plan"><h3>Suggested session by session</h3><div class="guide-sessions">' + sessions.map(function (gs, i) {
         const cp = gs.items.reduce(function (a, x) { return a + x.r.cp; }, 0);
-        return '<div class="guide-sess"><h4>' + sessionLabel(gs.y, gs.s) + '<small>Year ' + gs.y + ' · ' + cp + ' CP suggested</small></h4><ul class="guide-items">' + gs.items.map(item).join('') + '</ul></div>';
+        return '<details class="guide-sess" data-k="' + gs.k + '"' + (sessOpen(gs, i) ? ' open' : '') + '><summary><span class="gs-name">' + sessionLabel(gs.y, gs.s) + '</span><small>Year ' + gs.y + ' · ' + cp + ' CP suggested</small>' +
+          '<span class="gs-codes">' + gs.items.map(function (x) { return esc(x.r.code || x.r.label); }).join(', ') + '</span></summary><ul class="guide-items">' + gs.items.map(item).join('') + '</ul></details>';
       }).join('') + '</div></div></div>' +
       '<div class="guide-foot"><button type="button" class="tbtn tbtn-primary" data-action="guide-fill">Auto-fill remaining semesters from guide</button><span class="small muted">Everything stays yours to move or change, and Undo takes it back out.</span></div></div></details>');
   }
@@ -984,7 +1087,9 @@
     let id = '';
     items.forEach(function (r) {
       const to = at ? at.split('|') : [r.y, r.s];
-      plan.slots.push({ y: +to[0], s: to[1], code: r.code, title: '', cp: r.cp, o: r.o || '', done: false });
+      const x = { y: +to[0], s: to[1], code: r.code, title: '', cp: r.cp, o: r.o || '', done: false };
+      yearCode(plan, x);
+      plan.slots.push(x);
       if (+to[0] > plan.years) plan.years = +to[0];
       id = 'c' + (plan.slots.length - 1);
     });
@@ -1058,49 +1163,116 @@
     const opt = topt || BLANK_OPT;
     const origById = {};
     if (plan.tpl) PATH[plan.tpl].forEach(function (r) { origById[r.id] = r; });
-    const slots = plan.slots.map(function (x, i) { return resolveCustomSlot(x, i, origById[x.o] || null, deg, opt); });
+    // in the pre-2027 structure a slot where a core subject new in 2027 stood is an LLB Alternate slot
+    const llb = plan.tpl && cohortOf(plan) === 'pre2027' ? PATH[plan.tpl].find(function (r) { return r.kind === 'llb'; }) : null;
+    const slots = plan.slots.map(function (x, i) {
+      const orig = origById[x.o] || null;
+      const stand = !!llb && isNewCore(orig) && x.code !== orig.code;
+      const s = resolveCustomSlot(x, i, stand ? llb : orig, deg, opt);
+      if (stand) s.newCore = orig;
+      return s;
+    });
     const ctx = indexSlots({ key: 'custom', custom: true, plan: plan, deg: deg, opt: opt, tdeg: tdeg, topt: topt, slots: slots });
     ctx.placedCP = slots.reduce(function (a, s) { return a + (s.pending ? 0 : s.cp); }, 0);
     return ctx;
   }
   // Copies a WSLSA pathway into custom slots, optionally with the student's own choices and ticks.
   // With mine, it is the pathway as the student has it, in the structure it is shown in; without, the 2027 pathway.
+  // A slot standing in for a core subject new in 2027 stays tied to that subject, so the 2027 structure can put it back.
   function templateSlots(key, mine) {
     return guideSlots(key, mine ? state.picks[key] || {} : {}, mine ? state.done[key] || {} : {}, mine ? guideCohort(key) : '2027').map(function (s) {
-      return { y: s.year, s: s.session, code: s.pending ? '' : s.code, title: s.custom ? s.title : '', cp: s.cp, o: s.stand ? s.stand.id : s.id, done: s.done };
+      return { y: s.year, s: s.session, code: s.pending ? '' : s.code, title: s.custom ? s.title : '', cp: s.cp, o: s.id, done: s.done };
     });
   }
-  // Moves a plan's slots to a Handbook structure. Under the pre-2027 structure the core subjects new in 2027 are open
-  // LLB Alternate slots; under the 2027 structure they take the place of open LLB Alternate slots, latest first.
-  function restructure(tpl, slots, cohort) {
-    const llb = PATH[tpl].find(function (r) { return r.kind === 'llb'; });
-    // LAWS 1010, LAWS 2018 and LAWS 3101 show as the pre-2027 subjects they replaced, and back again
-    const rows = {};
-    PATH[tpl].forEach(function (r) { rows[r.id] = r; });
-    slots = slots.map(function (x) {
-      const r = rows[x.o];
-      if (x.done || !r || r.kind !== 'fixed' || !SHOW_AS_OLD[r.code]) return x;
-      if (cohort === 'pre2027' && x.code === r.code) return Object.assign({}, x, { code: SHOW_AS_OLD[r.code], title: '' });
-      if (cohort !== 'pre2027' && x.code === SHOW_AS_OLD[r.code]) return Object.assign({}, x, { code: r.code, title: '' });
-      return x;
+  // The rows of a pathway that matter to the Handbook structures: its LLB Alternate slots and its core subjects new in 2027.
+  function structureRows(tpl) {
+    const out = { rows: {}, llb: [], isLLB: {}, core: {}, alt: {} };
+    PATH[tpl].forEach(function (r) {
+      out.rows[r.id] = r;
+      if (r.kind === 'llb') { out.llb.push(r); out.isLLB[r.id] = 1; }
+      if (isNewCore(r)) out.core[r.code] = r;
     });
-    if (!llb) return slots;
-    if (cohort === 'pre2027') {
-      return slots.map(function (x) { return !x.done && NEW_2027_CORES.indexOf(x.code) >= 0 ? Object.assign({}, x, { code: '', title: '', o: llb.id }) : x; });
-    }
-    const out = slots.slice();
+    const deg = DEG[tpl.split('|')[0]];
+    (deg.byComp[deg.llbComponent] || []).forEach(function (c) { out.alt[c.code] = 1; });
+    return out;
+  }
+  // Moves a plan's slots to a Handbook structure, so that a switch there and back leaves the plan as it was. Subjects
+  // completed, or in a session that has begun (before open), are history and never change.
+  // To the pre-2027 structure: a core subject new in 2027 becomes an open LLB Alternate slot where it stands, still tied
+  // to the subject it stood for.
+  // To the 2027 structure: each of those slots still open takes its core subject back, one holding an LLB Alternate keeps
+  // it as an LLB Alternate slot, and while the plan has more LLB Alternate slots than the pathway, an open one becomes
+  // each core subject still missing: where the pathway has it, else the latest in a session of the kind it runs in.
+  function restructure(tpl, slots, cohort, start) {
+    const t = structureRows(tpl);
+    const pre = cohort === 'pre2027';
+    const open = start ? firstOpenIdx(start) : 0;
+    const kept = function (x) { return x.done || orderIdx(x.y, x.s) < open; };
     const held = {};
     slots.forEach(function (x) { if (x.code) held[x.code] = 1; });
-    const isLLB = {};
-    PATH[tpl].forEach(function (r) { if (r.kind === 'llb') isLLB[r.id] = 1; });
-    const spare = slots.map(function (x, i) { return i; }).filter(function (i) { return !slots[i].done && !slots[i].code && isLLB[slots[i].o]; }).reverse();
+    // a subject still ahead goes by the code a student enrols in that year: the 2027 one from 2027
+    const out = slots.map(function (x) {
+      if (kept(x) || !x.code) return x;
+      const to = codeFor(x.code, cohort, (start || START_YEAR) + x.y - 1);
+      if (to === x.code || held[to]) return x;
+      held[to] = 1;
+      return Object.assign({}, x, { code: to, title: '' });
+    });
+    if (!t.llb.length) return out;
+    if (pre) {
+      return out.map(function (x) {
+        return kept(x) || NEW_2027_CORES.indexOf(x.code) < 0 ? x : Object.assign({}, x, { code: '', title: '', o: (t.core[x.code] || t.llb[0]).id });
+      });
+    }
+    out.forEach(function (x, i) {
+      const r = t.rows[x.o];
+      if (!isNewCore(r) || x.code === r.code || kept(x)) return;
+      if (!x.code && !held[r.code]) { held[r.code] = 1; out[i] = Object.assign({}, x, { code: r.code, title: '', cp: r.cp }); }
+      else if (!x.code || t.alt[x.code]) out[i] = Object.assign({}, x, { o: t.llb[0].id });
+    });
+    let llbSlots = out.filter(function (x) { return t.isLLB[x.o]; }).length;
+    const at = function (i) { return orderIdx(out[i].y, out[i].s); };
     NEW_2027_CORES.forEach(function (code) {
-      const raw = PATH[tpl].find(function (r) { return r.code === code; });
-      if (!raw || held[code] || !spare.length) return;
-      const i = spare.shift();
-      out[i] = Object.assign({}, out[i], { code: code, title: '', o: raw.id });
+      const raw = t.core[code];
+      if (!raw || held[code] || llbSlots <= t.llb.length) return;
+      const home = orderIdx(raw.year, raw.session);
+      const spare = out.map(function (x, i) { return i; }).filter(function (i) { return t.isLLB[out[i].o] && !out[i].code && !kept(out[i]); })
+        .sort(function (a, b) { return (at(a) === home ? 0 : 1) - (at(b) === home ? 0 : 1) || (out[a].s === raw.session ? 0 : 1) - (out[b].s === raw.session ? 0 : 1) || at(b) - at(a) || b - a; });
+      if (!spare.length) return;
+      out[spare[0]] = Object.assign({}, out[spare[0]], { code: code, title: '', cp: raw.cp, o: raw.id });
+      held[code] = 1;
+      llbSlots--;
     });
     return out;
+  }
+  // What an imported plan still needs, moved to a Handbook structure with its slots: the core subjects new in 2027 are
+  // LLB Alternates to choose under the pre-2027 structure, and the other way round while there are LLB Alternates to spare.
+  function restructureNeed(plan, cohort) {
+    if (!plan.tpl || !plan.need.length) return plan.need;
+    const t = structureRows(plan.tpl);
+    const pre = cohort === 'pre2027';
+    const had = {};
+    plan.slots.forEach(function (x) { if (x.code) sameAs(x.code).forEach(function (c) { had[c] = 1; }); });
+    const need = plan.need.map(function (n) {
+      if (!n.code) return n;
+      if (pre) {
+        if (NEW_2027_CORES.indexOf(n.code) >= 0 && t.llb.length) return { code: '', was: '', cp: n.cp, o: t.llb[0].id, sess: '' };
+        const now = LEGACY_EQUIVALENTS[n.code] || n.code;
+        return Object.assign({}, n, { code: now, was: LEGACY_OF[now] || '' });
+      }
+      return Object.assign({}, n, { code: LEGACY_EQUIVALENTS[n.code] || n.code, was: '' });
+    });
+    if (pre || !t.llb.length) return need;
+    const openLLB = function (n) { return !n.code && t.isLLB[n.o]; };
+    let llbTotal = plan.slots.filter(function (x) { return t.isLLB[x.o] || (isNewCore(t.rows[x.o]) && x.code !== t.rows[x.o].code); }).length + need.filter(openLLB).length;
+    NEW_2027_CORES.forEach(function (code) {
+      const raw = t.core[code];
+      const i = need.findIndex(openLLB);
+      if (!raw || had[code] || i < 0 || llbTotal <= t.llb.length || need.some(function (n) { return n.code === code; })) return;
+      need[i] = { code: code, was: '', cp: raw.cp, o: raw.id, sess: raw.session };
+      llbTotal--;
+    });
+    return need;
   }
   function emptyCSlot(y, s) { return { y: y, s: s, code: '', title: '', cp: 10, o: '', done: false }; }
   // Matches the plan's slots to the credit points required: removes open slots from the latest
@@ -1184,7 +1356,9 @@
       advisor.push({ note: n, applies: applies, flagSlot: flagSlot, hint: hintText(n, h, flagSlot), resolvedByChoice: !!(h && h.type === 'have-before' && h.slot.chosen) });
     });
     // where and when a subject runs no longer matters once it is passed
-    const live = ctx.slots.filter(function (s) { return !s.pending && s.offer && !s.done; });
+    // nor does it for a session that has already begun: what a student took then ran then, whatever 2027 offers
+    const begun = ctx.custom && ctx.plan.start ? firstOpenIdx(ctx.plan.start) : 0;
+    const live = ctx.slots.filter(function (s) { return !s.pending && s.offer && !s.done && orderIdx(s.year, s.session) >= begun; });
     const tbc = live.filter(function (s) { return s.offer.tbc; });
     const y2026 = live.filter(function (s) { return s.offer.y2026 && !s.offer.tbc; });
     const notOffered = live.filter(function (s) { return s.offer.none; });
@@ -1202,7 +1376,7 @@
     const pending = ctx.slots.filter(function (s) { return s.pending; });
     const summer = ctx.slots.filter(function (s) { return s.session === 'Summer' && !s.pending && !s.done; });
     const unlisted = ctx.slots.filter(function (s) { return (s.listSubject || s.custom) && s.session !== 'Summer' && !s.done; });
-    const legacy = ctx.slots.filter(function (s) { return !s.pending && !s.done && (s.legacy || s.legacyFor); });
+    const legacy = ctx.slots.filter(function (s) { return !s.pending && !s.done && s.legacy; });
     const r = { legacy: legacy, unlisted: unlisted, summer: summer, advisor: advisor, tbc: tbc, y2026: y2026, notOffered: notOffered, campus: campus, onlineOnly: onlineOnly, pending: pending, dupes: [], overload: [], replaced: [], cpShort: 0, cpOver: 0 };
     if (ctx.custom) {
       r.dupes = Object.keys(ctx.used).filter(function (c) { return ctx.used[c].length > 1; })
@@ -1216,12 +1390,12 @@
       const load = {};
       ctx.slots.forEach(function (s) {
         const k = orderIdx(s.year, s.session);
-        load[k] = load[k] || { year: s.year, session: s.session, cp: 0, open: false };
+        load[k] = load[k] || { year: s.year, session: s.session, cp: 0, open: false, cap: sessionCap(ctx.plan, k) };
         load[k].cp += s.cp;
         if (!s.done) load[k].open = true;
       });
       r.overload = Object.keys(load).map(Number).sort(function (a, b) { return a - b; }).map(function (k) { return load[k]; })
-        .filter(function (l) { return l.cp > LOAD_CP.FT && l.open; });
+        .filter(function (l) { return l.cp > l.cap && l.open; });
       r.replaced = ctx.slots.filter(function (s) { return s.replaced; });
       const placed = ctx.slots.reduce(function (a, s) { return a + (s.pending ? 0 : s.cp); }, 0);
       r.cpShort = Math.max(0, ctx.plan.cp - ctx.totalCP);
@@ -1493,8 +1667,8 @@
     // the Handbook structure the plan is shown in: a student who started before 2027 follows the pre-2027 one
     const cohort = ctxCohort(ctx);
     const handbook = '<div class="select-wrap"><select id="sel-cohort" aria-label="Handbook" title="' + esc(COHORT_LABEL[cohort]) + '">' +
-      '<option value="2027"' + (cohort === '2027' ? ' selected' : '') + '>2027 Handbook</option>' +
-      '<option value="pre2027"' + (cohort === 'pre2027' ? ' selected' : '') + '>Pre-2027 (started ≤ 2026)</option></select></div>';
+      '<option value="2027"' + (cohort === '2027' ? ' selected' : '') + ' title="' + esc(COHORT_LABEL['2027']) + '">2027 Handbook</option>' +
+      '<option value="pre2027"' + (cohort === 'pre2027' ? ' selected' : '') + ' title="Started in 2026 or earlier. ' + esc(COHORT_LABEL.pre2027) + '">Pre-2027 Handbook</option></select></div>';
     $('#dock').innerHTML =
       '<div class="field"><label for="sel-degree">Degree</label>' + degSelect + '</div>' +
       '<div class="field">' + (isCustom() ? '<label for="custom-name">Degree name</label>' : deg.fixedStructure ? '<span class="field-label">Major / minor</span>' : '<label for="sel-major">Major / minor</label>') + majorField + '</div>' +
@@ -1512,7 +1686,7 @@
     if (r.advisor.length) parts.push('<b>' + plural(r.advisor.length, 'prerequisite note') + '</b>');
     if (r.dupes.length) parts.push('<b>' + r.dupes.length + '</b> listed twice');
     if (ctx.custom && r.notOffered.length) parts.push('<b>' + r.notOffered.length + '</b> not offered in the planned session');
-    if (r.overload.length) parts.push('<b>' + r.overload.length + '</b> ' + (r.overload.length === 1 ? 'session' : 'sessions') + ' over 40 CP');
+    if (r.overload.length) parts.push('<b>' + r.overload.length + '</b> ' + (r.overload.length === 1 ? 'session' : 'sessions') + ' over its load');
     if (r.tbc.length) parts.push('<b>' + r.tbc.length + '</b> ' + (r.tbc.length === 1 ? 'subject has' : 'subjects have') + ' 2027 sessions TBC');
     if (r.pending.length) parts.push('<b>' + r.pending.length + '</b> ' + (ctx.custom ? (r.pending.length === 1 ? 'open slot' : 'open slots') : (r.pending.length === 1 ? 'choice' : 'choices') + ' still open'));
     if (state.campus && r.campus.length) parts.push('<b>' + r.campus.length + '</b> not at ' + esc(META.campuses[state.campus]) + ' or online');
@@ -1529,7 +1703,7 @@
       cpl.push('<p><b>Placed ' + ctx.placedCP + ' of ' + ctx.plan.cp + ' CP.</b> ' + (r.pending.length ? plural(r.pending.length, 'open slot') + ' still to fill: ' + r.pending.map(function (s) { return jump(s, where(s)); }).join(', ') + '.' : 'Every slot has a subject.') + '</p>');
       if (r.cpShort) cpl.push('<p><b>' + r.cpShort + ' CP short:</b> your slots add up to ' + ctx.totalCP + ' CP. Add slots or a year to reach ' + ctx.plan.cp + ' CP.</p>');
       if (r.cpOver) cpl.push('<p><b>' + r.cpOver + ' CP over:</b> the subjects placed total ' + ctx.placedCP + ' CP, more than the ' + ctx.plan.cp + ' CP the degree requires.</p>');
-      if (r.overload.length) cpl.push('<p><b>Over the 40 CP full-time load:</b> ' + r.overload.map(function (l) { return 'Year ' + l.year + ' ' + l.session + ' (' + l.cp + ' CP)'; }).join('; ') + '. An overload needs approval from the university.</p>');
+      if (r.overload.length) cpl.push('<p><b>Over the load set for the session:</b> ' + r.overload.map(function (l) { return 'Year ' + l.year + ' ' + l.session + ' (' + l.cp + ' of ' + l.cap + ' CP)'; }).join('; ') + '. More than 40 CP in a session needs approval from the university.</p>');
       if (r.dupes.length) cpl.push('<p><b>Listed more than once:</b> ' + r.dupes.map(function (d) { return esc(d.code) + ' (' + d.slots.map(function (s) { return jump(s, where(s)); }).join(', ') + ')'; }).join('; ') + '. A subject counts towards your degree only once.</p>');
       if (r.notOffered.length) cpl.push('<p><b>Not offered in the planned session:</b> ' + r.notOffered.map(function (s) { return jump(s) + ' (' + where(s) + ')'; }).join('; ') + '. Move it to a session it runs in, or choose another subject.</p>');
       if (r.replaced.length) cpl.push('<p><b>Changed from the template:</b> ' + r.replaced.map(function (s) { return esc(s.replaced.code) + ' → ' + (s.pending ? 'open slot' : jump(s)) + ' (' + where(s) + ')'; }).join('; ') + '. Check the degree\'s rules still allow it.</p>');
@@ -1629,39 +1803,117 @@
     if (s.kind === 'elective') return 'Select Elective';
     return 'Select Subject';
   }
-  // the flags under a subject's title and its offering column change when it is ticked, so ticking can update just these
+  // The pools a subject can count towards in a plan, when its degree lists it in more than one (LAWS 3067 in 2785 is both
+  // an Alternate Accounting subject and an LLB Alternate): the pathway rows of each kind of choice that lists it.
+  function poolName(row) { return row.kind === 'llb' ? 'LLB Alternate' : cleanPoolTitle(row.title).replace(/ Subjects?$/i, '').replace(/^Alternate (.+)$/, '$1 Alternate'); }
+  function poolsFor(ctx, s) {
+    const tpl = ctx.custom ? ctx.plan.tpl : ctx.key;
+    if (!tpl || s.pending || !s.code) return [];
+    const deg = DEG[tpl.split('|')[0]];
+    const comps = deg.catalogue.filter(function (c) { return c.code === s.code; }).map(function (c) { return c.component; });
+    if (comps.length < 2) return [];
+    const out = [];
+    PATH[tpl].forEach(function (r) {
+      const list = r.kind === 'llb' ? [deg.llbComponent] : r.kind === 'pool' ? r.pool || [] : [];
+      if (!list.some(function (c) { return comps.indexOf(c) >= 0; })) return;
+      const name = poolName(r);
+      if (!out.some(function (p) { return p.name === name; })) out.push({ name: name, row: r });
+    });
+    return out.length > 1 ? out : [];
+  }
+  // counts a subject towards the next pool that lists it, trading places with an open slot of that pool when there is one
+  function switchPool(slotId) {
+    const sid = ensureEditable(slotId);
+    const ctx = lastCtx;
+    const s = ctx.byId[sid];
+    const pools = s ? poolsFor(ctx, s) : [];
+    if (!pools.length) return;
+    const row = s.newCore ? null : s.orig;
+    const at = pools.findIndex(function (p) { return row && poolName(row) === p.name; });
+    const to = pools[(at + 1) % pools.length];
+    const plan = editPlan();
+    const x = plan.slots[s.idx];
+    noteChange('counted ' + s.code + ' as ' + to.name);
+    const other = ctx.slots.find(function (o) { return o.pending && o.orig && !o.newCore && poolName(o.orig) === to.name; });
+    if (other) plan.slots[other.idx].o = x.o;
+    else {
+      // an imported plan lists what is still needed apart from its history, so the list trades one for the other
+      const rows = {};
+      PATH[plan.tpl].forEach(function (r) { rows[r.id] = r; });
+      const n = plan.need.find(function (q) { return !q.code && rows[q.o] && (rows[q.o].kind === 'llb' || rows[q.o].kind === 'pool') && poolName(rows[q.o]) === to.name; });
+      if (n && rows[x.o]) { n.o = x.o; n.cp = rows[x.o].cp; }
+    }
+    x.o = to.row.id;
+    renderMoving(function () { flashSlot(sid, true); });
+    toast(s.code + ' now counts as ' + to.name + (other ? ', and the open slot it took the place of is ' + (at >= 0 ? pools[at].name : 'an open') + ' instead' : '') + '.', { action: 'undo', label: 'Undo' });
+  }
+  // the flags under a subject's title, its offering column and its tools change when it is ticked, so ticking updates just these
   function slotFlags(s, ctx) {
     const offCampus = state.campus && ctx.risks.campus.indexOf(s) >= 0;
     const flags = [];
-    if (s.done) flags.push('<span class="flag flag-done">✓ Completed</span>');
-    const live = s.offer && !s.done;
-    if (live && s.offer.tbc) flags.push('<span class="flag flag-tbc" title="2027 session not yet published">Session TBC</span>');
-    if (live && s.offer.y2026 && !s.offer.tbc) flags.push('<span class="flag flag-2026" title="2027 session not yet published; 2026 session shown">2026 data</span>');
-    if (s.chosen && !s.replaced) flags.push('<span class="flag flag-chosen">Your choice</span>');
-    if (s.replaced && !s.pending) flags.push('<span class="flag flag-chosen" title="Template subject: ' + esc(s.replaced.code + ' ' + s.replaced.title) + '">Replaces ' + esc(s.replaced.code) + '</span>');
+    const flag = function (cls, text, tip) { return '<span class="flag ' + cls + '"' + (tip ? ' title="' + esc(tip) + '"' : '') + '>' + text + '</span>'; };
+    if (s.done) flags.push(flag('flag-done', '✓ Completed'));
+    const begun = ctx.custom && ctx.plan.start ? firstOpenIdx(ctx.plan.start) : 0;
+    const ahead = orderIdx(s.year, s.session) >= begun;
+    const live = s.offer && !s.done && ahead;
+    if (live && s.offer.tbc) flags.push(flag('flag-tbc', 'Session TBC', '2027 session not yet published'));
+    if (live && s.offer.y2026 && !s.offer.tbc) flags.push(flag('flag-2026', '2026 data', '2027 session not yet published; 2026 session shown'));
+    if (s.chosen && !s.replaced) flags.push(flag('flag-chosen', 'Your choice'));
+    if (s.replaced && !s.pending) flags.push(flag('flag-chosen', 'Replaces ' + esc(s.replaced.code), 'Template subject: ' + s.replaced.code + ' ' + s.replaced.title));
     const twins = ctx.custom && !s.pending ? sameAs(s.code).filter(function (c) { return c !== s.code && ctx.used[c]; }) : [];
-    if (ctx.custom && !s.pending && ((ctx.used[s.code] || []).length > 1 || twins.length)) flags.push('<span class="flag flag-warn"' + (twins.length ? ' title="' + esc(twins[0]) + ' is also in your plan, and the two count as one subject"' : '') + '>Listed twice</span>');
-    if (s.custom) flags.push('<span class="flag flag-chosen">Custom</span>');
-    // a pre-2027 subject in the pre-2027 structure, with the 2027 subject that replaced it as the alternative
-    const old = s.legacyFor || (s.twin && LEGACY[s.code] ? s.twin : null);
-    if (!s.done && !s.pending && (s.legacyFor || s.legacy)) flags.push('<span class="flag flag-legacy">Pre-2027 subject' + (PHASE_YEAR[s.code] ? ' · last offered ' + PHASE_YEAR[s.code] : '') + '</span>');
-    if (!s.done && old) flags.push('<span class="flag flag-legacy">Or ' + esc(old.code + ' ' + old.title) + ' from 2027</span>');
-    if (s.done && s.twin) flags.push('<span class="flag flag-done" title="The two count as one subject">Counts for ' + esc(s.twin.code) + '</span>');
-    if (ctxCohort(ctx) === 'pre2027' && !s.done && !s.pending && LEGACY_OF[s.code]) flags.push('<span class="flag flag-legacy">Replaces pre-2027 ' + LEGACY_OF[s.code] + (PHASE_YEAR[LEGACY_OF[s.code]] ? ' · last offered ' + PHASE_YEAR[LEGACY_OF[s.code]] : '') + '</span>');
-    if (s.listSubject) flags.push('<span class="flag flag-2026" title="Added from the WSU subject list">WSU subject list</span>');
-    if (offCampus) flags.push('<span class="flag flag-campus">Not at ' + state.campus + '</span>');
+    if (ctx.custom && !s.pending && ((ctx.used[s.code] || []).length > 1 || twins.length)) flags.push(flag('flag-warn', 'Listed twice', twins.length ? twins[0] + ' is also in your plan, and the two count as one subject' : ''));
+    if (s.custom) flags.push(flag('flag-chosen', 'Custom'));
+    const pre = ctxCohort(ctx) === 'pre2027';
+    // the pre-2027 structure, in a few words on the card and in full when the pointer rests on them
+    if (s.newCore) flags.push(flag('flag-legacy', 'In place of ' + esc(s.newCore.code), 'Pre-2027 structure: an LLB Alternate in place of ' + s.newCore.code + ' ' + s.newCore.title + ', a core subject only from 2027'));
+    if (!s.done && !s.pending && s.legacy) flags.push(flag('flag-legacy', 'Pre-2027 subject', 'A pre-2027 subject' + (PHASE_YEAR[s.code] ? ', last offered ' + PHASE_YEAR[s.code] : '') + (LEGACY_EQUIVALENTS[s.code] ? '. From 2027 enrol in ' + LEGACY_EQUIVALENTS[s.code] + ' instead' : '')));
+    if (s.done && !s.pending && LEGACY_EQUIVALENTS[s.code] && (s.twin || pre)) flags.push(flag('flag-done', 'Counts for ' + esc(LEGACY_EQUIVALENTS[s.code]), 'The two count as one subject, so ' + LEGACY_EQUIVALENTS[s.code] + ' is not needed as well'));
+    if (pre && !s.done && !s.pending && LEGACY_OF[s.code]) flags.push(flag('flag-legacy', 'Replaces Pre-2027 ' + LEGACY_OF[s.code], 'The subject to enrol in from 2027, in place of ' + LEGACY_OF[s.code] + ' ' + LEGACY[LEGACY_OF[s.code]] + (PHASE_YEAR[LEGACY_OF[s.code]] ? ', last offered ' + PHASE_YEAR[LEGACY_OF[s.code]] : '')));
+    if (s.listSubject) flags.push(flag('flag-2026', 'WSU subject list', 'Added from the WSU subject list'));
+    if (offCampus) flags.push(flag('flag-campus', 'Not at ' + state.campus));
     if (ctx.risks.advisor.some(function (a) { return a.flagSlot === s; })) flags.push('<button type="button" class="flag flag-warn" data-action="open-advisory">Check prerequisite</button>');
-    if (live && s.offer.none && !s.pending) flags.push('<span class="flag flag-warn">Not offered this session</span>');
-    if (!s.pending && s.code && hasChain(s.code, ctx)) flags.push('<button type="button" class="chain-btn" data-action="xray" data-slot="' + s.id + '" aria-pressed="' + (ui.xrayPin === s.id) + '" title="Show what this subject depends on and unlocks">Chain</button>');
-    if (!s.pending && !s.done && s.code && state.load !== 'PT') flags.push('<button type="button" class="defer-btn" data-action="defer" data-slot="' + s.id + '" aria-label="Defer ' + esc(s.code) + ' to its next offered session" title="Move to the next session it runs in, and move any subject that needs it' + (ctx.custom ? '' : ', in your edited copy of this pathway') + '">Defer ↷</button>');
+    if (live && s.offer.none && !s.pending) flags.push(flag('flag-warn', 'Not offered this session'));
+    if (s.auto) flags.push(flag('flag-2026', 'Only option', 'Only option listed for this ' + s.session + ' slot'));
+    // a subject its degree lists in two pools can count towards either
+    const pools = state.load !== 'PT' ? poolsFor(ctx, s) : [];
+    if (pools.length && (ctx.custom ? s.orig && !s.newCore && (s.orig.kind === 'llb' || s.orig.kind === 'pool') : s.kind === 'llb' || s.kind === 'pool')) {
+      const row = ctx.custom ? (s.newCore ? null : s.orig) : s.raw;
+      const now = pools.find(function (p) { return row && row.kind && poolName(row) === p.name; });
+      flags.push('<button type="button" class="flag flag-pool" data-action="pool-switch" data-slot="' + s.id + '" title="This subject is in more than one list for your degree. Press to count it towards the other.">Pool: ' +
+        pools.slice().sort(function (a, b) { return (a === now ? 0 : 1) - (b === now ? 0 : 1); }).map(function (p) { return p === now ? '<b>' + esc(p.name) + '</b>' : esc(p.name); }).join(' ⇄ ') + '</button>');
+    }
     return flags.join('');
   }
-  function slotOffer(s) {
+  function slotOffer(s, ctx) {
     if (s.pending || s.done) return '';
+    // a session that has begun shows no 2027 offering: what ran then is not what the 2027 guides list
+    if (ctx && ctx.custom && ctx.plan.start && orderIdx(s.year, s.session) < firstOpenIdx(ctx.plan.start)) return '';
     if (s.session === 'Summer') return '<span class="muted small" title="The 2027 guides list Autumn and Spring sessions only">Check Handbook</span>';
-    if (s.legacy || s.legacyFor) return '<span class="muted small" title="A pre-2027 subject: the 2027 guides do not list its sessions">Check Handbook</span>';
+    if (s.legacy) return '<span class="muted small" title="A pre-2027 subject: the 2027 guides do not list its sessions">Check Handbook</span>';
     if (s.listSubject) return '<span class="muted small" title="The WSU subject list has no session or campus data">Check Handbook</span>';
     return pillsFor(s.offer);
+  }
+  // A card's tools, in one row that is always there: Change, Move to, Chain, Defer and Remove. A WSLSA pathway becomes
+  // its edited copy at the first change. The part-time view lays the plan out again, so it only changes choices.
+  function slotTools(s, ctx) {
+    const pt = state.load === 'PT';
+    const at = ' data-slot="' + s.id + '"';
+    const name = s.pending ? 'the ' + where(s) + ' slot' : s.code;
+    const tool = function (action, label, tip, cls, extra) { return '<button type="button" class="tool-btn' + (cls ? ' ' + cls : '') + '" data-action="' + action + '"' + at + ' title="' + esc(tip) + '"' + (extra || '') + '>' + label + '</button>'; };
+    const out = [];
+    const picked = !s.pending;
+    const choice = s.kind === 'llb' || s.kind === 'pool' || s.kind === 'elective';
+    if ((choice || s.kind === 'cslot') && picked) out.push(tool('picker-open', 'Change', 'Change or replace ' + name + ' with another subject'));
+    else if (s.kind === 'option') out.push(tool('picker-open', 'Swap', 'Swap ' + name + ' for another option of your major'));
+    else if (s.kind === 'fixed' && !pt) out.push(tool('change-open', 'Change', 'Change or replace ' + name + ' with another subject'));
+    if ((choice || s.kind === 'cslot') && picked) out.push(tool('clear', 'Clear', 'Take ' + name + ' out and leave the slot open'));
+    else if (s.kind === 'option' && s.pick) out.push(tool('clear', 'Reset', 'Back to the WSLSA pick for this slot'));
+    else if (s.kind === 'inline' && s.chosen && s.raw.options.length > 1) out.push(tool('clear', 'Clear', 'Clear your choice for this slot'));
+    if (!pt) out.push(moveSelect(s, ctx));
+    if (picked && s.code && hasChain(s.code, ctx)) out.push(tool('xray', 'Chain', 'Show what this subject depends on and unlocks', 'chain-btn', ' aria-pressed="' + (ui.xrayPin === s.id) + '"'));
+    if (picked && !s.done && s.code && !pt) out.push(tool('defer', 'Defer ↷', 'Move to the next session it runs in, and move any subject that needs it' + (ctx.custom ? '' : ', in your edited copy of this pathway'), 'defer-btn', ' aria-label="Defer ' + esc(s.code) + ' to its next offered session"'));
+    if (!pt) out.push(tool('cremove', 'Remove ×', 'Remove ' + name + ' from your plan', 'rm-btn', ' aria-label="Remove ' + esc(name) + ' from your plan"'));
+    return out.join('');
   }
   function slotHTML(s, ctx) {
     const kc = kindClass(s);
@@ -1671,8 +1923,6 @@
     const offCampus = state.campus && ctx.risks.campus.indexOf(s) >= 0;
     if (offCampus) cls.push('offcampus');
     let body = '';
-    if (s.newCore) body += '<div class="subj-note">Pre-2027 structure: an LLB Alternate in place of ' + esc(s.newCore.code + ' ' + s.newCore.title) + ', a 2027 core subject.</div>';
-    else if (s.pending && s.kind === 'llb') body += '<div class="subj-note">Any LLB Alternate offered in ' + s.session + ' 2027.</div>';
     if (s.kind === 'inline' && s.raw.options.length > 1) {
       body += '<div class="inline-opts" role="group" aria-label="Choose one">' + s.raw.options.map(function (o) {
         const sel = s.code === o.code && !s.pending;
@@ -1682,57 +1932,41 @@
         return '<button type="button" class="inline-opt" data-action="inline" data-slot="' + s.id + '" data-code="' + esc(o.code) + '" aria-pressed="' + sel + '"' + (clash ? ' disabled' : '') + ' title="' + esc(tip) + '">' +
           '<span class="io-code">' + esc(o.code) + (o.tbcFlag ? ' · TBC' : '') + '</span><span class="io-title">' + esc(o.title) + '</span></button>';
       }).join('') + '</div>';
-      if (s.chosen) body += '<div class="subj-actions"><button type="button" class="text-btn" data-action="clear" data-slot="' + s.id + '">Clear choice</button></div>';
-    } else if (s.kind === 'inline' && s.auto) {
-      body += '<div class="subj-note">Only option listed for this ' + s.session + ' slot.</div>';
     }
-    if (s.kind === 'llb' || s.kind === 'pool' || s.kind === 'elective') {
-      body += s.pending
-        ? '<div class="subj-actions"><button type="button" class="select-btn" data-action="picker-open" data-slot="' + s.id + '">+ ' + selectLabel(s) + ' →</button></div>'
-        : '<div class="subj-actions"><button type="button" class="text-btn strong" data-action="picker-open" data-slot="' + s.id + '">Change subject →</button><button type="button" class="text-btn" data-action="clear" data-slot="' + s.id + '">Clear</button></div>';
-    } else if (s.kind === 'option') {
-      body += '<div class="subj-actions"><button type="button" class="text-btn strong" data-action="picker-open" data-slot="' + s.id + '">Swap option →</button>' +
-        (s.pick ? '<button type="button" class="text-btn" data-action="clear" data-slot="' + s.id + '">Reset to WSLSA pick</button>' : '') + '</div>';
+    // an open slot's one call to action; what the slot takes is in its title, and in full when the pointer rests on the button
+    if (s.pending && (s.kind === 'llb' || s.kind === 'pool' || s.kind === 'elective')) {
+      body += '<div class="subj-actions"><button type="button" class="select-btn" data-action="picker-open" data-slot="' + s.id + '" title="' + (s.kind === 'llb' ? 'Any LLB Alternate offered in ' + s.session + ' 2027' : 'Choose a subject for this slot') + '">+ ' + selectLabel(s) + ' →</button></div>';
+    } else if (s.pending && s.kind === 'cslot') {
+      const tip = s.session === 'Summer' ? 'Choose a subject, or bring one forward from later in your plan' : s.raw.kind === 'llb' ? 'Any LLB Alternate offered in ' + s.session + ' 2027' : s.raw.kind === 'inline' ? 'Template options: ' + s.raw.options.map(function (o) { return o.code + ' ' + o.title; }).join(' or ') : 'Choose a subject for this slot';
+      body += '<div class="subj-actions"><button type="button" class="select-btn" data-action="picker-open" data-slot="' + s.id + '" title="' + esc(tip) + '">+ ' + (s.raw.kind === 'llb' ? 'Select LLB Alternate' : 'Choose subject') + ' →</button></div>';
     }
-    if (s.kind === 'cslot') {
-      if (s.pending && s.session === 'Summer') body += '<div class="subj-note">' + (s.raw.kind === 'llb' ? 'Template slot: any LLB Alternate that runs in Summer. ' : '') + 'Choose a subject, or bring one forward from later in your plan.</div>';
-      else if (s.pending && s.raw.kind === 'llb') body += '<div class="subj-note">Template slot: any LLB Alternate offered in ' + s.session + ' 2027.</div>';
-      if (s.pending && s.raw.kind === 'inline') body += '<div class="subj-note">Template options: ' + s.raw.options.map(function (o) { return esc(o.code + ' ' + o.title); }).join(' or ') + '.</div>';
-      body += s.pending
-        ? '<div class="subj-actions"><button type="button" class="select-btn" data-action="picker-open" data-slot="' + s.id + '">+ Choose subject →</button></div>'
-        : '<div class="subj-actions"><button type="button" class="text-btn strong" data-action="picker-open" data-slot="' + s.id + '">Change / Replace →</button><button type="button" class="text-btn" data-action="clear" data-slot="' + s.id + '">Clear</button></div>';
-    }
-    if ((s.kind === 'fixed' || s.kind === 'cslot') && s.cp === 0 && !s.pending) body += '<div class="subj-note">0 CP placement or requirement</div>';
-    // every card can change, move or go: a WSLSA pathway becomes its edited copy at the first change
-    if (state.load !== 'PT') {
-      body += '<div class="subj-actions subj-edit">' +
-        (s.kind === 'fixed' ? '<button type="button" class="text-btn strong" data-action="change-open" data-slot="' + s.id + '">Change / Replace →</button>' : '') +
-        moveSelect(s, ctx) +
-        '<button type="button" class="text-btn rm-btn" data-action="cremove" data-slot="' + s.id + '" aria-label="Remove ' + esc(s.pending ? 'the ' + where(s) + ' slot' : s.code) + ' from your plan">Remove ×</button></div>';
-    }
-
+    const tools = slotTools(s, ctx);
     const codeTxt = s.pending ? (s.kind === 'cslot' ? s.pendingCode : s.kind === 'llb' ? 'LLB ALT' : s.kind === 'elective' ? 'ELECTIVE' : 'CHOICE') : s.code;
     const check = '<label class="tick" title="Mark complete"><input type="checkbox" data-action="done" data-slot="' + s.id + '"' + (s.done ? ' checked' : '') + ' aria-label="Mark ' + esc((s.pending ? '' : s.code + ' ') + s.title) + ' complete"><span class="tick-box" aria-hidden="true"></span></label>';
     return '<div class="' + cls.join(' ') + '" id="slot-' + s.id + '" data-slot="' + s.id + '"' + (state.load !== 'PT' ? ' draggable="true"' : '') + (s.vt ? ' style="--vt:' + s.vt + '"' : '') + '>' +
       '<div class="subj-lead">' + check + '<span class="code-pill">' + esc(codeTxt) + '</span></div>' +
       '<div class="subj-main"><div class="subj-title">' + esc(s.title) + '</div><div class="subj-meta"><span class="cat">' + esc(s.typeLabel) + '</span>' + slotFlags(s, ctx) + '</div>' + body + '</div>' +
-      '<div class="subj-side"><span class="pills">' + slotOffer(s) + '</span><span class="cp-badge">' + s.cp + ' CP</span></div></div>';
+      '<div class="subj-side"><span class="pills">' + slotOffer(s, ctx) + '</span><span class="cp-badge">' + s.cp + ' CP</span></div>' +
+      '<div class="subj-edit" role="group" aria-label="Tools for ' + esc(s.pending ? 'this open slot' : s.code) + '">' + tools + '</div></div>';
   }
 
-  // Move ▾ on a card: any session of the plan, or a new year, each marked with whether the subject runs there
+  // Move to ▾ on a card: any session of the plan, or a new year, each with the credit points it holds and whether the
+  // subject runs there
   function moveSelect(s, ctx) {
     const years = ctx.shownYears || 1;
     const maxY = Math.min(MAX_YEARS, years + 1);
-    let opts = '<option value="">Move ▾</option>';
+    const held = {};
+    ctx.slots.forEach(function (o) { const k = orderIdx(o.year, o.session); held[k] = (held[k] || 0) + o.cp; });
+    let opts = '<option value="">Move to</option>';
     for (let y = 1; y <= maxY; y++) {
       const fresh = y > years;
       opts += '<optgroup label="' + (fresh ? 'New year' : 'Year ' + y) + ' · ' + calYear(y) + '">' + PLAN_SESSIONS.filter(function (ss) { return !fresh || ss !== 'Summer'; }).map(function (ss) {
         const here = y === s.year && ss === s.session;
         const mark = here ? ' (here)' : s.pending || !s.code ? '' : offerIssue(ctx, s, ss) ? '  ⚠ Check offering' : '  ✓ Offered';
-        return '<option value="' + y + '|' + ss + '"' + (here ? ' disabled' : '') + '>' + (fresh ? '+ New Year ' : 'Year ') + y + ' · ' + ss + mark + '</option>';
+        return '<option value="' + y + '|' + ss + '"' + (here ? ' disabled' : '') + '>' + (fresh ? '+ New Year ' : 'Year ') + y + ' · ' + ss + (fresh ? '' : ' · ' + (held[orderIdx(y, ss)] || 0) + ' CP') + mark + '</option>';
       }).join('') + '</optgroup>';
     }
-    return '<span class="move-wrap"><select class="move-sel" data-slot="' + s.id + '" aria-label="Move ' + esc(s.pending ? 'this open slot' : s.code) + ' to another session">' + opts + '</select></span>';
+    return '<span class="move-wrap"><select class="move-sel" data-slot="' + s.id + '" aria-label="Move ' + esc(s.pending ? 'this open slot' : s.code) + ' to another session" title="Move to another session">' + opts + '</select></span>';
   }
   // + Add slot: a slot for any subject, or one tied to the pathway's own kinds of choice
   function slotKinds(ctx) {
@@ -1756,6 +1990,21 @@
     return '<div class="pop add-pop"><button type="button" class="mark-all add-slot" data-action="pop-toggle" aria-expanded="false" aria-controls="' + id + '" aria-label="Add a slot to Year ' + y + ' ' + sess + '">+ Add slot</button><div class="pop-menu add-menu" id="' + id + '" hidden>' +
       '<button type="button" class="tbtn pop-item" data-action="cadd"' + at + '>Subject slot (any WSU subject)</button>' +
       kinds.map(function (k) { return '<button type="button" class="tbtn pop-item" data-action="cadd"' + at + ' data-o="' + k.o + '">' + esc(k.label) + '</button>'; }).join('') + '</div></div>';
+  }
+  // A session's credit points, which a student can press to set the load they plan for it: the overload check and the
+  // guide's suggestions then follow that load.
+  function sessionLoad(ctx, y, sess, cp, edit) {
+    const k = orderIdx(y, sess);
+    const cap = sessionCap(ctx.custom ? ctx.plan : null, k);
+    const own = cap !== LOAD_CP.FT;
+    const over = ctx.custom && cp > cap;
+    const text = (own ? cp + ' / ' + cap : cp) + ' CP' + (own && cap === 0 ? ' · Leave' : '');
+    if (!edit) return '<span class="session-cp' + (over ? ' over' : '') + '">' + text + '</span>';
+    const id = 'load-' + y + '-' + sess;
+    return '<div class="pop load-pop"><button type="button" class="session-cp load-btn' + (over ? ' over' : '') + (own ? ' is-set' : '') + '" data-action="pop-toggle" aria-expanded="false" aria-controls="' + id + '" aria-label="Year ' + y + ' ' + sess + ': ' + cp + ' CP planned, load ' + cap + ' CP. Set the load for this session" title="' + (over ? 'More than the ' + cap + ' CP set for this session. ' : '') + 'Set the load for this session">' + text + '</button>' +
+      '<div class="pop-menu load-menu" id="' + id + '" hidden><span class="pop-label">Load for this session</span>' + SESSION_LOADS.map(function (l) {
+        return '<button type="button" class="tbtn pop-item" data-action="session-load" data-y="' + y + '" data-s="' + sess + '" data-v="' + l[0] + '" aria-pressed="' + (l[0] === cap) + '">' + l[0] + ' CP' + (l[1] ? ' · ' + l[1] : '') + '</button>';
+      }).join('') + '</div></div>';
   }
   function sortSlots(list) {
     return list.slice().sort(function (a, b) { return orderIdx(a.year, a.session) - orderIdx(b.year, b.session) || a.raw.slot - b.raw.slot; });
@@ -1866,6 +2115,7 @@
       : ctx.custom && ctx.plan.pace ? '<p class="pt-note"><b>Re-paced plan.</b> Completed subjects stay where you took them, and the rest runs at up to ' + ctx.plan.pace + ' CP a session, in sessions each subject is offered in, after its known prerequisites. Confirm it with your Academic Program Advisor before you enrol.</p>' : '';
     const edit = !pt;
     const folded = foldedYears(ctx, years);
+    const begun = ctx.custom && ctx.plan.start ? firstOpenIdx(ctx.plan.start) : 0;
     ctx.shownYears = years.length ? years[years.length - 1].year : 1;
     // cards glide by subject, as slot numbers shift when a custom plan changes; names must be unique
     const named = {};
@@ -1892,12 +2142,16 @@
       sessions.forEach(function (sess) {
         const list = lists[sess];
         const allDone = list.length && list.every(function (s) { return s.done; });
-        const over = ctx.custom && !pt && sumCP(list) > LOAD_CP.FT;
         html += '<section class="session' + (sess === 'Summer' ? ' session-summer' : '') + '" aria-label="Year ' + y.year + ' ' + sess + ' session" data-y="' + y.year + '" data-s="' + sess + '"><div class="session-head"><h3>' + sess + '<span>Session</span></h3><div class="session-tools"><span class="commute-slot">' + commutePill(list) + '</span><span class="load-slot">' + loadPill(list) + '</span>' +
           (edit ? addSlotTool(ctx, y.year, sess) : '') +
           (list.length ? '<button type="button" class="mark-all" data-action="session-done" data-ids="' + list.map(function (s) { return s.id; }).join(',') + '">' + (allDone ? 'Unmark all' : 'Mark all done') + '</button>' : '') +
-          '<span class="session-cp' + (over ? ' over' : '') + '"' + (over ? ' title="More than the 40 CP full-time load"' : '') + '>' + sumCP(list) + ' CP</span></div></div><p class="session-clear"></p><div class="slots">' +
-          (list.length ? list.map(function (s) { return slotHTML(s, ctx); }).join('') : '<div class="slot-empty">' + (sess === 'Autumn' && y === years[0] && lists.Spring.length ? 'Your plan starts in Spring, so nothing is planned here' : ctx.custom ? '<b>Open for your choices.</b> Drag a subject here, use + Add slot, or add one from the Suggested Remaining Guide.' : 'No subjects scheduled this session') + '</div>') + '</div></section>';
+          sessionLoad(ctx, y.year, sess, sumCP(list), edit) + '</div></div><p class="session-clear"></p><div class="slots">' +
+          (list.length ? list.map(function (s) { return slotHTML(s, ctx); }).join('') : '<div class="slot-empty">' + (sess === 'Autumn' && y === years[0] && lists.Spring.length ? 'Your plan starts in Spring, so nothing is planned here'
+            : !ctx.custom ? 'No subjects scheduled this session'
+            // a session that has already begun is not one to plan: it only shows what the record had in it
+            : orderIdx(y.year, sess) < begun ? 'Nothing recorded for this session. If you studied then, use + Add slot to put the subject in.'
+            : sessionCap(ctx.plan, orderIdx(y.year, sess)) === 0 ? '<b>Leave of Absence.</b> Nothing is planned for this session.'
+            : '<b>Empty session.</b> ' + (ctx.guide ? 'Drag or + Add subjects from the Suggested Remaining Guide, or use + Add slot.' : 'Drag a subject here, or use + Add slot.')) + '</div>') + '</div></section>';
       });
       html += '</div></article>';
     });
@@ -1934,6 +2188,20 @@
       '<dl class="kv"><dt>Campuses</dt><dd>' + esc(d.campuses) + '</dd></dl>' +
       '<p class="kv-link"><a class="tbtn tbtn-outline" href="' + esc(d.handbook) + '" target="_blank" rel="noopener">' + (ctx.custom && !ctx.tdeg ? 'WSU Student Handbook →' : 'Official 2027 Handbook →') + '</a></p>';
   }
+  // A degree's credit breakdown in a Handbook structure: before 2027 the Law core was 30 CP smaller and the LLB
+  // Alternates 30 CP larger, as LAWS 2019, LAWS 3099 and LAWS 3102 are core only from 2027.
+  function effectiveStructure(deg, cohort) {
+    const list = deg.structure || [];
+    if (cohort !== 'pre2027') return list;
+    const shift = NEW_2027_CORES.filter(function (c) { return deg.byCode && deg.byCode[c]; }).reduce(function (a, c) { return a + (deg.byCode[c].cp || 10); }, 0);
+    const core = list.find(function (c) { return /^Core - Laws/.test(c.component); }) || list.find(function (c) { return c.component === 'Core'; });
+    const llb = list.find(function (c) { return /^LLB Alternate/.test(c.component); });
+    if (!core || !llb || !shift) return list;
+    return list.map(function (c) { return c === core ? { component: c.component, cp: c.cp - shift, was: c.cp } : c === llb ? { component: c.component, cp: c.cp + shift, was: c.cp } : c; });
+  }
+  function structureNote(ctx) {
+    return ctxCohort(ctx) === 'pre2027' ? '<p class="small muted structure-note"><b>Pre-2027 structure.</b> LAWS 2019, LAWS 3099 and LAWS 3102 are core subjects only from 2027, so the Law core is 30 CP smaller and the LLB Alternates 30 CP larger than the 2027 Handbook shows.</p>' : '';
+  }
   function customStructure(ctx) {
     const areas = {};
     let openCP = 0;
@@ -1957,7 +2225,7 @@
       '<dl class="kv"><dt>Starting point</dt><dd>' + (t ? esc(tplLabel(ctx.plan.tpl)) + (ctx.risks.replaced.length ? ' · ' + plural(ctx.risks.replaced.length, 'template subject') + ' changed' : ' · no template subjects changed') : 'Blank plan built from scratch') + '</dd></dl>' +
       '<button type="button" class="tbtn tbtn-outline" data-action="custom-setup">Edit name, credit points or template →</button></div>' +
       '<div><h3 class="panel-h">How custom plans work</h3><p class="small muted" style="margin-top:0">' + customWhy(ctx) + '</p>' +
-      (t ? '<h3 class="panel-h" style="margin-top:18px">' + esc(t.code) + ' program structure</h3>' + t.structure.map(function (c) { return '<div class="structure-row"><span>' + esc(c.component) + '</span><span class="cpv">' + c.cp + ' CP</span></div>'; }).join('') : '') +
+      (t ? '<h3 class="panel-h" style="margin-top:18px">' + esc(t.code) + ' program structure</h3>' + structureNote(ctx) + effectiveStructure(t, ctxCohort(ctx)).map(function (c) { return '<div class="structure-row"><span>' + esc(c.component) + '</span><span class="cpv">' + c.cp + ' CP</span></div>'; }).join('') : '') +
       (t && t.advisorNotes.length ? '<h3 class="panel-h" style="margin-top:18px">Advisor notes for ' + esc(t.code) + '</h3><ul class="src-list">' + t.advisorNotes.map(function (n) { return '<li>' + esc(n.text) + '</li>'; }).join('') + '</ul>' : '') +
       '</div></div>';
   }
@@ -1974,10 +2242,11 @@
     } else if (own && ui.tab === 'admission' && !ctx.tdeg) {
       html += '<p class="muted" style="margin:0;max-width:72ch">Admission, LPAB accreditation and exit awards belong to a specific degree, so a plan built from scratch has none to show. Use <button type="button" class="linkish" data-action="custom-setup">Edit setup</button> to start from one of the 2027 WSLSA pathways, or check your degree in the <a href="' + esc(HANDBOOK_HOME) + '" target="_blank" rel="noopener">WSU Student Handbook →</a></p>';
     } else if (ui.tab === 'structure') {
-      const max = Math.max.apply(null, d.structure.map(function (c) { return c.cp; }));
+      const parts = effectiveStructure(ctx.tdeg || d, ctxCohort(ctx));
+      const max = Math.max.apply(null, parts.map(function (c) { return c.cp; }));
       const c = META.counts;
-      html += '<div class="two-col"><div><h3 class="panel-h">Credit breakdown</h3>' +
-        d.structure.map(function (c) {
+      html += '<div class="two-col"><div><h3 class="panel-h">Credit breakdown</h3>' + structureNote(ctx) +
+        parts.map(function (c) {
           return '<div class="structure-row"><span>' + esc(c.component) + '</span><span class="cpv">' + c.cp + ' CP</span><span class="sbar"><span style="width:' + (c.cp / max * 100) + '%"></span></span></div>';
         }).join('') +
         '<div class="structure-row structure-total"><span>Total credit points</span><span class="cpv">' + d.structureTotal + ' CP</span></div>' + doneRow(ctx) +
@@ -2182,7 +2451,7 @@
     { title: 'Next to enrol', text: 'This is your next session. Copy Codes gives you the subject codes for MySR and Export .ics saves a calendar reminder. Already studying? Import my progress rebuilds your plan from a PDF, and Tick off from my results ticks subjects from text you paste.', targets: ['#next'] },
     { title: 'Plan tools', text: 'Undo and Redo step through your changes (' + UNDO_KEYS + ' and ' + REDO_KEYS + '). Re-Pace / Switch Load changes your load for the rest of your degree, with a Leave of Absence, a Spring start and Fast-Track. Plan Tools holds Auto-fill, Pin Snapshot, Simulate Degree Transfer and your own custom plan.', targets: ['#section-tools'] },
     { title: 'Filter bar and degree map', text: 'Show everything, only what remains, or only what needs action. Type in the box, or press /, to filter your plan by code or title. The degree map shows every session, stays on screen as you scroll and jumps to a session when you press it.', targets: ['#gridbar', '#dmap'] },
-    { title: 'Subject cards', text: 'Tick a subject when you pass it. Chain shows what it depends on and unlocks, open slots let you pick an LLB Alternate, and Defer ↷ moves a subject to the next session it runs in. In a custom plan you can drag one subject onto another to swap them.', targets: ['#grid .subj'], fallback: '#grid' },
+    { title: 'Subject cards', text: 'Tick a subject when you pass it. The row under each card holds its tools: Change swaps the subject, Move to sends it to any session, Chain shows what it depends on and unlocks, Defer ↷ moves it to the next session it runs in, and Remove × takes it out. Open slots let you pick an LLB Alternate, and you can drag one subject onto another to swap them.', targets: ['#grid .subj'], fallback: '#grid' },
     { title: 'Degree details and catalogue', text: 'Credit breakdown, admission, accreditation and exit awards are here. In the subject catalogue tab, + Assign puts a subject straight into an open slot in your plan.', targets: ['#details'] },
     { title: 'Law Enquiry and your PDF', text: 'The Law Enquiry box in the corner holds the School of Law\'s 2027 advice and drafts an email to the School with your plan attached as a link. Print / Save PDF, at the top of the page or in the Menu, saves a sharp A4 guide of your plan, and PDF Options under More sets it up.', targets: ['#enquiry-box'], also: '[data-action="print"]', top: true, corner: true },
   ];
@@ -2403,6 +2672,7 @@
       '<button type="button" class="tbtn tbtn-primary" data-action="repace-open" title="Change your load for the rest of your degree, take a session off, start in Spring or finish earlier">Re-Pace / Switch Load</button>' +
       '<div class="pop plan-tools"><button type="button" class="tbtn pop-btn" data-action="pop-toggle" aria-expanded="false" aria-controls="plan-tools-menu">Plan Tools</button><div class="pop-menu" id="plan-tools-menu" hidden>' +
       suggestItem(ctx) + pinItems() + item('transfer-open', 'Simulate Degree Transfer', 'See how your completed subjects would count in another degree') +
+      ((ctx.custom ? ctx.tdeg : true) ? item('handbook-compare', 'Compare Handbooks', 'See what you would still need under the pre-2027 and the 2027 Handbook, side by side') : '') +
       '<span class="pop-sep"></span>' + (canResetSequence(ctx) ? item('reset-sequence', 'Reset to Default Sequence', 'Put back the WSLSA order and subjects, keeping your ticks') : '') + (isCustom()
         ? item('custom-setup', 'Custom Plan Setup', 'Change the degree name, credit points or starting template') +
           item('custom-exit', '← WSLSA Pathways', 'Your custom plan is kept; switch back any time from the Degree menu')
@@ -2510,21 +2780,32 @@
   // can play, and updates only the numbers and panels that depend on it
   // The dock's Handbook choice: a WSLSA pathway is shown in that structure, and a plan is moved to it.
   function setCohort(cohort) {
+    cohort = cohort === 'pre2027' ? 'pre2027' : '2027';
     const plan = editPlan();
-    noteChange('switched to the ' + (cohort === 'pre2027' ? 'pre-2027' : '2027') + ' structure');
+    const pre = cohort === 'pre2027';
+    if (cohort === (plan ? cohortOf(plan) : guideCohort(currentKey()))) return;
+    noteChange('switched to the ' + (pre ? 'pre-2027' : '2027') + ' structure');
     if (plan) {
-      const was = cohortOf(plan);
       plan.cohort = cohort === startCohort(plan.start) ? '' : cohort;
-      if (plan.tpl && was !== cohort) plan.slots = restructure(plan.tpl, plan.slots, cohort);
-      // what an imported plan still needs was worked out for the structure it was imported in
-      if (was !== cohort) plan.need = [];
-    } else if (cohort === 'pre2027') state.cohortFor[currentKey()] = 'pre2027';
-    else delete state.cohortFor[currentKey()];
+      if (plan.tpl) {
+        // the plan's subjects and what it still needs both move to the structure
+        plan.slots = restructure(plan.tpl, plan.slots, cohort, plan.start);
+        plan.need = restructureNeed(plan, cohort);
+      }
+    }
+    // a WSLSA pathway remembers the choice with or without an edited copy, so resetting it shows the same structure
+    if (!isCustom()) {
+      if (pre) state.cohortFor[currentKey()] = 'pre2027'; else delete state.cohortFor[currentKey()];
+    }
     ui.folded = null;
     renderMoving();
-    toast(cohort === 'pre2027'
-      ? 'Showing the pre-2027 structure: LAWS 2019, LAWS 3099 and LAWS 3102 are LLB Alternate slots, and LAWS 1009, LAWS 2004 and LAWS 2001 take the place of LAWS 1010, LAWS 2018 and LAWS 3101.'
-      : 'Showing the 2027 structure.', { action: 'undo', label: 'Undo' });
+    // a core subject the plan has no open LLB Alternate slot to give back is not dropped quietly: the guide lists it
+    const used = {};
+    if (plan) plan.slots.forEach(function (x) { if (x.code) used[x.code] = 1; });
+    const missing = pre || !plan || !plan.tpl || plan.need.length ? [] : Object.keys(structureRows(plan.tpl).core).filter(function (code) { return !used[code]; });
+    toast(pre
+      ? 'Showing the pre-2027 structure: LAWS 2019, LAWS 3099 and LAWS 3102 are LLB Alternate slots, and each 2027 subject that replaces a pre-2027 one says which.'
+      : 'Showing the 2027 structure: LAWS 2019, LAWS 3099 and LAWS 3102 are core subjects, in place of three LLB Alternate slots.' + (missing.length ? ' Your plan has no open LLB Alternate slot to give ' + missing.join(' or ') + ', so the Suggested Remaining Guide lists ' + (missing.length === 1 ? 'it' : 'them') + ' to add.' : ''), { action: 'undo', label: 'Undo' });
   }
   // Move ▾ on a card: any session of the plan, or a new year
   function quickMove(slotId, value) {
@@ -2553,7 +2834,9 @@
       const picks = {};
       PATH[key].forEach(function (r) {
         const x = e.slots.find(function (y) { return y.o === r.id && y.code && !y.done; });
-        if (!x || r.kind === 'fixed' || (r.kind === 'option' && x.code === r.code)) return;
+        // a slot standing in for a core subject new in 2027 keeps the LLB Alternate chosen for it
+        const stand = isNewCore(r) && cohortOf(e) === 'pre2027' && !!x && x.code !== r.code;
+        if (!x || (r.kind === 'fixed' && !stand) || (r.kind === 'option' && x.code === r.code)) return;
         const k = GLOBAL_BY_CODE[x.code] || EXTRA_BY_CODE[x.code];
         picks[r.id] = k ? { code: x.code, title: k.title } : { code: x.code, title: x.title, custom: true };
       });
@@ -2614,7 +2897,8 @@
       el.classList.toggle('offcampus', !!(state.campus && ctx.risks.campus.indexOf(s) >= 0));
       el.querySelector('.tick input').checked = s.done;
       el.querySelector('.subj-meta').innerHTML = '<span class="cat">' + esc(s.typeLabel) + '</span>' + slotFlags(s, ctx);
-      el.querySelector('.subj-side .pills').innerHTML = slotOffer(s);
+      el.querySelector('.subj-side .pills').innerHTML = slotOffer(s, ctx);
+      el.querySelector('.subj-edit').innerHTML = slotTools(s, ctx);
     });
     const after = yearsDone(ctx);
     timeline(ctx, state.load).forEach(function (y) {
@@ -2870,7 +3154,7 @@
   function offerIssue(ctx, s, sess) {
     if (s.pending || !s.code) return '';
     if (sess === 'Summer') return 'Check Handbook for Summer';
-    if (s.listSubject || s.custom || s.legacy || s.legacyFor) return 'Check Handbook';
+    if (s.listSubject || s.custom || s.legacy) return 'Check Handbook';
     const off = offerFor(ctx.deg, s.code, sess);
     if (off && off.none) return 'Not offered in ' + sess;
     if (off && off.tbc) return sess + ' TBC';
@@ -4079,6 +4363,64 @@
     renderSectionHead(lastCtx);
     toast('Snapshot pinned: ' + ui.pin.label + ', finishing ' + ui.pin.finish + '. Make your changes, then compare.');
   }
+  // What a plan would still need under a Handbook structure: the plan moved there on a copy, and counted.
+  function handbookView(cohort) {
+    const ctx = lastCtx;
+    const tpl = ctx.custom ? ctx.plan.tpl : ctx.key;
+    const plan = JSON.parse(JSON.stringify(ctx.custom ? ctx.plan : pathwayCopy(ctx.key)));
+    if (cohortOf(plan) !== cohort) {
+      plan.slots = restructure(tpl, plan.slots, cohort, plan.start);
+      plan.need = restructureNeed(plan, cohort);
+      plan.cohort = cohort === startCohort(plan.start) ? '' : cohort;
+    }
+    const c = withGuide(buildCustomContext(plan));
+    const t = structureRows(tpl);
+    const items = c.guide ? c.guide.items : [];
+    const isAlt = function (s) { return !s.pending && (t.alt[s.code] && s.orig && s.orig.kind === 'llb' || (cohort === 'pre2027' && NEW_2027_CORES.indexOf(s.code) >= 0) || (s.orig && s.orig.kind === 'llb')); };
+    const isCore = function (s) { return !s.pending && /^LAWS /.test(s.code) && !isAlt(s) && !!s.orig && (s.orig.kind === 'fixed' || s.orig.kind === 'option') && typeGroup(s.orig.type) === 'law'; };
+    const deg = DEG[tpl.split('|')[0]];
+    const parts = effectiveStructure(deg, cohort);
+    const core = parts.find(function (p) { return /^Core - Laws/.test(p.component); }) || parts.find(function (p) { return p.component === 'Core'; });
+    const llb = parts.find(function (p) { return /^LLB Alternate/.test(p.component); });
+    const altDone = c.slots.filter(function (s) { return s.done && isAlt(s); });
+    // every completed LLB Alternate on the degree's list counts here, wherever the plan has it
+    const altPassed = c.slots.filter(function (s) { return s.done && !s.pending && t.alt[s.code]; });
+    const coreLeft = c.slots.filter(function (s) { return !s.done && isCore(s); }).map(function (s) { return s.code; }).concat(items.filter(function (r) { return r.kind === 'law'; }).map(function (r) { return r.code; }));
+    const altOpen = c.slots.filter(function (s) { return !s.done && s.orig && s.orig.kind === 'llb'; }).length + items.filter(function (r) { return r.kind === 'llb'; }).length;
+    const left = Math.max(0, plan.cp - c.doneCP);
+    return { cohort: cohort, core: core ? core.cp : 0, llb: llb ? llb.cp : 0, coreLabel: core ? core.component : 'Core', coreLeft: coreLeft, altDone: Math.max(altDone.length, altPassed.length), altOpen: altOpen, left: left, done: c.doneCP, newCores: Object.keys(t.core).filter(function (code) { return coreLeft.indexOf(code) >= 0; }) };
+  }
+  function openHandbookCompare() {
+    const ctx = lastCtx;
+    if (ctx.custom && !ctx.tdeg) { toast('A plan built from scratch has no Handbook structure to compare.'); return; }
+    const now = ctxCohort(ctx);
+    const a = handbookView('pre2027');
+    const b = handbookView('2027');
+    const row = function (label, x, y, same) { return '<tr' + (same || String(x) === String(y) ? '' : ' class="is-diff"') + '><th scope="row">' + label + '</th><td>' + x + '</td><td>' + y + '</td></tr>'; };
+    const codes = function (v) { return v.coreLeft.length ? '<b>' + v.coreLeft.length + '</b> · ' + v.coreLeft.map(esc).join(', ') : '<b>None</b>'; };
+    const cap2027 = b.llb / 10;
+    const warn = [];
+    if (a.altDone > cap2027) warn.push('You have completed ' + plural(a.altDone, 'LLB Alternate') + '. The 2027 Handbook counts ' + cap2027 + ' (' + b.llb + ' CP), so ' + plural(a.altDone - cap2027, 'subject') + ' may not count towards the degree if you move to it.');
+    if (b.newCores.length) warn.push('Moving to the 2027 Handbook adds ' + b.newCores.join(', ') + ' as core subjects, in place of ' + plural(b.newCores.length, 'LLB Alternate') + ' you would otherwise choose.');
+    const head = function (v, title) { return title + (now === v.cohort ? ' <span class="hc-now">Shown now</span>' : ''); };
+    ui.modal = 'hcompare';
+    showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal modal-compare" role="dialog" aria-modal="true" aria-labelledby="hc-h">' +
+      '<div class="modal-head"><div><h2 id="hc-h">Pre-2027 vs 2027 Handbook</h2><p>What your progress leaves to do under each Handbook, for ' + esc(ctx.deg.code + ' ' + ctx.deg.title) + '. ' + a.done + ' CP is completed so far.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
+      '<div class="modal-body" style="padding:14px 20px 18px"><table class="compare-table hc-table"><thead><tr><th></th><th scope="col">' + head(a, 'Staying on the Pre-2027 Handbook') + '</th><th scope="col">' + head(b, 'Moving to the 2027 Handbook') + '</th></tr></thead><tbody>' +
+      row(esc(a.coreLabel === 'Core' ? 'Core subjects required' : a.coreLabel.replace('Core - ', '') + ' core required'), a.core + ' CP', b.core + ' CP') +
+      row('LLB Alternates required', a.llb + ' CP (' + a.llb / 10 + ' subjects)', b.llb + ' CP (' + b.llb / 10 + ' subjects)') +
+      row('Law core still to complete', codes(a), codes(b), a.coreLeft.join() === b.coreLeft.join()) +
+      row('LLB Alternates completed', a.altDone, Math.min(b.altDone, cap2027) + (b.altDone > cap2027 ? ' counted of ' + b.altDone : '')) +
+      row('LLB Alternates still to choose', '<b>' + a.altOpen + '</b>', '<b>' + b.altOpen + '</b>') +
+      row('Credit points still to complete', a.left + ' CP', b.left + ' CP') +
+      '</tbody></table>' +
+      (warn.length ? '<ul class="hc-warn">' + warn.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>' : '') +
+      '<p class="small muted" style="margin:12px 0 0">The School of Law advises students who started before 2027 to stay on the Handbook of the year they started unless it tells them otherwise. This is a planning aid, not a decision: confirm any change with the School of Law at <a href="mailto:' + LAW_ENQUIRY + '">' + LAW_ENQUIRY + '</a> before you enrol.</p></div>' +
+      '<div class="modal-foot"><span class="small muted">Switching here is the same as the Handbook choice in the bar, and Undo takes it back.</span><div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<button type="button" class="btn ' + (now === 'pre2027' ? 'btn-ghost' : 'btn-primary') + '" data-action="hc-switch" data-v="pre2027"' + (now === 'pre2027' ? ' disabled' : '') + '>Show Pre-2027</button>' +
+      '<button type="button" class="btn ' + (now === '2027' ? 'btn-ghost' : 'btn-primary') + '" data-action="hc-switch" data-v="2027"' + (now === '2027' ? ' disabled' : '') + '>Show 2027</button>' +
+      '<button type="button" class="btn btn-ghost" data-action="modal-close">Close</button></div></div></div></div>');
+  }
   function openCompare() {
     const a = ui.pin;
     const b = planSummary(lastCtx);
@@ -4343,7 +4685,8 @@
         section.querySelector('.session-clear').textContent = clear ? (view === 'remaining' ? 'Everything in this session is done.' : 'Nothing in this session needs action.') : '';
       });
       shownCards += yearShown;
-      box.classList.toggle('view-none', view === 'action' && !yearShown);
+      // a year with nothing in it yet is waiting to be planned, so no view hides it
+      box.classList.toggle('view-none', view === 'action' && !yearShown && all.length > 0);
       box.classList.toggle('has-match', yearHits > 0);
       if (!keepFolds) showYearFold(y.year);
     });
@@ -4924,11 +5267,20 @@
     x.done = false;
     x.cp = orig ? orig.cp : 10;
   }
+  // a subject not yet completed goes by the code a student enrols in for the year it now sits in
+  function yearCode(plan, x) {
+    if (!x.code || x.done) return;
+    const to = codeFor(x.code, cohortOf(plan), (plan.start || START_YEAR) + x.y - 1);
+    if (to === x.code || plan.slots.some(function (o) { return o !== x && o.code === to; })) return;
+    x.code = to;
+    x.title = '';
+  }
   function moveCustomSlot(idx, y, sess) {
     const plan = editPlan();
     const x = plan.slots.splice(idx, 1)[0];
     x.y = y;
     x.s = sess;
+    yearCode(plan, x);
     plan.slots.push(x);
     if (y > plan.years) plan.years = y;
     return 'c' + (plan.slots.length - 1);
@@ -4950,13 +5302,17 @@
     SESSIONS.forEach(function (sess) { for (let i = 0; i < 4; i++) plan.slots.push(emptyCSlot(y, sess)); });
     return y;
   }
+  // Starts a plan again from its template or empty slots, in the Handbook structure it is shown in.
   function rebuildCustom() {
     const plan = editPlan();
-    plan.slots = plan.tpl ? templateSlots(plan.tpl, false) : [];
+    const cohort = cohortOf(plan);
     plan.start = 0;
     plan.pace = 0;
     plan.years = 0;
     plan.need = [];
+    plan.loads = {};
+    plan.cohort = cohort === startCohort(0) ? '' : cohort;
+    plan.slots = plan.tpl ? restructure(plan.tpl, templateSlots(plan.tpl, false), cohort, 0) : [];
     fitToCP(plan);
   }
 
@@ -5056,8 +5412,8 @@
     const prev = state.custom;
     const filled = prev ? prev.slots.filter(function (x) { return x.code; }).length : 0;
     if (filled && start !== 'keep' && !window.confirm('Start again? This replaces the ' + plural(filled, 'subject') + ' in your current custom plan.')) return;
-    const plan = { name: $('#cs-name').value.trim().slice(0, 120), code: $('#cs-code').value.trim().slice(0, 16), cp: clampCP(cpRaw), tpl: '', start: 0, pace: 0, cohort: '', years: 0, need: [], slots: [] };
-    if (start === 'keep' && prev) { plan.tpl = prev.tpl; plan.slots = prev.slots; plan.pace = prev.pace; plan.years = prev.years || 0; plan.need = prev.need || []; }
+    const plan = { name: $('#cs-name').value.trim().slice(0, 120), code: $('#cs-code').value.trim().slice(0, 16), cp: clampCP(cpRaw), tpl: '', start: 0, pace: 0, cohort: '', years: 0, need: [], loads: {}, slots: [] };
+    if (start === 'keep' && prev) { plan.tpl = prev.tpl; plan.slots = prev.slots; plan.pace = prev.pace; plan.years = prev.years || 0; plan.need = prev.need || []; plan.loads = prev.loads || {}; }
     else if (start === 'template') { plan.tpl = $('#cs-tpl-major').value; plan.slots = templateSlots(plan.tpl, $('#cs-tpl-mine').checked); }
     const began = +$('#cs-year').value;
     plan.start = began < START_YEAR ? began : 0;
@@ -5065,7 +5421,10 @@
     plan.cohort = cohort === startCohort(plan.start) ? '' : cohort;
     // a 2027 pathway copied in, or a plan kept, moves to the structure chosen
     const was = start === 'keep' && prev ? cohortOf(prev) : '2027';
-    if (plan.tpl && cohort !== was) plan.slots = restructure(plan.tpl, plan.slots, cohort);
+    if (plan.tpl && cohort !== was) {
+      plan.slots = restructure(plan.tpl, plan.slots, cohort, plan.start);
+      plan.need = restructureNeed(plan, cohort);
+    }
     fitToCP(plan);
     noteChange(summerY ? 'added Year ' + summerY + ' Summer' : start === 'keep' ? 'edited your custom plan' : 'started a new custom plan');
     const addSummer = summerY && plan.slots.length < MAX_SLOTS && !plan.slots.some(function (x) { return x.y === summerY && x.s === 'Summer'; });
@@ -5575,9 +5934,8 @@
         if (r.codes.length === 1 && !r.any && r.count === 1) {
           let code = r.codes[0];
           if (had[code]) return;
-          // a pre-2027 subject still needed shows as the 2027 subject that replaces it, with a note, except LAWS 1009,
-          // LAWS 2004 and LAWS 2001, which a student who started before 2027 takes while they are offered
-          const was = LEGACY_EQUIVALENTS[code] && !SHOW_AS_OLD[LEGACY_EQUIVALENTS[code]] ? code : '';
+          // a pre-2027 subject still needed shows as the 2027 subject that replaces it, the one to enrol in, with a note
+          const was = LEGACY_EQUIVALENTS[code] ? code : '';
           if (was) code = LEGACY_EQUIVALENTS[was];
           const t = fixed.find(function (x) { return sameAs(code).indexOf(x.code) >= 0 && !used[x.id]; });
           if (t) used[t.id] = 1;
@@ -5600,12 +5958,10 @@
         // passed already, or its pre-2027 or 2027 equivalent was
         if (!s.pending && had[s.code]) return;
         if (pre && NEW_2027_CORES.indexOf(s.code) >= 0) { rest.push({ code: '', cp: s.cp, o: llbId, sess: '', newCore: s.code }); return; }
-        // in the pre-2027 structure LAWS 1010, LAWS 2018 and LAWS 3101 are the pre-2027 subjects they replaced, and any
-        // other 2027 subject that replaces a pre-2027 one the student has not passed says so
-        const old = pre && !s.pending && SHOW_AS_OLD[s.code] ? SHOW_AS_OLD[s.code] : '';
-        const was = pre && !s.pending && !old && LEGACY_OF[s.code] && !had[LEGACY_OF[s.code]] ? LEGACY_OF[s.code] : '';
+        // in the pre-2027 structure a 2027 subject that replaces a pre-2027 one the student has not passed says so
+        const was = pre && !s.pending && LEGACY_OF[s.code] && !had[LEGACY_OF[s.code]] ? LEGACY_OF[s.code] : '';
         // an open choice can go in any session its options run in
-        rest.push({ code: s.pending ? '' : old || s.code, was: was, cp: s.cp, o: s.id, sess: s.pending ? (s.kind === 'inline' ? runsIn(s.raw.options.map(function (x) { return x.code; })) : '') : s.session });
+        rest.push({ code: s.pending ? '' : s.code, was: was, cp: s.cp, o: s.id, sess: s.pending ? (s.kind === 'inline' ? runsIn(s.raw.options.map(function (x) { return x.code; })) : '') : s.session });
       });
     }
     const cp = clampCP(info.cp || (tdeg ? tdeg.cp : 0) || slots.concat(rest).reduce(function (a, x) { return a + x.cp; }, 0));
@@ -5977,7 +6333,8 @@
       return '<header class="pd-head"><div class="pd-head-grid"><div class="pd-head-main">' +
         '<div class="pd-mast">' + CREST + '<div><div class="pd-eyebrow">Western Sydney Law Students\' Association · 2027 Custom Degree Plan</div><div class="pd-est">Est. 1996 · By students, for students</div></div></div>' +
         '<h1>' + titleHTML(d.title) + '</h1>' +
-        '<div class="pd-sub">' + (ctx.plan.code ? '<b>Course ' + esc(ctx.plan.code) + '</b> · ' : '') + (t ? 'Based on <b>' + esc(tplLabel(ctx.plan.tpl)) + '</b>' : '<b>Built by the student</b>') + ' · <span class="pd-badge">Custom pathway</span>' + (state.campus ? ' · Campus highlight: <b>' + esc(META.campuses[state.campus]) + '</b>' : '') + '</div>' +
+        '<div class="pd-sub">' + (ctx.plan.code ? '<b>Course ' + esc(ctx.plan.code) + '</b> · ' : '') + (t ? 'Based on <b>' + esc(tplLabel(ctx.plan.tpl)) + '</b>' : '<b>Built by the student</b>') + ' · <span class="pd-badge">Custom pathway</span>' + (cohortOf(ctx.plan) === 'pre2027' ? ' · <span class="pd-badge">Pre-2027 structure</span>' : '') + (state.campus ? ' · Campus highlight: <b>' + esc(META.campuses[state.campus]) + '</b>' : '') + '</div>' +
+        pdStructure(ctx) +
         '<dl class="pd-facts">' + cfacts.map(function (f) { return '<div><dt>' + f[0] + '</dt><dd>' + f[1] + '</dd></div>'; }).join('') + '</dl>' +
         '<div class="pd-link"><b>Your plan:</b> <span class="pd-plan">' + esc(planUrl()) + '</span></div>' +
         '<div class="pd-link"><b>' + (t ? 'Official 2027 WSU Handbook' : 'WSU Student Handbook') + ':</b> <a href="' + esc(d.handbook) + '">' + esc(d.handbook.replace(/^https?:\/\//, '')) + '</a></div></div>' +
@@ -5998,11 +6355,18 @@
       '<h1>' + titleHTML(d.title) + '</h1>' +
       '<div class="pd-sub"><b>Course ' + d.code + '</b> · ' + (o.majorCode === 'BASE' ? '' : (o.majorKind === 'Minor' ? 'Minor: ' : 'Major: ')) + '<b>' + esc(selectionLabel(ctx)) + '</b> · <span class="pd-badge">' + esc(badge) + '</span>' +
       (ctx.edit ? ' · <span class="pd-badge">Edited by the student</span>' : '') + (ctxCohort(ctx) === 'pre2027' ? ' · <span class="pd-badge">Pre-2027 structure</span>' : '') + (state.campus ? ' · Campus highlight: <b>' + esc(META.campuses[state.campus]) + '</b>' : '') + '</div>' +
+      pdStructure(ctx) +
       '<dl class="pd-facts">' + facts.map(function (f) { return '<div><dt>' + f[0] + '</dt><dd>' + f[1] + '</dd></div>'; }).join('') + '</dl>' +
       '<div class="pd-link"><b>Your plan:</b> <span class="pd-plan">' + esc(planUrl()) + '</span></div>' +
       '<div class="pd-link"><b>Official 2027 WSU Handbook:</b> <a href="' + esc(d.handbook) + '">' + esc(d.handbook.replace(/^https?:\/\//, '')) + '</a></div></div>' +
       '<div class="pd-qr">' + (d.qrSvg || '') + '<div class="pd-url"><b>Scan for the</b>2027 Handbook</div></div>' +
       '</div></header>';
+  }
+  // the credit breakdown in the structure the plan follows, on one line
+  function pdStructure(ctx) {
+    const deg = ctx.tdeg || (ctx.custom ? null : ctx.deg);
+    if (!deg || !deg.structure || !deg.structure.length) return '';
+    return '<div class="pd-link pd-structure"><b>' + (ctxCohort(ctx) === 'pre2027' ? 'Pre-2027 structure' : '2027 structure') + ':</b> ' + effectiveStructure(deg, ctxCohort(ctx)).map(function (c) { return esc(c.component) + ' ' + c.cp + ' CP'; }).join(' · ') + '</div>';
   }
   function pdLegend() {
     const types = [['law', 'Law core', '#8B0029'], ['nonlaw', 'Non-law core', '#334155'], ['major', 'Major / minor', '#0F766E']];
@@ -6034,11 +6398,19 @@
   }
   function pdGrid(ctx, o) {
     const ticks = o.ticks && ctx.slots.some(function (s) { return s.done; });
-    return timeline(ctx, 'FT').map(function (y) {
+    // a year with nothing in it yet takes no room on paper: what is still to place is listed in its own box
+    return timeline(ctx, 'FT').filter(function (y) { return y.Autumn.length + y.Spring.length + y.Summer.length > 0; }).map(function (y) {
       const sessions = y.Summer.length ? PLAN_SESSIONS : SESSIONS;
       return '<div class="pd-year' + (y.Summer.length ? ' has-summer' : '') + '"><div class="pd-ylabel"><span class="pd-roman">' + roman(y.year) + '</span><span class="pd-yword">Year ' + y.year + '</span></div>' +
         sessions.map(function (sess) { return pdTable(sess, y[sess].slice().sort(function (a, b) { return a.raw.slot - b.raw.slot; }), ticks); }).join('') + '</div>';
     }).join('');
+  }
+  // the years of a plan that hold nothing yet, as a range to name on paper
+  function emptyYears(ctx) {
+    const empty = timeline(ctx, 'FT').filter(function (y) { return y.Autumn.length + y.Spring.length + y.Summer.length === 0; }).map(function (y) { return y.year; });
+    if (!empty.length) return '';
+    const run = empty[empty.length - 1] - empty[0] === empty.length - 1;
+    return (empty.length === 1 ? 'Year ' + empty[0] + ' has' : 'Years ' + (run ? empty[0] + ' to ' + empty[empty.length - 1] : empty.slice(0, -1).join(', ') + ' and ' + empty[empty.length - 1]) + ' have') + ' nothing in ' + (empty.length === 1 ? 'it' : 'them') + ' yet, so ' + (empty.length === 1 ? 'it is' : 'they are') + ' not shown above.';
   }
   function pdWarnings(ctx) {
     const r = ctx.risks;
@@ -6050,15 +6422,17 @@
     }).join('') + '</ul>' : '<p>No advisor prerequisite gaps are flagged in the workbook for this selection.</p>') + '</div>';
     if (ctx.custom) {
       const cl = ['<li><b>Credit points:</b> ' + ctx.placedCP + ' of ' + ctx.plan.cp + ' CP placed' + (r.pending.length ? ', ' + plural(r.pending.length, 'open slot') + ' (' + r.pending.map(where).join(', ') + ')' : '') + '.' + (r.cpShort ? ' Slots total ' + ctx.totalCP + ' CP, ' + r.cpShort + ' CP short of the requirement.' : '') + (r.cpOver ? ' ' + r.cpOver + ' CP more than required.' : '') + '</li>'];
-      if (r.overload.length) cl.push('<li><b>Over the 40 CP full-time load:</b> ' + r.overload.map(function (l) { return 'Year ' + l.year + ' ' + l.session + ' (' + l.cp + ' CP)'; }).join('; ') + '.</li>');
+      if (r.overload.length) cl.push('<li><b>Over the load set for the session:</b> ' + r.overload.map(function (l) { return 'Year ' + l.year + ' ' + l.session + ' (' + l.cp + ' of ' + l.cap + ' CP)'; }).join('; ') + '.</li>');
       if (r.dupes.length) cl.push('<li><b>Listed more than once:</b> ' + r.dupes.map(function (d) { return esc(d.code) + ' (' + d.slots.map(where).join(', ') + ')'; }).join('; ') + '.</li>');
       if (r.notOffered.length) cl.push('<li><b>Not offered in the planned session:</b> ' + r.notOffered.map(function (s) { return esc(s.code) + ' (' + where(s) + ')'; }).join('; ') + '.</li>');
       if (r.replaced.length) cl.push('<li><b>Changed from the template:</b> ' + r.replaced.map(function (s) { return esc(s.replaced.code) + ' → ' + (s.pending ? 'open slot' : esc(s.code)) + ' (' + where(s) + ')'; }).join('; ') + '.</li>');
       html += '<div class="pd-box pd-tbcbox"><h3>' + (ctx.edit ? 'Edited pathway checks' : 'Custom plan checks') + '</h3><ul>' + cl.join('') + '</ul></div>';
       if (ctx.guide) {
-        html += '<div class="pd-box pd-tbcbox"><h3>Still to place · Suggested Remaining Guide</h3><ul>' + guideSessions(ctx.guide).map(function (gs) {
-          return '<li><b>' + sessionLabel(gs.y, gs.s) + ':</b> ' + gs.items.map(function (x) { return esc(x.r.code || x.r.label); }).join(', ') + '</li>';
-        }).join('') + '</ul></div>';
+        const gap = emptyYears(ctx);
+        html += '<div class="pd-box pd-tbcbox pd-unplaced"><h3>Remaining unplaced subjects · ' + ctx.guide.cp + ' CP still to place</h3>' +
+          '<p>Not in the plan above yet. Each is listed under the session the Suggested Remaining Guide suggests for it.' + (gap ? ' ' + gap : '') + '</p><ul>' + guideSessions(ctx.guide).map(function (gs) {
+            return '<li><b>' + sessionLabel(gs.y, gs.s) + ':</b> ' + gs.items.map(function (x) { return esc(x.r.code || x.r.label); }).join(', ') + '</li>';
+          }).join('') + '</ul></div>';
       }
     }
     const tbcText = r.tbc.length ? r.tbc.map(function (s) { return '<b>' + esc(s.code) + '</b> ' + esc(s.title) + ' (' + where(s) + ')'; }).join('; ') : '';
@@ -6391,18 +6765,22 @@
           rebuildCustom();
           ui.folded = null;
           render();
-          toast('Custom plan rebuilt.');
+          toast('Custom plan rebuilt.', { action: 'undo', label: 'Undo' });
           break;
         }
         const key = currentKey();
         if (!window.confirm('Clear all choices' + (state.edits[key] ? ', changes' : '') + ' and progress for ' + key.replace('|BASE', '') + '?')) return;
         noteChange('reset this pathway');
+        // the Handbook structure on screen stays: it says when the student started, which a reset does not change
+        if (state.edits[key]) {
+          if (cohortOf(state.edits[key]) === 'pre2027') state.cohortFor[key] = 'pre2027'; else delete state.cohortFor[key];
+        }
         delete state.picks[key];
         delete state.done[key];
         delete state.edits[key];
         ui.folded = null;
         render();
-        toast('Pathway reset to the WSLSA recommendation.');
+        toast('Pathway reset to the WSLSA recommendation' + (guideCohort(key) === 'pre2027' ? ', in the pre-2027 structure' : '') + '.', { action: 'undo', label: 'Undo' });
         break;
       }
       case 'export-open': openExport(); break;
@@ -6646,6 +7024,29 @@
         break;
       }
       case 'guide-fill': addFromGuide(lastCtx.guide.items.map(function (r, i) { return i; }), ''); break;
+      case 'guide-pin':
+        ev.preventDefault();
+        state.guidePinned = !state.guidePinned;
+        if (state.guidePinned) ui.guideOpen = true;
+        renderGuide(lastCtx);
+        saveState();
+        break;
+      case 'handbook-compare': openHandbookCompare(); break;
+      case 'hc-switch': closeModal(true); setCohort(el.dataset.v); break;
+      case 'pool-switch': switchPool(el.dataset.slot); break;
+      case 'session-load': {
+        ensureEditable();
+        const plan = editPlan();
+        const k = orderIdx(+el.dataset.y, el.dataset.s);
+        const v = +el.dataset.v;
+        if (sessionCap(plan, k) === v) break;
+        noteChange('set Year ' + el.dataset.y + ' ' + el.dataset.s + ' to ' + v + ' CP');
+        if (v === LOAD_CP.FT) delete plan.loads[k]; else plan.loads[k] = v;
+        if (+el.dataset.y > plan.years) plan.years = Math.min(MAX_YEARS, +el.dataset.y);
+        renderMoving();
+        toast('Year ' + el.dataset.y + ' ' + el.dataset.s + ' is set to ' + (v === 0 ? 'a Leave of Absence' : v + ' CP') + '. The overload check and the guide follow it.', { action: 'undo', label: 'Undo' });
+        break;
+      }
       case 'guide-open': {
         ui.guideOpen = true;
         const box = $('#guide-box');
@@ -6907,6 +7308,8 @@
   window.addEventListener('resize', function () { if (ui.modal === 'export') renderExportPreview(); });
   // remember whether the advisory panel is open across re-renders (toggle does not bubble)
   document.addEventListener('toggle', function (ev) {
+    const gs = ev.target.classList && ev.target.classList.contains('guide-sess') ? ev.target : null;
+    if (gs) { ui.guideSess = ui.guideSess || {}; ui.guideSess[gs.dataset.k] = gs.open; return; }
     if (ev.target.id === 'advisory-box') ui.advisoryOpen = ev.target.open;
     if (ev.target.id === 'legend-box') ui.legendOpen = ev.target.open;
     if (ev.target.id === 'guide-box') {

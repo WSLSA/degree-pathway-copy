@@ -694,7 +694,7 @@ async function renderPdf(page, key, mode, orient, file) {
   check(Array.from(new Set(rest.map(term))).join(', ') === '2027 Autumn, 2027 Spring, 2028 Autumn, 2028 Spring' && rest.every(x => x.s !== 'Summer'), `the rest should run from Autumn 2027 to Spring 2028, got ${Array.from(new Set(rest.map(term))).join(', ')}`);
   const super_ = pre.slots.find(x => x.code === 'LAWS 3067');
   check(super_ && super_.done && term(super_) === '2026 Spring' && /^3S[34]$/.test(super_.o) && super_.kind !== 'LLB Alternate', `LAWS 3067 should fill an Alternate Accounting choice before an LLB Alternate slot, got ${JSON.stringify(super_)}`);
-  check(pre.slots.find(x => x.code === 'LAWS 2020').note === 'Replaces pre-2027 LAWS 2015 · last offered 2028' && /Replaces pre-2027 LAWS 4004/.test(pre.slots.find(x => x.code === 'LAWS 3100').note) && !pre.slots.find(x => x.code === 'LAWS 3018').note, 'a 2027 subject shown for a pre-2027 one should say which it replaces');
+  check(pre.slots.find(x => x.code === 'LAWS 2020').note === 'Replaces Pre-2027 LAWS 2015' && /Replaces Pre-2027 LAWS 4004/.test(pre.slots.find(x => x.code === 'LAWS 3100').note) && !pre.slots.find(x => x.code === 'LAWS 3018').note, 'a 2027 subject shown for a pre-2027 one should say which it replaces');
   check(['LAWS 1009', 'ECON 2002', 'ACCT 3001', 'LAWS 2008'].every(c => { const x = pre.slots.find(y => y.code === c); return x && x.done; }) && term(pre.slots.find(x => x.code === 'ACCT 3001')) === '2026 Spring', 'history should keep its sessions, with subjects in progress enrolled');
   // a returning student opens the page with that plan saved
   await pr.reload();
@@ -784,17 +784,18 @@ async function renderPdf(page, key, mode, orient, file) {
   await ed.goto(APP);
   await ed.evaluate(() => { localStorage.clear(); WSLSA.setNow('2026-11-09'); WSLSA.select('2785|BASE'); });
   const opts = await ed.$$eval('#sel-cohort option', o => o.map(x => x.value + '=' + x.textContent));
-  check(JSON.stringify(opts) === JSON.stringify(['2027=2027 Handbook', 'pre2027=Pre-2027 (started ≤ 2026)']) && await ed.$eval('#sel-cohort', s => s.value) === '2027' && await ed.$eval('label[for="sel-cohort"]', l => l.textContent) === 'Handbook', `the dock should offer the Handbook structure, got ${JSON.stringify(opts)}`);
+  check(JSON.stringify(opts) === JSON.stringify(['2027=2027 Handbook', 'pre2027=Pre-2027 Handbook']) && await ed.$eval('#sel-cohort', s => s.value) === '2027' && await ed.$eval('label[for="sel-cohort"]', l => l.textContent) === 'Handbook', `the dock should offer the Handbook structure, got ${JSON.stringify(opts)}`);
   // the pre-2027 structure as a live view of the pathway: no LAWS 1010 and none of the 2027-only cores
   await ed.selectOption('#sel-cohort', 'pre2027');
   const view = await ed.evaluate(() => {
     const c = WSLSA.context();
     const law = c.slots.filter(s => !s.pending && /^LAWS /.test(s.code) && (s.kind === 'fixed'));
-    return { custom: c.custom, codes: c.slots.filter(s => !s.pending).map(s => s.code), lawCP: law.reduce((a, s) => a + s.cp, 0), llb: c.slots.filter(s => s.kind === 'llb').reduce((a, s) => a + s.cp, 0), notes: Array.from(document.querySelectorAll('#grid .flag-legacy')).map(f => f.textContent), stand: document.querySelectorAll('#grid .subj-note').length, badge: !!document.querySelector('.pbadge-pre') };
+    return { custom: c.custom, codes: c.slots.filter(s => !s.pending).map(s => s.code), lawCP: law.reduce((a, s) => a + s.cp, 0), llb: c.slots.filter(s => s.kind === 'llb').reduce((a, s) => a + s.cp, 0), notes: Array.from(document.querySelectorAll('#grid .flag-legacy')).map(f => f.textContent), stand: Array.from(document.querySelectorAll('#grid .flag-legacy')).filter(f => /^In place of LAWS (2019|3099|3102)$/.test(f.textContent)).length, badge: !!document.querySelector('.pbadge-pre') };
   });
-  check(!view.custom && ['LAWS 1010', 'LAWS 2018', 'LAWS 3101', 'LAWS 2019', 'LAWS 3099', 'LAWS 3102'].every(c => view.codes.indexOf(c) < 0) && ['LAWS 1009', 'LAWS 2004', 'LAWS 2001', 'LAWS 2020', 'LAWS 3100', 'LAWS 3103'].every(c => view.codes.indexOf(c) >= 0), `the pre-2027 view should show the pre-2027 subjects and none of the 2027-only ones, got ${view.codes.join(' ')}`);
+  // every session of a pathway is in 2027 or later, so each subject shows the code a student enrols in, and says what it replaces
+  check(!view.custom && ['LAWS 1009', 'LAWS 2004', 'LAWS 2001', 'LAWS 2019', 'LAWS 3099', 'LAWS 3102'].every(c => view.codes.indexOf(c) < 0) && ['LAWS 1010', 'LAWS 2018', 'LAWS 3101', 'LAWS 2020', 'LAWS 3100', 'LAWS 3103'].every(c => view.codes.indexOf(c) >= 0) && view.stand === 3, `the pre-2027 view should show the 2027 codes to enrol in and none of the 2027-only cores, got ${view.codes.join(' ')}`);
   check(view.lawCP === 160 && view.llb === 80 && view.badge, `the pre-2027 view should have 160 CP of Law core and 80 CP of LLB Alternates, got ${view.lawCP} and ${view.llb}`);
-  check(view.notes.indexOf('Or LAWS 1010 Legal Methods from 2027') >= 0 && view.notes.indexOf('Pre-2027 subject · last offered 2027') >= 0 && view.notes.some(n => /^Replaces pre-2027 LAWS 2015 · last offered 2028$/.test(n)), `the pre-2027 subjects should say what they stand for, got ${view.notes.join(' | ')}`);
+  check(['LAWS 1009', 'LAWS 2004', 'LAWS 2001', 'LAWS 2015', 'LAWS 4004', 'LAWS 4013', 'ECON 2002'].every(c => view.notes.indexOf('Replaces Pre-2027 ' + c) >= 0), `the pre-2027 subjects should say what they stand for, got ${view.notes.join(' | ')}`);
   // an LLB Alternate chosen in the place of a 2027-only core is kept, and the view travels in a link
   const stand = await ed.evaluate(() => WSLSA.context().slots.find(s => s.newCore).id);
   await ed.click(`#slot-${stand} [data-action="picker-open"]`);
@@ -808,23 +809,23 @@ async function renderPdf(page, key, mode, orient, file) {
   // Move ▾ on any card: every session, marked by whether the subject runs there, and the edited copy in place
   const torts = await ed.evaluate(() => WSLSA.context().slots.find(s => s.code === 'LAWS 2013').id);
   const moveOpts = await ed.$$eval(`#slot-${torts} .move-sel option`, o => o.map(x => x.textContent + (x.disabled ? ' [off]' : '')));
-  check(moveOpts[0] === 'Move ▾' && moveOpts.some(t => /^Year 1 · Spring \(here\) \[off\]$/.test(t)) && moveOpts.some(t => /^Year 2 · Spring  ✓ Offered$/.test(t)) && moveOpts.some(t => /^Year 2 · Autumn  ⚠ Check offering$/.test(t)) && moveOpts.some(t => /^\+ New Year 6 · Autumn/.test(t)), `Move should list every session with its offering, got ${moveOpts.slice(0, 8).join(' | ')}`);
+  check(moveOpts[0] === 'Move to' && moveOpts.some(t => /^Year 1 · Spring · 40 CP \(here\) \[off\]$/.test(t)) && moveOpts.some(t => /^Year 2 · Spring · 40 CP  ✓ Offered$/.test(t)) && moveOpts.some(t => /^Year 2 · Autumn · 40 CP  ⚠ Check offering$/.test(t)) && moveOpts.some(t => /^\+ New Year 6 · Autumn/.test(t)), `Move should list every session with its offering, got ${moveOpts.slice(0, 8).join(' | ')}`);
   await ed.selectOption(`#slot-${torts} .move-sel`, '2|Autumn');
-  const after = await ed.evaluate(() => { const c = WSLSA.context(); const s = c.slots.find(x => x.code === 'LAWS 2013'); return { edit: c.edit, mode: WSLSA.state().mode, at: s.year + s.session, deg: document.getElementById('sel-degree').value, kicker: document.getElementById('section-kicker').textContent, badge: !!document.querySelector('.pbadge-edit'), pick: c.slots.some(x => x.code === 'LAWS 4010'), pre: !c.slots.some(x => x.code === 'LAWS 1010') }; });
+  const after = await ed.evaluate(() => { const c = WSLSA.context(); const s = c.slots.find(x => x.code === 'LAWS 2013'); return { edit: c.edit, mode: WSLSA.state().mode, at: s.year + s.session, deg: document.getElementById('sel-degree').value, kicker: document.getElementById('section-kicker').textContent, badge: !!document.querySelector('.pbadge-edit'), pick: c.slots.some(x => x.code === 'LAWS 4010'), pre: !c.slots.some(x => x.code === 'LAWS 2019') && document.getElementById('sel-cohort').value === 'pre2027' }; });
   check(after.edit === '2785|BASE' && after.mode === 'guide' && after.at === '2Autumn' && after.deg === '2785' && /Your edited pathway/.test(after.kicker) && after.badge && after.pick && after.pre, `moving a card should edit the pathway in place, keeping its choices and structure, got ${JSON.stringify(after)}`);
   check(/LAWS 2013 moved to Year 2 Autumn\. Check: Not offered in Autumn/.test(await ed.textContent('#toast')), `moving to a session it does not run in should be allowed and say so, got ${await ed.textContent('#toast')}`);
   await ed.click('#section-tools [data-action="undo"]');
   check(await ed.evaluate(() => !WSLSA.context().edit && !WSLSA.context().custom && WSLSA.context().slots.some(s => s.code === 'LAWS 4010')), 'Undo should give back the pathway as it was');
   // Change / Replace on a core card: closing the window changes nothing, choosing replaces the subject
-  const crim = await ed.evaluate(() => WSLSA.context().slots.find(s => s.code === 'LAWS 2004').id);
+  const crim = await ed.evaluate(() => WSLSA.context().slots.find(s => s.code === 'LAWS 2018').id);
   await ed.click(`#slot-${crim} [data-action="change-open"]`);
   check(!!(await ed.$('#pick-q')) && /Change or move this subject/.test(await ed.textContent('#picker-h')), 'Change / Replace should open the subject picker');
   await ed.keyboard.press('Escape');
   check(await ed.evaluate(() => !WSLSA.context().edit), 'closing the picker without a change should leave the pathway as it was');
   await ed.click(`#slot-${crim} [data-action="change-open"]`);
-  await ed.fill('#pick-q', 'LAWS 2018');
-  await ed.click('#pick-results [data-action="cpick"][data-code="LAWS 2018"]');
-  check(await ed.evaluate(() => WSLSA.context().edit === '2785|BASE' && WSLSA.context().slots.some(s => s.code === 'LAWS 2018') && !WSLSA.context().slots.some(s => s.code === 'LAWS 2004')), 'choosing a subject should replace the card in the edited pathway');
+  await ed.fill('#pick-q', 'LAWS 2004');
+  await ed.click('#pick-results [data-action="cpick"][data-code="LAWS 2004"]');
+  check(await ed.evaluate(() => WSLSA.context().edit === '2785|BASE' && WSLSA.context().slots.some(s => s.code === 'LAWS 2004') && !WSLSA.context().slots.some(s => s.code === 'LAWS 2018')), 'choosing a subject should replace the card in the edited pathway');
   // Remove ×, + Add slot with the pathway's kinds, + Add a year, then Reset to Default Sequence keeps ticks
   await ed.click(`#slot-${await ed.evaluate(() => WSLSA.context().slots.find(s => s.code === 'LAWS 1003').id)} .tick`);
   const consult = await ed.evaluate(() => WSLSA.context().slots.find(s => s.code === 'ACCT 3011').id);
@@ -837,7 +838,7 @@ async function renderPdf(page, key, mode, orient, file) {
   await ed.click('[data-action="cyear"]');
   check(await ed.evaluate(() => WSLSA.context().slots.filter(s => s.year === 6).length) === 8, '+ Add a year should add Year 6 with open slots');
   await ed.click('[data-action="reset-sequence"]');
-  const reset = await ed.evaluate(() => { const c = WSLSA.context(); return { edit: c.edit, custom: c.custom, done: c.slots.filter(s => s.done).map(s => s.code), years: Math.max.apply(null, c.slots.map(s => s.year)), cohort: document.getElementById('sel-cohort').value, back: c.slots.some(s => s.code === 'ACCT 3011') && c.slots.some(s => s.code === 'LAWS 2004') }; });
+  const reset = await ed.evaluate(() => { const c = WSLSA.context(); return { edit: c.edit, custom: c.custom, done: c.slots.filter(s => s.done).map(s => s.code), years: Math.max.apply(null, c.slots.map(s => s.year)), cohort: document.getElementById('sel-cohort').value, back: c.slots.some(s => s.code === 'ACCT 3011') && c.slots.some(s => s.code === 'LAWS 2018') && !c.slots.some(s => s.code === 'LAWS 2004') }; });
   check(!reset.edit && !reset.custom && JSON.stringify(reset.done) === JSON.stringify(['LAWS 1003']) && reset.years === 5 && reset.cohort === 'pre2027' && reset.back, `Reset to Default Sequence should put the pathway back, keeping its ticks and structure, got ${JSON.stringify(reset)}`);
   // the 2027 structure again: LAWS 1010 and the 2027 cores come back
   await ed.selectOption('#sel-cohort', '2027');
@@ -1400,11 +1401,11 @@ async function renderPdf(page, key, mode, orient, file) {
   await lay.click('[data-action="export-open"]');
   check((await headingSkips(lay, '#modal-root')).length === 0 && await lay.$eval('#preview-stage', s => s.inert) && await lay.$eval('#export-preview', b => b.tabIndex === 0), 'the A4 preview should be out of the way of a screen reader, with its box scrollable');
   await lay.keyboard.press('Escape');
-  // per-card tools wait until the card is in use
+  // per-card tools are always there, and quiet until the card is in use
   const quiet = await lay.evaluate(() => { const b = document.querySelector('#grid .defer-btn'); b.closest('.subj').scrollIntoView({ block: 'center' }); return b.dataset.slot; });
-  const toolOpacity = () => lay.$eval(`#slot-${quiet} .defer-btn`, b => getComputedStyle(b).opacity);
+  const toolOpacity = () => lay.$eval(`#slot-${quiet} .subj-edit`, b => getComputedStyle(b).opacity);
   await lay.mouse.move(0, 0);
-  check(await toolOpacity() === '0', 'a card at rest should not show its tools');
+  check(await toolOpacity() === '0.78' && await lay.$eval(`#slot-${quiet}`, c => c.getBoundingClientRect().height < 112), 'a card at rest should show its tools quietly, with no empty room under them');
   await lay.hover(`#slot-${quiet} .subj-title`);
   check(await toolOpacity() === '1', 'hovering a card should show its tools');
   await lay.mouse.move(0, 0);
@@ -2747,6 +2748,182 @@ async function renderPdf(page, key, mode, orient, file) {
       check(pdfPage.errors.length === 0, 'PDF page errors: ' + pdfPage.errors.join('; '));
       fs.rmSync(tmp, { recursive: true, force: true });
     }
+  }
+
+  // ---------------------------------------------------------------- Handbook switch both ways, codes by year, loads, pools, filters
+  {
+  const hb = await newPage(browser, { viewport: { width: 1440, height: 1000 } });
+  hb.on('dialog', d => d.accept());
+  await hb.goto(APP);
+  await hb.evaluate(() => { localStorage.clear(); WSLSA.setNow('2026-11-09'); WSLSA.select('2785|BASE'); });
+  const sum = () => hb.evaluate(() => {
+    const c = WSLSA.context();
+    const llb = s => s.kind === 'llb' || (s.orig && s.orig.kind === 'llb');
+    return {
+      cohort: document.getElementById('sel-cohort').value,
+      cores: ['LAWS 2019', 'LAWS 3099', 'LAWS 3102'].map(k => { const x = c.slots.find(y => y.code === k && !y.pending); return x ? x.year + x.session[0] : '-'; }).join(' '),
+      llb: c.slots.filter(llb).length, total: c.totalCP, guide: c.guide ? c.guide.items.length : 0, edit: !!c.edit,
+    };
+  });
+  // an edited pathway moves to the pre-2027 structure and back exactly as it was
+  const torts = await hb.evaluate(() => WSLSA.context().slots.find(x => x.code === 'LAWS 2013').id);
+  await hb.selectOption(`#slot-${torts} .move-sel`, '2|Spring');
+  const edited = await hb.evaluate(() => JSON.stringify(WSLSA.custom().slots));
+  await hb.selectOption('#sel-cohort', 'pre2027');
+  let v = await sum();
+  check(v.edit && v.cohort === 'pre2027' && v.cores === '- - -' && v.llb === 8 && v.total === 400 && v.guide === 0, `an edited pathway should move to the pre-2027 structure, got ${JSON.stringify(v)}`);
+  check(await hb.evaluate(() => WSLSA.state().cohortFor['2785|BASE'] === 'pre2027'), 'the pathway should remember the Handbook chosen while it is edited');
+  await hb.selectOption('#sel-cohort', '2027');
+  v = await sum();
+  check(v.cores === '3A 5A 5S' && v.llb === 5 && v.guide === 0 && await hb.evaluate(() => JSON.stringify(WSLSA.custom().slots)) === edited, `switching back should leave the edited pathway exactly as it was, got ${JSON.stringify(v)}`);
+  // a completed core stays, LLB Alternates chosen in its place stay, and only spare open slots become cores again
+  await hb.selectOption('#sel-cohort', 'pre2027');
+  const stands = await hb.evaluate(() => WSLSA.context().slots.filter(x => x.newCore).map(x => x.id));
+  check(stands.length === 3, `three slots should stand in for the 2027-only cores, got ${stands.length}`);
+  await hb.click(`#slot-${stands[0]} [data-action="picker-open"]`);
+  await hb.fill('#pick-q', 'LAWS 4010');
+  await hb.click('#pick-results [data-action="cpick"][data-code="LAWS 4010"]');
+  await hb.selectOption('#sel-cohort', '2027');
+  v = await sum();
+  check(v.llb === 5 && v.total === 400 && !/-/.test(v.cores) && await hb.evaluate(() => { const c = WSLSA.context(); const x = c.slots.find(y => y.code === 'LAWS 4010'); return !!x && x.orig.kind === 'llb' && !x.replaced; }), `an LLB Alternate chosen in a stand-in slot should stay an LLB Alternate under 2027, got ${JSON.stringify(v)}`);
+  // Reset Plan keeps the Handbook on screen, and Undo restores the edited copy
+  await hb.selectOption('#sel-cohort', 'pre2027');
+  await hb.click('[data-action="reset"]');
+  v = await sum();
+  check(!v.edit && v.cohort === 'pre2027' && v.llb === 8 && /Undo/.test(await hb.textContent('#toast')), `Reset Plan should keep the Handbook on screen, got ${JSON.stringify(v)}`);
+  await hb.click('#section-tools [data-action="undo"]');
+  v = await sum();
+  check(v.edit && v.cohort === 'pre2027' && await hb.evaluate(() => WSLSA.context().slots.some(x => x.code === 'LAWS 4010')), 'Undo should bring the edited pathway back after a reset');
+  await hb.click('[data-action="reset"]');
+  await hb.selectOption('#sel-cohort', '2027');
+  // the credit breakdown follows the Handbook, on screen and on paper
+  const parts = () => hb.$$eval('#details .structure-row:not(.structure-total):not(.structure-done)', r => r.map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+  check((await parts()).some(t => /^Core ?310 CP/.test(t)) && (await parts()).some(t => /^LLB Alternate Subjects ?50 CP/.test(t)), `the 2027 breakdown should read 310 and 50, got ${(await parts()).join(' | ')}`);
+  await hb.selectOption('#sel-cohort', 'pre2027');
+  check((await parts()).some(t => /^Core ?280 CP/.test(t)) && (await parts()).some(t => /^LLB Alternate Subjects ?80 CP/.test(t)) && !!(await hb.$('#details .structure-note')), `the pre-2027 breakdown should read 280 and 80, got ${(await parts()).join(' | ')}`);
+  const paper = await hb.evaluate(() => { WSLSA.preparePrint({ mode: 'A', orient: 'portrait' }); return document.querySelector('#print-root .pd-structure').textContent; });
+  check(/Pre-2027 structure: Core 280 CP/.test(paper) && /LLB Alternate Subjects 80 CP/.test(paper), `the PDF should carry the pre-2027 breakdown, got ${paper}`);
+  await hb.evaluate(() => WSLSA.select('2848|BASE'));
+  await hb.selectOption('#sel-cohort', 'pre2027');
+  check((await parts()).some(t => /^Core ?160 CP/.test(t)) && (await parts()).some(t => /^LLB Alternate Subjects ?80 CP/.test(t)), `2848 should read 160 and 80 before 2027, got ${(await parts()).join(' | ')}`);
+  await hb.selectOption('#sel-cohort', '2027');
+  await hb.evaluate(() => WSLSA.select('2785|BASE'));
+  await hb.selectOption('#sel-cohort', '2027');
+
+  // a record of 250 CP from before 2027: only history in the plan, 150 CP in the guide
+  const TAKEN = [
+    [2024, 'Autumn', ['ACCT 1005', 'LAWS 1003', 'LAWS 2004', 'MATH 1030']], [2024, 'Spring', ['ACCT 1007', 'ECON 2002', 'LAWS 1009', 'LAWS 2013']],
+    [2025, 'Autumn', ['ECON 1011', 'LAWS 2012', 'ACCT 1010', 'ACCT 2005']], [2025, 'Spring', ['LAWS 2003', 'ACCT 2001', 'ACCT 3003', 'FINC 3014']],
+    [2026, 'Autumn', ['LAWS 2001', 'ACCT 3007', 'ACCT 3011', 'FINC 3004']], [2026, 'Spring', ['LAWS 4008', 'ACCT 3001', 'ACCT 3006', 'LAWS 2008', 'LAWS 3067']],
+  ];
+  const lines = ['Subject Results', '2785 - Bachelor of Accounting/Bachelor of Laws'];
+  TAKEN.forEach(t => t[2].forEach(c => lines.push(t[0] + ' ' + c.replace(' ', '') + ' Subject C 65 10 ✓ ' + t[1])));
+  lines.push('Total Credit Points Required 400');
+  await hb.click('[data-action="progress-open"]');
+  await hb.evaluate(r => WSLSA.importPdfLines(r, '2026-11-09T10:00:00', 'results.pdf'), lines);
+  await hb.click('#progress-apply');
+  const imp = await hb.evaluate(() => {
+    const c = WSLSA.context();
+    const g = WSLSA.guide();
+    const by = k => g.items.filter(r => r.kind === k);
+    return {
+      cohort: document.getElementById('sel-cohort').value, done: c.doneCP, slots: c.slots.length, last: Math.max.apply(null, c.slots.map(x => x.year)),
+      years: document.querySelectorAll('#grid .year').length, emptyAhead: Array.from(document.querySelectorAll('#year-4 .session, #year-5 .session')).every(x => !x.querySelector('.subj')),
+      cp: g.cp, law: by('law').map(r => r.code).sort(), llb: by('llb').length, other: g.items.filter(r => r.kind !== 'law' && r.kind !== 'llb').map(r => r.code || r.label),
+      codes: g.items.map(r => r.code).filter(Boolean), super: (c.slots.find(x => x.code === 'LAWS 3067').orig || {}).kind, notes: g.items.filter(r => r.was).map(r => r.code + '<' + r.was).sort(),
+    };
+  });
+  check(imp.cohort === 'pre2027' && imp.done === 250 && imp.slots === 25 && imp.last === 3 && imp.years === 5 && imp.emptyAhead, `the import should hold 250 CP of history and leave 2027 and 2028 empty, got ${JSON.stringify(imp)}`);
+  check(imp.cp === 150 && JSON.stringify(imp.law) === JSON.stringify(['LAWS 2020', 'LAWS 3018', 'LAWS 3045', 'LAWS 3081', 'LAWS 3082', 'LAWS 3100', 'LAWS 3103', 'LAWS 4014', 'LAWS 4015']) && imp.llb === 6 && imp.other.length === 0, `the guide should hold nine Law cores and six LLB Alternates, 150 CP, got ${JSON.stringify(imp)}`);
+  check(['LAWS 1010', 'LAWS 2018', 'FINC 2003', 'LAWS 2019', 'LAWS 3099', 'LAWS 3101', 'LAWS 3102'].every(c => imp.codes.indexOf(c) < 0), `no subject already counted should be asked for again, got ${imp.codes.join(' ')}`);
+  check(imp.super === 'pool' && JSON.stringify(imp.notes) === JSON.stringify(['LAWS 2020<LAWS 2015', 'LAWS 3100<LAWS 4004', 'LAWS 3103<LAWS 4013']), `LAWS 3067 should count as an Alternate Accounting subject first, and the 2027 codes should say what they replace, got ${imp.super} ${imp.notes}`);
+  // history shows its pre-2027 codes with no 2027 offering warnings
+  const past = await hb.evaluate(() => { const c = WSLSA.context(); const s = c.slots.find(x => x.code === 'LAWS 1009'); const el = document.getElementById('slot-' + s.id); return { flags: Array.from(el.querySelectorAll('.flag')).map(f => f.textContent), pills: el.querySelector('.pills').textContent, risks: c.risks.notOffered.length + c.risks.tbc.length }; });
+  check(past.flags.indexOf('Counts for LAWS 1010') >= 0 && past.pills === '' && past.risks === 0, `a completed pre-2027 subject should say what it counts for and carry no offering warnings, got ${JSON.stringify(past)}`);
+  // empty sessions stay in every view
+  for (const view of ['remaining', 'action']) {
+    await hb.click(`.view-modes [data-view="${view}"]`);
+    const shown = await hb.evaluate(() => ['year-4', 'year-5'].every(id => { const y = document.getElementById(id); return y && getComputedStyle(y).display !== 'none' && Array.from(y.querySelectorAll('.session')).every(x => !x.classList.contains('view-clear') && /Empty session/.test(x.textContent)); }));
+    check(shown, `the ${view} view should keep the empty sessions ahead in sight`);
+  }
+  await hb.click('.view-modes [data-view="all"]');
+  // the plan and its guide travel in a link, with the sessions ahead and what is still needed
+  const link = await hb.evaluate(() => WSLSA.planUrl());
+  check(/\/yr=5\//.test(await hb.evaluate(() => WSLSA.linkText())) && /\/nd=/.test(await hb.evaluate(() => WSLSA.linkText())), `a link should carry the empty years and the list still needed, got ${await hb.evaluate(() => WSLSA.linkText())}`);
+  const need = await hb.evaluate(() => JSON.stringify(WSLSA.custom().need));
+  const other = await newPage(browser);
+  await other.goto(link);
+  await other.evaluate(() => WSLSA.setNow('2026-11-09'));
+  check(await other.evaluate(() => JSON.stringify(WSLSA.custom().need)) === need && await other.evaluate(() => WSLSA.custom().years) === 5 && await other.evaluate(() => document.getElementById('sel-cohort').value) === 'pre2027', 'a link should open the same plan, guide and Handbook');
+  await other.close();
+  // a backup restores it too
+  const backup = await hb.evaluate(() => JSON.stringify({ app: 'wslsa-2027-pathway-explorer', version: 1, state: WSLSA.state() }));
+  check(/"need":\[\{/.test(backup) && /"years":5/.test(backup), 'a backup should hold the list still needed and the years ahead');
+  // the Handbook comparison, side by side
+  await hb.click('#guide [data-action="handbook-compare"]');
+  const hc = await hb.$$eval('.hc-table tbody tr', rows => rows.map(r => Array.from(r.children).map(c => c.textContent.replace(/\s+/g, ' ').trim())));
+  check(hc[0][1] === '280 CP' && hc[0][2] === '310 CP' && /^80 CP/.test(hc[1][1]) && /^50 CP/.test(hc[1][2]), `the comparison should show both structures, got ${JSON.stringify(hc.slice(0, 2))}`);
+  check(/^9 /.test(hc[2][1]) && /^12 /.test(hc[2][2]) && /LAWS 2019/.test(hc[2][2]) && hc[4][1] === '6' && hc[4][2] === '3' && hc[5][1] === '150 CP', `the comparison should count what is left under each Handbook, got ${JSON.stringify(hc.slice(2))}`);
+  check(/adds LAWS 2019, LAWS 3099, LAWS 3102/.test(await hb.textContent('.hc-warn')) && await hb.$eval('[data-action="hc-switch"][data-v="pre2027"]', b => b.disabled), 'the comparison should warn what the move adds and mark the Handbook shown');
+  await hb.click('[data-action="hc-switch"][data-v="2027"]');
+  const moved = await hb.evaluate(() => { const g = WSLSA.guide(); return { cohort: document.getElementById('sel-cohort').value, law: g.items.filter(r => r.kind === 'law').length, llb: g.items.filter(r => r.kind === 'llb').length, cp: g.cp, need: WSLSA.custom().need.length }; });
+  check(moved.cohort === '2027' && moved.law === 12 && moved.llb === 3 && moved.cp === 150 && moved.need === 15, `an imported plan's guide should move to the 2027 structure, got ${JSON.stringify(moved)}`);
+  await hb.selectOption('#sel-cohort', 'pre2027');
+  const back = await hb.evaluate(() => { const g = WSLSA.guide(); return { law: g.items.filter(r => r.kind === 'law').length, llb: g.items.filter(r => r.kind === 'llb').length, cp: g.cp }; });
+  check(back.law === 9 && back.llb === 6 && back.cp === 150, `and back again to nine cores and six LLB Alternates, got ${JSON.stringify(back)}`);
+  // + Add from the guide puts the subject in the session chosen, and the count drops at once
+  await hb.evaluate(() => { const d = document.querySelector('#guide .guide-sess'); d.open = true; });
+  const first = await hb.evaluate(() => { const g = WSLSA.guide(); return { code: g.items[0].code, at: g.items[0].y + '|' + g.items[0].s, sel: document.getElementById('gi-0').value }; });
+  check(first.sel === first.at, 'the session beside a guide item should start at the one suggested');
+  await hb.click('#guide [data-action="guide-add"][data-gi="0"]');
+  check(await hb.evaluate(c => WSLSA.context().slots.some(x => x.code === c && x.year === 4) && WSLSA.guide().cp === 140, first.code) && /140 CP/.test(await hb.textContent('#guide .guide-counts')), 'adding from the guide should place the subject and update the count');
+  // the guide pins to the bottom of the screen as a tray, and stays pinned after a reload
+  await hb.click('#guide [data-action="guide-pin"]');
+  const tray = await hb.evaluate(() => { const g = document.getElementById('guide'); const r = g.getBoundingClientRect(); return { fixed: getComputedStyle(g).position, bottom: Math.round(innerHeight - r.bottom), tall: r.height <= innerHeight * 0.38 + 1, open: document.getElementById('guide-box').open, saved: WSLSA.state().guidePinned }; });
+  check(tray.fixed === 'fixed' && tray.bottom === 0 && tray.tall && tray.open && tray.saved, `the pinned guide should sit at the bottom of the screen, got ${JSON.stringify(tray)}`);
+  await hb.evaluate(() => window.scrollTo(0, document.getElementById('year-5').getBoundingClientRect().top + scrollY - 100));
+  check(await hb.evaluate(() => { const r = document.getElementById('guide').getBoundingClientRect(); return r.top < innerHeight && r.bottom <= innerHeight + 1; }), 'the pinned guide should stay in sight beside Year 5');
+  await hb.click('#guide [data-action="guide-pin"]');
+  check(await hb.evaluate(() => getComputedStyle(document.getElementById('guide')).position !== 'fixed' && !WSLSA.state().guidePinned), 'unpinning should put the guide back in the page');
+  // a session's own load: the overload check and the guide's suggestions follow it
+  await hb.click('#year-4 .session[data-s="Autumn"] [data-action="session-load"][data-v="20"]');
+  const load = await hb.evaluate(() => { const g = WSLSA.guide(); const k = 3 * 3; return { text: document.querySelector('#year-4 .session[data-s="Autumn"] .load-btn').textContent, inAutumn: g.items.filter(r => r.k === k).reduce((a, r) => a + r.cp, 0), loads: WSLSA.custom().loads }; });
+  check(load.text === '10 / 20 CP' && load.inAutumn <= 10 && load.loads[9] === 20, `a session set to 20 CP should be planned to 20 CP, got ${JSON.stringify(load)}`);
+  await hb.click('#year-4 .session[data-s="Spring"] [data-action="session-load"][data-v="0"]');
+  check(await hb.evaluate(() => WSLSA.guide().items.every(r => r.k !== 10)) && /Leave of Absence/.test(await hb.textContent('#year-4 .session[data-s="Spring"] .slot-empty')) && /\/ld=9\.20,10\.0/.test(await hb.evaluate(() => WSLSA.linkText())), 'a Leave of Absence should take no suggestions, and loads should travel in a link');
+  await hb.click('#section-tools [data-action="undo"]');
+  await hb.click('#section-tools [data-action="undo"]');
+  check(await hb.evaluate(() => Object.keys(WSLSA.custom().loads).length === 0), 'Undo should take the session loads back');
+  // a subject in two pools can count towards either
+  const sup = await hb.evaluate(() => WSLSA.context().slots.find(x => x.code === 'LAWS 3067').id);
+  if (await hb.$eval('#year-3', y => y.classList.contains('is-folded'))) await hb.click('#year-3 .year-toggle');
+  check(/^Pool: Accounting Alternate ⇄ LLB Alternate$/.test(await hb.textContent(`#slot-${sup} .flag-pool`)) && await hb.$eval(`#slot-${sup} .flag-pool b`, b => b.textContent) === 'Accounting Alternate', `LAWS 3067 should offer its two pools, got ${await hb.textContent(`#slot-${sup} .flag-pool`)}`);
+  await hb.click(`#slot-${sup} .flag-pool`);
+  const pooled = await hb.evaluate(() => { const c = WSLSA.context(); const g = WSLSA.guide(); const x = c.slots.find(y => y.code === 'LAWS 3067'); return { kind: x.orig.kind, llb: g.items.filter(r => r.kind === 'llb').length, choice: g.items.filter(r => r.kind === 'choice').length, cp: g.cp, bold: document.querySelector('#slot-' + x.id + ' .flag-pool b').textContent }; });
+  check(pooled.kind === 'llb' && pooled.llb === 5 && pooled.choice === 1 && pooled.cp === 140 && pooled.bold === 'LLB Alternate', `counting LAWS 3067 as an LLB Alternate should leave five to choose and one Accounting Alternate, got ${JSON.stringify(pooled)}`);
+  await hb.click('#section-tools [data-action="undo"]');
+  // a subject moved across 2027 takes the code a student enrols in that year
+  await hb.evaluate(() => { const d = document.querySelectorAll('#guide .guide-sess'); d.forEach(x => { x.open = true; }); });
+  const eth = await hb.evaluate(() => WSLSA.guide().items.findIndex(r => r.code === 'LAWS 3100'));
+  await hb.selectOption('#gi-' + eth, '4|Autumn');
+  await hb.click(`#guide [data-action="guide-add"][data-gi="${eth}"]`);
+  const ethId = () => hb.evaluate(() => { const x = WSLSA.context().slots.find(y => y.code === 'LAWS 3100' || y.code === 'LAWS 4004'); return x ? x.id + ':' + x.code + ':' + x.year : ''; });
+  check(/:LAWS 3100:4$/.test(await ethId()) && /Replaces Pre-2027 LAWS 4004/.test(await hb.textContent('#slot-' + (await ethId()).split(':')[0])), `a subject placed in 2027 should show its 2027 code and what it replaces, got ${await ethId()}`);
+  await hb.selectOption(`#slot-${(await ethId()).split(':')[0]} .move-sel`, '3|Autumn');
+  check(/:LAWS 4004:3$/.test(await ethId()), `moved back into 2026 on the pre-2027 structure it should be the pre-2027 subject, got ${await ethId()}`);
+  await hb.selectOption(`#slot-${(await ethId()).split(':')[0]} .move-sel`, '5|Spring');
+  check(/:LAWS 3100:5$/.test(await ethId()) && await hb.evaluate(() => !WSLSA.context().risks.dupes.length), `and the 2027 subject again from 2027, never both, got ${await ethId()}`);
+  // paper: what is unplaced has its own box, and a year with nothing in it takes no room
+  const gap = await hb.evaluate(() => { WSLSA.preparePrint({ mode: 'A', orient: 'portrait' }); const r = document.getElementById('print-root'); return r.querySelectorAll('.pd-year').length + '|' + r.querySelectorAll('.pd-empty').length; });
+  check(/^5|/.test(gap), `the PDF should print the five years in use, got ${gap}`);
+  const pd = await hb.evaluate(() => { WSLSA.preparePrint({ mode: 'A', orient: 'portrait' }); const r = document.getElementById('print-root'); return { years: r.querySelectorAll('.pd-year').length, box: (r.querySelector('.pd-unplaced') || {}).textContent || '', bad: /NaN|undefined|\[object/.test(r.textContent) }; });
+  check(pd.years === 5 && /Remaining unplaced subjects · 130 CP still to place/.test(pd.box) && /Autumn 2027: LAWS 3018/.test(pd.box) && !pd.bad, `the PDF should list what is unplaced under its suggested sessions, got ${JSON.stringify(pd).slice(0, 300)}`);
+  // starting an own plan again keeps its Handbook
+  await hb.click('[data-action="reset"]');
+  const rebuilt = await hb.evaluate(() => { const c = WSLSA.context(); return { cohort: document.getElementById('sel-cohort').value, cores: c.slots.filter(x => ['LAWS 2019', 'LAWS 3099', 'LAWS 3102'].indexOf(x.code) >= 0).length, llb: c.slots.filter(x => x.orig && x.orig.kind === 'llb').length, guide: !!c.guide }; });
+  check(rebuilt.cohort === 'pre2027' && rebuilt.cores === 0 && rebuilt.llb === 8 && !rebuilt.guide, `a plan started again should stay in its Handbook, got ${JSON.stringify(rebuilt)}`);
+  check(hb.errors.length === 0, 'Handbook checks console errors: ' + hb.errors.join('; '));
+  await hb.close();
   }
 
   check(page.errors.length === 0, 'console errors: ' + page.errors.join('; '));
