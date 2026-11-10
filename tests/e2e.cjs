@@ -86,9 +86,11 @@ async function renderPdf(page, key, mode, orient, file) {
     await this.focus(selector).catch(() => {});
     return plainSelect.call(this, selector, values, options);
   };
-  // a page opened again is ready once the explorer has drawn its plan
+  // a page opened again has what it saved, and is ready once the explorer has drawn its plan
   const plainReload = pageProto.reload;
   pageProto.reload = async function (options) {
+    // what the page saved a moment ago reaches the browser's store a beat later, so a busy machine can reload ahead of it
+    await this.waitForTimeout(400);
     const r = await plainReload.call(this, options);
     await this.waitForFunction(() => !!window.WSLSA && !!document.querySelector('#dock select') && document.readyState === 'complete').catch(() => {});
     return r;
