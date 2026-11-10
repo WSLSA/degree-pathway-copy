@@ -1515,3 +1515,42 @@ body.guide-pinned #toast { bottom: calc(38vh + 16px); }
   .dock-card { grid-template-columns: minmax(0, 1fr); }
   .dock-card > .field, .dock-card .progress { grid-column: 1 / -1; }
 }
+
+/* ---------- year options and session notes */
+.year-foot { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 18px; padding: 7px 16px 9px; border-top: 1px solid var(--hairline); background: linear-gradient(180deg, var(--surface-2), transparent); }
+.yf-label { margin-right: auto; font: 700 10px var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
+.year-foot .text-btn { border-bottom-color: transparent; }
+.year-foot .text-btn:hover { border-bottom-color: var(--crimson); }
+.year-foot .year-del { color: var(--crimson-ink); }
+.session-note { display: flex; align-items: baseline; gap: 10px; margin: 0 2px 8px; padding: 6px 10px; border-left: 2px solid var(--gold); background: var(--gold-tint); color: var(--text); font-size: 13px; line-height: 1.4; border-radius: 0 4px 4px 0; overflow-wrap: anywhere; }
+.sn-label { flex: none; font: 700 9.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--bronze-ink); }
+@media (max-width: 760px) { .year-foot { justify-content: flex-start; padding-inline: 12px; } .yf-label { flex-basis: 100%; } }
+@media (pointer: coarse) { .year-foot .text-btn { min-height: 34px; } }
+
+/* ---------- a more refined finish: softer corners, layered shadows and a gold hairline, in the same colours */
+.year { border-radius: 10px; box-shadow: 0 1px 2px rgba(30, 29, 32, .05), 0 18px 40px -24px rgba(30, 29, 32, .28); }
+.year-bar { border-radius: 9px 9px 0 0; box-shadow: inset 0 -2px 0 rgba(197, 155, 39, .6); }
+.year.is-folded .year-bar { border-radius: 9px; }
+.year .sessions { border-radius: 0 0 10px 10px; }
+.subj { border-radius: 6px; transition: opacity .25s ease, box-shadow .2s, border-color .2s, background .2s, transform .2s; }
+.subj:hover { box-shadow: 0 10px 24px -14px rgba(30, 29, 32, .32); border-color: var(--hairline-2); border-left-color: var(--k); transform: translateY(-1px); }
+.subj.is-dragging, .subj.flash { transform: none; }
+.code-pill, .cp-badge { border-radius: 4px; }
+.slot-empty { border-radius: 6px; background: linear-gradient(180deg, var(--surface-2), transparent 70%); }
+.session-head { border-bottom: 0; }
+.session-head::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: linear-gradient(90deg, var(--gold) 0, var(--gold) 46px, var(--hairline) 46px); }
+.dock-card, .next-card, .advisory, .guide, .track, .drawer, .legend-box, #dmap, .gridbar { border-radius: 10px; }
+.dock-card { box-shadow: 0 1px 2px rgba(30, 29, 32, .05), 0 14px 34px -22px rgba(30, 29, 32, .3); }
+.tbtn, .btn, .input, .select-wrap select, .select-btn, .segmented, .summer-add { border-radius: 5px; }
+.segmented button:first-child { border-radius: 4px 0 0 4px; }
+.segmented button:last-child { border-radius: 0 4px 4px 0; }
+.pop-menu { border-radius: 0 0 8px 8px; box-shadow: 0 18px 40px -16px rgba(30, 29, 32, .4); }
+.modal { border-radius: 12px; overflow: hidden; }
+.track-bar { height: 6px; }
+.track-inline .track-bar { height: 4px; }
+.guide-item, .guide-sess, .inline-opt, .chipbtn { border-radius: 6px; }
+.section-head h2 { letter-spacing: .005em; }
+html[data-theme="dark"] .year, html[data-theme="dark"] .dock-card { box-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 18px 40px -22px rgba(0, 0, 0, .7); }
+html[data-theme="dark"] .subj:hover { box-shadow: 0 10px 24px -12px rgba(0, 0, 0, .7); }
+@media (prefers-reduced-motion: reduce) { .subj:hover { transform: none; } }
+@media (hover: none) { .subj:hover { transform: none; box-shadow: none; } }

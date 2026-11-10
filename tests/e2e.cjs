@@ -2768,6 +2768,41 @@ async function renderPdf(page, key, mode, orient, file) {
       llb: c.slots.filter(llb).length, total: c.totalCP, guide: c.guide ? c.guide.items.length : 0, edit: !!c.edit,
     };
   });
+  // year options: delete a year, insert an empty one, clear what is unticked, each one step for Undo
+  const shape = () => hb.evaluate(() => { const c = WSLSA.context(); return { years: document.querySelectorAll('#grid .year').length, slots: c.slots.length, total: c.totalCP, edit: !!c.edit, y2: c.slots.filter(x => x.year === 2).map(x => x.code || '-').sort().join(','), guide: c.guide ? c.guide.cp : 0 }; });
+  const start = await shape();
+  const wasY3 = await hb.evaluate(() => WSLSA.context().slots.filter(x => x.year === 3).map(x => x.code || '-').sort().join(','));
+  check(await hb.$$eval('#year-2 .year-foot [data-action]', b => b.map(x => x.dataset.action).join(',')) === 'year-insert,year-clear,year-delete', 'each year should offer to insert a year, clear it or delete it');
+  await hb.click('#year-2 [data-action="year-delete"]');
+  let yr = await shape();
+  check(yr.years === 5 && yr.slots === 32 && yr.total === 320 && yr.edit && yr.y2 === wasY3 && yr.guide === 80 && /Year 2 deleted, with 8 subjects\. The later years moved up/.test(await hb.textContent('#toast')), `deleting Year 2 should take its subjects out and bring the later years forward, got ${JSON.stringify(yr)}`);
+  await hb.click('#section-tools [data-action="undo"]');
+  yr = await shape();
+  check(yr.years === 5 && yr.slots === 40 && !yr.edit && yr.y2 === start.y2, `Undo should bring the deleted year back, got ${JSON.stringify(yr)}`);
+  await hb.click('#year-2 [data-action="year-insert"]');
+  yr = await shape();
+  check(yr.years === 6 && yr.slots === 40 && yr.y2 === '' && yr.total === 400 && yr.guide === 0 && await hb.evaluate(w => WSLSA.context().slots.filter(x => x.year === 3).map(x => x.code || '-').sort().join(',') === w, start.y2) && /Empty session/.test(await hb.textContent('#year-2 .slot-empty')), `inserting a year should leave Year 2 empty and move the rest a year on, got ${JSON.stringify(yr)}`);
+  await hb.click('#year-2 [data-action="year-delete"]');
+  yr = await shape();
+  check(yr.years === 5 && yr.slots === 40 && yr.y2 === start.y2, `deleting the empty year should put the plan back without asking, got ${JSON.stringify(yr)}`);
+  await hb.click('#year-1 .session[data-s="Autumn"] .tick');
+  await hb.click('#year-1 [data-action="year-clear"]');
+  yr = await shape();
+  check(yr.slots === 33 && yr.guide === 70 && await hb.evaluate(() => WSLSA.context().slots.filter(x => x.year === 1).length === 1 && WSLSA.context().slots.find(x => x.year === 1).done), `clearing a year should keep what is ticked and list the rest in the guide, got ${JSON.stringify(yr)}`);
+  for (let i = 0; i < 4; i++) await hb.click('#section-tools [data-action="undo"]');
+  check(!(await shape()).edit, 'Undo should take the year changes back to the pathway');
+  // a note on a session, kept with the plan, in its link and on paper
+  await hb.evaluate(() => { window.prompt = () => 'Exchange semester in Leiden'; });
+  await hb.click('#year-3 .session[data-s="Spring"] [data-action="session-note"]');
+  const noted = await hb.evaluate(() => { WSLSA.preparePrint({ mode: 'A', orient: 'portrait' }); return { text: document.querySelector('#year-3 .session[data-s="Spring"] .session-note').textContent, link: WSLSA.linkText(), paper: (document.querySelector('#print-root .pd-notes') || {}).textContent || '', button: document.querySelector('#year-3 .session[data-s="Spring"] .note-btn').textContent }; });
+  check(noted.text === 'NoteExchange semester in Leiden' && /\/nt=7:Exchange%20semester%20in%20Leiden/.test(noted.link) && /Spring 2029: Exchange semester in Leiden/.test(noted.paper) && noted.button === 'Edit note', `a session note should show on the session, in the link and on paper, got ${JSON.stringify(noted)}`);
+  await hb.click('#year-2 [data-action="year-insert"]');
+  check(await hb.evaluate(() => WSLSA.custom().notes[10] === 'Exchange semester in Leiden' && !WSLSA.custom().notes[7]), 'a note should move with its session when a year is inserted');
+  await hb.evaluate(() => { window.prompt = () => ''; });
+  await hb.click('#year-4 .session[data-s="Spring"] [data-action="session-note"]');
+  check(!(await hb.$('#grid .session-note')), 'an empty note should remove it');
+  for (let i = 0; i < 3; i++) await hb.click('#section-tools [data-action="undo"]');
+  check(!(await shape()).edit, 'Undo should take the notes back');
   // the requirement tracker counts each kind of subject, follows the Handbook and moves with a tick
   const track = () => hb.$$eval('#dock-track .track-item', li => li.map(x => x.querySelector('.track-label').textContent + ' ' + x.querySelector('.track-num').textContent).join(' | '));
   check(await track() === 'Law core 0 / 190 CP | Non-law core 0 / 120 CP | LLB Alternates 0 / 50 CP | Choices 0 / 40 CP', `the tracker should count the 2027 structure, got ${await track()}`);

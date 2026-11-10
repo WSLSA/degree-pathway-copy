@@ -357,6 +357,8 @@
       need: Array.isArray(c.need) ? c.need.slice(0, MAX_SLOTS).map(function (n) { return sanitiseNeed(n, tpl); }).filter(Boolean) : [],
       // the load a student has set for a session, by its place in the plan; a session without one runs at 40 CP
       loads: sanitiseLoads(c.loads),
+      // a student's own note on a session, by its place in the plan
+      notes: sanitiseNotes(c.notes),
       slots: (Array.isArray(c.slots) ? c.slots : []).slice(0, MAX_SLOTS).map(function (x) { return sanitiseCSlot(x, tpl); }).filter(Boolean),
     };
     if (out.cohort === startCohort(out.start)) out.cohort = '';
@@ -369,6 +371,15 @@
     Object.keys(l).forEach(function (k) {
       const cp = +l[k];
       if (/^\d+$/.test(k) && +k < MAX_YEARS * 3 && cp !== LOAD_CP.FT && SESSION_LOADS.some(function (x) { return x[0] === cp; })) out[+k] = cp;
+    });
+    return out;
+  }
+  function sanitiseNotes(n) {
+    const out = {};
+    if (!n || typeof n !== 'object') return out;
+    Object.keys(n).slice(0, MAX_YEARS * 3).forEach(function (k) {
+      const text = str(n[k], 140).replace(/\s+/g, ' ').trim();
+      if (/^\d+$/.test(k) && +k < MAX_YEARS * 3 && text) out[+k] = text;
     });
     return out;
   }
@@ -539,6 +550,8 @@
     if (plan.years) parts.push('yr=' + plan.years);
     const lk = Object.keys(plan.loads || {});
     if (lk.length) parts.push('ld=' + lk.map(function (k) { return k + '.' + plan.loads[k]; }).join(','));
+    const nk = Object.keys(plan.notes || {});
+    if (nk.length) parts.push('nt=' + nk.map(function (k) { return k + ':' + enc(plan.notes[k]); }).join(','));
     if (plan.need.length) parts.push('nd=' + needLink(plan.need, tIdx, plan.tpl));
     return parts;
   }
@@ -684,6 +697,7 @@
       cp: f.cp ? +f.cp : tdeg ? tdeg.cp : 10, tpl: tpl, start: +f.st || 0, pace: +f.pc || 0, cohort: f.co === 'p' ? 'pre2027' : f.co === 'n' ? '2027' : '',
       years: +f.yr || 0, need: needFromLink(typeof f.nd === 'string' ? f.nd : '', tpl), slots: slots,
       loads: (typeof f.ld === 'string' ? f.ld.split(',') : []).reduce(function (o, it) { const v = it.split('.'); o[v[0]] = +v[1]; return o; }, {}),
+      notes: (typeof f.nt === 'string' ? f.nt.split(',') : []).reduce(function (o, it) { const i = it.indexOf(':'); if (i > 0) o[it.slice(0, i)] = dec(it.slice(i + 1)); return o; }, {}),
     });
   }
   function applyLink(s) {
@@ -2251,10 +2265,11 @@
       sessions.forEach(function (sess) {
         const list = lists[sess];
         const allDone = list.length && list.every(function (s) { return s.done; });
+        const note = ctx.custom && ctx.plan.notes ? ctx.plan.notes[orderIdx(y.year, sess)] || '' : '';
         html += '<section class="session' + (sess === 'Summer' ? ' session-summer' : '') + '" aria-label="Year ' + y.year + ' ' + sess + ' session" data-y="' + y.year + '" data-s="' + sess + '"><div class="session-head"><h3>' + sess + '<span>Session</span></h3><div class="session-tools"><span class="commute-slot">' + commutePill(list) + '</span><span class="load-slot">' + loadPill(list) + '</span>' +
-          (edit ? addSlotTool(ctx, y.year, sess) : '') +
+          (edit ? '<button type="button" class="mark-all note-btn" data-action="session-note" data-y="' + y.year + '" data-s="' + sess + '" title="Add your own note to this session, such as an exchange, a placement or work">' + (note ? 'Edit note' : '+ Note') + '</button>' + addSlotTool(ctx, y.year, sess) : '') +
           (list.length ? '<button type="button" class="mark-all" data-action="session-done" data-ids="' + list.map(function (s) { return s.id; }).join(',') + '">' + (allDone ? 'Unmark all' : 'Mark all done') + '</button>' : '') +
-          sessionLoad(ctx, y.year, sess, sumCP(list), edit) + '</div></div><p class="session-clear"></p><div class="slots">' +
+          sessionLoad(ctx, y.year, sess, sumCP(list), edit) + '</div></div>' + (note ? '<p class="session-note"><span class="sn-label">Note</span>' + esc(note) + '</p>' : '') + '<p class="session-clear"></p><div class="slots">' +
           (list.length ? list.map(function (s) { return slotHTML(s, ctx); }).join('') : '<div class="slot-empty">' + (sess === 'Autumn' && y === years[0] && lists.Spring.length ? 'Your plan starts in Spring, so nothing is planned here'
             : !ctx.custom ? 'No subjects scheduled this session'
             // a session that has already begun is not one to plan: it only shows what the record had in it
@@ -2262,6 +2277,12 @@
             : sessionCap(ctx.plan, orderIdx(y.year, sess)) === 0 ? '<b>Leave of Absence.</b> Nothing is planned for this session.'
             : '<b>Empty session.</b> ' + (ctx.guide ? 'Drag or + Add subjects from the Suggested Remaining Guide, or use + Add slot.' : 'Drag a subject here, or use + Add slot.')) + '</div>') + '</div></section>';
       });
+      if (edit) {
+        html += '<div class="year-foot" role="group" aria-label="Options for Year ' + y.year + '"><span class="yf-label">Year ' + y.year + '</span>' +
+          '<button type="button" class="text-btn" data-action="year-insert" data-y="' + y.year + '" title="For a year off, or room before this year: this year and the later ones move a year on">Insert an empty year before</button>' +
+          '<button type="button" class="text-btn" data-action="year-clear" data-y="' + y.year + '" title="Take out every subject and slot in this year that is not ticked">Clear unticked subjects</button>' +
+          '<button type="button" class="text-btn year-del" data-action="year-delete" data-y="' + y.year + '" title="Remove this year and its subjects, and bring the later years one year earlier">Delete Year ' + y.year + ' ×</button></div>';
+      }
       html += '</div></article>';
     });
     if (ctx.custom && !ctx.edit && !ctx.slots.length && !years.length) html += '<div class="plan-empty"><b>Your plan has no slots yet.</b> Add a year, or use Edit setup to fill it to the credit points your degree needs.</div>';
@@ -5406,6 +5427,76 @@
     plan.slots.push(x);
     return 'c' + (plan.slots.length - 1);
   }
+  // Year options. Deleting a year takes its subjects out and brings every later year one year earlier; inserting one
+  // pushes that year and the later ones a year on, leaving an empty year for a break; clearing takes out what is not
+  // ticked. Loads and notes move with their sessions, and a subject still ahead takes the code for its new year.
+  function lastYear(plan) { return Math.max(plan.years || 0, plan.slots.reduce(function (m, x) { return Math.max(m, x.y); }, 0)); }
+  function shiftYears(plan, from, by) {
+    plan.slots.forEach(function (x) { if (x.y >= from) { x.y += by; yearCode(plan, x); } });
+    ['loads', 'notes'].forEach(function (name) {
+      const next = {};
+      Object.keys(plan[name] || {}).forEach(function (k) {
+        const y = Math.floor(+k / 3) + 1;
+        if (by < 0 && y === from - 1) return;
+        next[y >= from ? +k + by * 3 : +k] = plan[name][k];
+      });
+      plan[name] = next;
+    });
+  }
+  function deleteYear(y) {
+    ensureEditable();
+    const plan = editPlan();
+    const last = lastYear(plan);
+    if (last <= 1) { toast('A plan needs at least one year.'); return; }
+    const inYear = plan.slots.filter(function (x) { return x.y === y; });
+    const filled = inYear.filter(function (x) { return x.code; });
+    const done = inYear.filter(function (x) { return x.done; }).length;
+    if (filled.length && !window.confirm('Delete Year ' + y + '? This takes ' + plural(filled.length, 'subject') + ' out of your plan' + (done ? ', ' + done + ' of them completed' : '') + (y < last ? ', and brings the later years one year earlier' : '') + '. Undo puts it back.')) return;
+    noteChange('deleted Year ' + y);
+    plan.slots = plan.slots.filter(function (x) { return x.y !== y; });
+    shiftYears(plan, y + 1, -1);
+    plan.years = Math.max(0, Math.min(plan.years || 0, last - 1));
+    ui.folded = null;
+    renderMoving();
+    toast('Year ' + y + ' deleted' + (filled.length ? ', with ' + plural(filled.length, 'subject') : '') + (y < last ? '. The later years moved up.' : '.'), { action: 'undo', label: 'Undo' });
+  }
+  function insertYear(y) {
+    ensureEditable();
+    const plan = editPlan();
+    const last = lastYear(plan);
+    if (last >= MAX_YEARS) { toast('A plan can run for up to ' + MAX_YEARS + ' years.'); return; }
+    noteChange('added an empty year before Year ' + y);
+    shiftYears(plan, y, 1);
+    plan.years = last + 1;
+    ui.folded = null;
+    renderMoving(function () { const el = document.getElementById('year-' + y); if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } });
+    toast('An empty Year ' + y + ' was added, and the years after it moved a year later. Use it for a break, or fill it.', { action: 'undo', label: 'Undo' });
+  }
+  function clearYear(y) {
+    ensureEditable();
+    const plan = editPlan();
+    const out = plan.slots.filter(function (x) { return x.y === y && !x.done; });
+    if (!out.length) { toast('Year ' + y + ' has nothing unticked to clear.'); return; }
+    noteChange('cleared Year ' + y);
+    plan.slots = plan.slots.filter(function (x) { return x.y !== y || x.done; });
+    if (y > plan.years) plan.years = y;
+    renderMoving();
+    toast(plural(out.length, 'unticked slot') + ' cleared from Year ' + y + '. Anything your degree still needs is listed in the Suggested Remaining Guide.', { action: 'undo', label: 'Undo' });
+  }
+  function setSessionNote(y, sess) {
+    const k = orderIdx(y, sess);
+    const now = (editPlan() && editPlan().notes[k]) || '';
+    const text = window.prompt('Your note for Year ' + y + ' ' + sess + ' (leave empty to remove it):', now);
+    if (text == null) return;
+    const clean = text.replace(/\s+/g, ' ').trim().slice(0, 140);
+    if (clean === now) return;
+    ensureEditable();
+    const plan = editPlan();
+    noteChange((clean ? 'noted ' : 'removed the note on ') + 'Year ' + y + ' ' + sess);
+    if (clean) plan.notes[k] = clean; else delete plan.notes[k];
+    if (y > plan.years) plan.years = Math.min(MAX_YEARS, y);
+    renderMoving();
+  }
   function addCustomYear() {
     const plan = editPlan();
     const y = Math.max(plan.years || 0, plan.slots.reduce(function (m, x) { return Math.max(m, x.y); }, 0)) + 1;
@@ -5422,6 +5513,7 @@
     plan.years = 0;
     plan.need = [];
     plan.loads = {};
+    plan.notes = {};
     plan.cohort = cohort === startCohort(0) ? '' : cohort;
     plan.slots = plan.tpl ? restructure(plan.tpl, templateSlots(plan.tpl, false), cohort, 0) : [];
     fitToCP(plan);
@@ -5523,8 +5615,8 @@
     const prev = state.custom;
     const filled = prev ? prev.slots.filter(function (x) { return x.code; }).length : 0;
     if (filled && start !== 'keep' && !window.confirm('Start again? This replaces the ' + plural(filled, 'subject') + ' in your current custom plan.')) return;
-    const plan = { name: $('#cs-name').value.trim().slice(0, 120), code: $('#cs-code').value.trim().slice(0, 16), cp: clampCP(cpRaw), tpl: '', start: 0, pace: 0, cohort: '', years: 0, need: [], loads: {}, slots: [] };
-    if (start === 'keep' && prev) { plan.tpl = prev.tpl; plan.slots = prev.slots; plan.pace = prev.pace; plan.years = prev.years || 0; plan.need = prev.need || []; plan.loads = prev.loads || {}; }
+    const plan = { name: $('#cs-name').value.trim().slice(0, 120), code: $('#cs-code').value.trim().slice(0, 16), cp: clampCP(cpRaw), tpl: '', start: 0, pace: 0, cohort: '', years: 0, need: [], loads: {}, notes: {}, slots: [] };
+    if (start === 'keep' && prev) { plan.tpl = prev.tpl; plan.slots = prev.slots; plan.pace = prev.pace; plan.years = prev.years || 0; plan.need = prev.need || []; plan.loads = prev.loads || {}; plan.notes = prev.notes || {}; }
     else if (start === 'template') { plan.tpl = $('#cs-tpl-major').value; plan.slots = templateSlots(plan.tpl, $('#cs-tpl-mine').checked); }
     const began = +$('#cs-year').value;
     plan.start = began < START_YEAR ? began : 0;
@@ -6538,6 +6630,12 @@
       if (r.notOffered.length) cl.push('<li><b>Not offered in the planned session:</b> ' + r.notOffered.map(function (s) { return esc(s.code) + ' (' + where(s) + ')'; }).join('; ') + '.</li>');
       if (r.replaced.length) cl.push('<li><b>Changed from the template:</b> ' + r.replaced.map(function (s) { return esc(s.replaced.code) + ' → ' + (s.pending ? 'open slot' : esc(s.code)) + ' (' + where(s) + ')'; }).join('; ') + '.</li>');
       html += '<div class="pd-box pd-tbcbox"><h3>' + (ctx.edit ? 'Edited pathway checks' : 'Custom plan checks') + '</h3><ul>' + cl.join('') + '</ul></div>';
+      const noteKeys = Object.keys(ctx.plan.notes || {}).map(Number).sort(function (a, b) { return a - b; });
+      if (noteKeys.length) {
+        html += '<div class="pd-box pd-tbcbox pd-notes"><h3>Your session notes</h3><ul>' + noteKeys.map(function (k) {
+          return '<li><b>' + sessionLabel(Math.floor(k / 3) + 1, PLAN_SESSIONS[k % 3]) + ':</b> ' + esc(ctx.plan.notes[k]) + '</li>';
+        }).join('') + '</ul></div>';
+      }
       if (ctx.guide) {
         const gap = emptyYears(ctx);
         html += '<div class="pd-box pd-tbcbox pd-unplaced"><h3>Remaining unplaced subjects · ' + ctx.guide.cp + ' CP still to place</h3>' +
@@ -7136,6 +7234,10 @@
       }
       case 'guide-fill': addFromGuide(lastCtx.guide.items.map(function (r, i) { return i; }), ''); break;
       case 'plan-fix': fixPlan(); break;
+      case 'year-delete': deleteYear(+el.dataset.y); break;
+      case 'year-insert': insertYear(+el.dataset.y); break;
+      case 'year-clear': clearYear(+el.dataset.y); break;
+      case 'session-note': setSessionNote(+el.dataset.y, el.dataset.s); break;
       case 'guide-pin':
         state.guidePinned = !state.guidePinned;
         if (state.guidePinned) ui.guideOpen = true;
