@@ -1453,8 +1453,11 @@ async function renderPdf(page, key, mode, orient, file) {
   check(!(await lay.$('#year-1.is-folded')), 'finishing a year should not fold it under the student');
   const doneCard = await lay.$eval('#year-1 .subj.is-done', c => ({ opacity: getComputedStyle(c).opacity, tick: getComputedStyle(c.querySelector('.tick-box')).backgroundColor, title: getComputedStyle(c.querySelector('.subj-title')).color }));
   check(doneCard.opacity === '1' && doneCard.tick === 'rgb(21, 128, 61)' && doneCard.title === 'rgb(98, 93, 96)', `a done card should stay readable with a coloured tick, got ${JSON.stringify(doneCard)}`);
+  // the ticks are saved before the page is opened again
+  await lay.waitForFunction(() => WSLSA.context().doneCP === 80 && /"done"/.test(localStorage.getItem('wslsa-2027-pathway-explorer:v1') || ''));
   await lay.reload();
   await lay.evaluate(() => document.fonts.ready);
+  await lay.waitForSelector('#year-1');
   check(!!(await lay.$('#year-1.is-folded')) && await lay.isHidden('#year-1-body') && !!(await lay.$('#dmap .dm-year.is-done[data-y="1"]')) && !(await lay.$('#year-2.is-folded')), 'a finished year should start folded the next time the plan opens');
   check((await lay.$$('#year-1 .subj')).length === 8 && /^80 \/ 400/.test((await lay.textContent('#progress-num')).trim()), 'folding should not change the plan or its progress');
   await lay.click('#dmap .dm-s[data-y="1"][data-s="Spring"]');
@@ -2778,6 +2781,19 @@ async function renderPdf(page, key, mode, orient, file) {
   await hb.setViewportSize({ width: 900, height: 900 });
   check(await hb.evaluate(() => getComputedStyle(document.getElementById('dock-track')).display === 'none' && document.querySelectorAll('#tracker .track-item').length === 4 && document.getElementById('tracker').getBoundingClientRect().height > 0), 'on a narrow screen the tracker should sit under the advisory instead');
   await hb.setViewportSize({ width: 1440, height: 1000 });
+  // readiness counts what is settled, and one press moves a subject out of a session it does not run in
+  const ready = () => hb.$eval('#advisory .adv-ready b', b => b.textContent);
+  const r0 = await ready();
+  check(/^\d+%$/.test(r0) && +r0.replace('%', '') === Math.round((400 - await hb.evaluate(() => WSLSA.context().risks.pending.reduce((a, x) => a + x.cp, 0))) / 4), `readiness should be the share of the degree that is settled, got ${r0}`);
+  const tortsFix = await hb.evaluate(() => WSLSA.context().slots.find(x => x.code === 'LAWS 2013').id);
+  await hb.selectOption(`#slot-${tortsFix} .move-sel`, '2|Autumn');
+  check(+(await ready()).replace('%', '') < +r0.replace('%', '') && /LAWS 2013 \(not offered in Autumn\)/.test(await hb.textContent('#advisory .adv-fix')), `a subject where it does not run should lower readiness and be offered a fix, got ${await ready()}`);
+  await hb.evaluate(() => document.querySelector('[data-action="plan-fix"]').click());
+  const fixed = await hb.evaluate(() => { const c = WSLSA.context(); const x = c.slots.find(y => y.code === 'LAWS 2013'); return { at: x.year + x.session, none: c.risks.notOffered.length, over: c.risks.overload.length, fix: !!document.querySelector('#advisory .adv-fix'), total: c.totalCP }; });
+  check(/Spring$/.test(fixed.at) && fixed.none === 0 && fixed.over === 0 && !fixed.fix && fixed.total === 400 && await ready() === r0, `the fix should move it to a session it runs in with room, got ${JSON.stringify(fixed)}`);
+  await hb.click('#section-tools [data-action="undo"]');
+  await hb.click('#section-tools [data-action="undo"]');
+  check(await hb.evaluate(() => !WSLSA.context().edit), 'Undo should take the fix and the move back');
   // an edited pathway moves to the pre-2027 structure and back exactly as it was
   const torts = await hb.evaluate(() => WSLSA.context().slots.find(x => x.code === 'LAWS 2013').id);
   await hb.selectOption(`#slot-${torts} .move-sel`, '2|Spring');

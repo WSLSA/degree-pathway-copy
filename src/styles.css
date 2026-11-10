@@ -1439,6 +1439,15 @@ body.guide-pinned #toast { bottom: calc(38vh + 16px); }
   .gp-sr { display: block; }
 }
 
+/* ---------- plan readiness and one-press fixes in the advisory */
+.adv-ready { display: inline-flex; align-items: center; gap: 7px; font: 600 12.5px var(--sans); color: inherit; white-space: nowrap; cursor: help; }
+.adv-ready b { font-weight: 800; }
+.adv-ready i { width: 18px; height: 18px; border-radius: 50%; background: conic-gradient(var(--gold) calc(var(--p) * 1%), rgba(197, 155, 39, .25) 0); -webkit-mask: radial-gradient(circle, transparent 5px, #000 5.5px); mask: radial-gradient(circle, transparent 5px, #000 5.5px); }
+.adv-fix { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px; margin-bottom: 12px; padding: 12px 14px; border-left: 3px solid var(--gold); background: var(--gold-tint); color: var(--text); font-size: 13.5px; }
+.adv-fix > div { flex: 1 1 320px; }
+@media (max-width: 760px) { .adv-ready { display: none; } }
+@media (forced-colors: active) { .adv-ready i { display: none; } }
+
 /* ---------- degree requirements at a glance */
 .track { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; margin: 0; padding: 0; list-style: none; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); box-shadow: var(--shadow); }
 .track-item { --k: var(--crimson); display: grid; gap: 6px; padding: 9px 14px 10px; min-width: 0; cursor: help; }
@@ -1479,7 +1488,7 @@ body.guide-pinned #toast { bottom: calc(38vh + 16px); }
   .track-inline .track-num { font-size: 11px; }
   .track-inline .track-bar { height: 3px; }
 }
-@media (min-width: 1041px) and (max-width: 1280px) {
+@media (min-width: 1041px) and (max-width: 1499px) {
   .dock-card .progress-meta { display: none; }
   .dock-card .progress { grid-column: 1 / span 1; grid-template-columns: auto minmax(40px, 1fr); }
   .track-inline:not([hidden]) { grid-column: 2 / -1; }
