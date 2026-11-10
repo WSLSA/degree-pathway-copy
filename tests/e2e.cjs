@@ -86,6 +86,13 @@ async function renderPdf(page, key, mode, orient, file) {
     await this.focus(selector).catch(() => {});
     return plainSelect.call(this, selector, values, options);
   };
+  // a page opened again is ready once the explorer has drawn its plan
+  const plainReload = pageProto.reload;
+  pageProto.reload = async function (options) {
+    const r = await plainReload.call(this, options);
+    await this.waitForFunction(() => !!window.WSLSA && !!document.querySelector('#dock select') && document.readyState === 'complete').catch(() => {});
+    return r;
+  };
   // hovering or focusing one of a card's tools means the card's tools are open
   for (const name of ['hover', 'focus']) {
     const plain = pageProto[name];
