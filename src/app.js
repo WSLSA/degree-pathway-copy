@@ -1059,9 +1059,9 @@
     const sessions = guideSessions(g);
     // the first session to enrol in is open, and the rest wait folded until asked for, unless the list is short
     const sessOpen = function (gs, i) { return ui.guideSess && ui.guideSess[gs.k] != null ? ui.guideSess[gs.k] : i === 0 || g.items.length <= 8; };
-    setHTML(box, '<details class="guide" id="guide-box"' + (open ? ' open' : '') + '>' +
+    setHTML(box, '<button type="button" class="guide-pin" data-action="guide-pin" aria-pressed="' + pinned + '" title="' + (pinned ? 'Put the guide back in the page' : 'Keep the guide at the bottom of the screen while you scroll your plan') + '"><span aria-hidden="true">📌</span><span class="gp-text"> ' + (pinned ? 'Unpin Guide' : 'Pin Guide to Bottom') + '</span><span class="sr-only gp-sr">' + (pinned ? 'Unpin Guide' : 'Pin Guide to Bottom') + '</span></button>' +
+      '<details class="guide" id="guide-box"' + (open ? ' open' : '') + '>' +
       '<summary><span class="guide-label">Suggested Remaining Guide</span><span class="guide-counts"><b>' + g.cp + ' CP</b> to place<span class="guide-kinds"> · ' + order.map(count).join(' · ') + '</span></span>' +
-      '<button type="button" class="guide-pin" data-action="guide-pin" aria-pressed="' + pinned + '" title="' + (pinned ? 'Put the guide back in the page' : 'Keep the guide at the bottom of the screen while you scroll your plan') + '">📌 ' + (pinned ? 'Unpin Guide' : 'Pin Guide to Bottom') + '</button>' +
       '<span class="adv-cta">' + (open ? 'Hide guide' : 'View guide') + '</span></summary>' +
       '<div class="guide-body"><p class="guide-intro">Your plan holds what you have completed or are studying, and the sessions ahead are yours to fill. <b>+ Add</b> puts a subject in the session chosen beside it, or drag it onto a session in your plan.</p>' +
       '<div class="guide-cols"><div class="guide-check"><h3>Remaining degree checklist</h3><ul>' +
@@ -1618,6 +1618,36 @@
     const pace = paceNow(ctx);
     return remaining ? remaining + ' CP to go · ≈ ' + plural(Math.ceil(remaining / pace), 'session') + ' ' + (pace === 40 ? 'FT' : pace === 20 ? 'PT' : 'at ' + pace + ' CP') : 'All ' + ctx.deg.cp + ' CP complete';
   }
+  // Degree requirements at a glance: for each kind of subject, the credit points completed, planned and still to place.
+  // What an imported plan's guide still lists counts towards the total of its kind.
+  const TRACK = [['law', 'Law core'], ['nonlaw', 'Non-law core'], ['major', 'Major / minor'], ['llb', 'LLB Alternates'], ['choice', 'Choices'], ['elective', 'Electives'], ['open', 'Open slots']];
+  function requirementGroups(ctx) {
+    const g = {};
+    const at = function (k) { return g[k] = g[k] || { cp: 0, done: 0, planned: 0 }; };
+    ctx.slots.forEach(function (s) {
+      const k = s.newCore ? 'llb' : ctx.custom ? (s.orig ? typeGroup(s.orig.type) : s.pending ? 'open' : /^LAWS /.test(s.code) ? 'law' : 'nonlaw') : s.group;
+      const t = at(k);
+      t.cp += s.cp;
+      if (s.done) t.done += s.cp; else if (!s.pending) t.planned += s.cp;
+    });
+    if (ctx.custom && ctx.guide) ctx.guide.items.forEach(function (r) { at(r.kind === 'core' ? 'nonlaw' : r.kind).cp += r.cp; });
+    return TRACK.filter(function (t) { return g[t[0]] && g[t[0]].cp > 0; }).map(function (t) { return Object.assign({ key: t[0], label: t[1] }, g[t[0]]); });
+  }
+  function renderTracker(ctx) {
+    const groups = requirementGroups(ctx);
+    // on a wide screen the meters sit in the dock, beside the progress, and stay in sight; otherwise under the advisory
+    const box = $('#tracker');
+    box.hidden = groups.length < 2;
+    const items = groups.map(function (t) {
+      const left = t.cp - t.done - t.planned;
+      const tip = t.done + ' CP completed, ' + t.planned + ' CP planned' + (left > 0 ? ', ' + left + ' CP still to choose or place' : '');
+      return '<li class="track-item tk-' + t.key + (t.done >= t.cp ? ' is-done' : '') + '" title="' + esc(t.label + ': ' + tip) + '"><span class="track-top"><span class="track-label">' + esc(t.label) + '</span><span class="track-num"><b>' + t.done + '</b> / ' + t.cp + ' CP</span></span>' +
+        '<span class="track-bar" role="img" aria-label="' + esc(t.label + ': ' + tip) + '"><i class="tb-done" style="width:' + (t.done / t.cp * 100) + '%"></i><i class="tb-plan" style="width:' + (t.planned / t.cp * 100) + '%"></i></span></li>';
+    }).join('');
+    setHTML(box, '<ul class="track">' + items + '</ul>');
+    const inline = $('#dock-track');
+    if (inline) { inline.hidden = groups.length < 2; inline.innerHTML = items; }
+  }
   function renderDock(ctx) {
     const deg = ctx.deg;
     const single = DEGREES.filter(function (d) { return d.code === '2848'; });
@@ -1674,7 +1704,7 @@
       '<div class="field">' + (isCustom() ? '<label for="custom-name">Degree name</label>' : deg.fixedStructure ? '<span class="field-label">Major / minor</span>' : '<label for="sel-major">Major / minor</label>') + majorField + '</div>' +
       '<div class="field"><label for="sel-campus">Campus highlight</label>' + campusSelect + '</div>' +
       '<div class="field field-cohort"><label for="sel-cohort">Handbook</label>' + handbook + '</div>' +
-      '<div class="field"><span class="field-label">Load</span>' + load + '</div>' + progress;
+      '<div class="field"><span class="field-label">Load</span>' + load + '</div>' + progress + '<ul class="track track-inline" id="dock-track" aria-label="Degree requirements at a glance"></ul>';
   }
 
   function renderAdvisory(ctx) {
@@ -2927,6 +2957,7 @@
     applyGridFilter(true);
     syncEnquiry(ctx);
     renderAdvisory(ctx);
+    renderTracker(ctx);
     const next = $('#next');
     renderNext(ctx);
     const nextNow = nextSession(ctx);
@@ -4406,7 +4437,7 @@
     ui.modal = 'hcompare';
     showModal('<div class="modal-backdrop" data-action="backdrop"><div class="modal modal-compare" role="dialog" aria-modal="true" aria-labelledby="hc-h">' +
       '<div class="modal-head"><div><h2 id="hc-h">Pre-2027 vs 2027 Handbook</h2><p>What your progress leaves to do under each Handbook, for ' + esc(ctx.deg.code + ' ' + ctx.deg.title) + '. ' + a.done + ' CP is completed so far.</p></div><button type="button" class="modal-x" data-action="modal-close" aria-label="Close">×</button></div>' +
-      '<div class="modal-body" style="padding:14px 20px 18px"><table class="compare-table hc-table"><thead><tr><th></th><th scope="col">' + head(a, 'Staying on the Pre-2027 Handbook') + '</th><th scope="col">' + head(b, 'Moving to the 2027 Handbook') + '</th></tr></thead><tbody>' +
+      '<div class="modal-body" style="padding:14px 20px 18px"><table class="compare-table hc-table"><thead><tr><th scope="col"><span class="sr-only">What is compared</span></th><th scope="col">' + head(a, 'Staying on the Pre-2027 Handbook') + '</th><th scope="col">' + head(b, 'Moving to the 2027 Handbook') + '</th></tr></thead><tbody>' +
       row(esc(a.coreLabel === 'Core' ? 'Core subjects required' : a.coreLabel.replace('Core - ', '') + ' core required'), a.core + ' CP', b.core + ' CP') +
       row('LLB Alternates required', a.llb + ' CP (' + a.llb / 10 + ' subjects)', b.llb + ' CP (' + b.llb / 10 + ' subjects)') +
       row('Law core still to complete', codes(a), codes(b), a.coreLeft.join() === b.coreLeft.join()) +
@@ -4513,6 +4544,7 @@
     renderHero(ctx);
     renderDock(ctx);
     renderAdvisory(ctx);
+    renderTracker(ctx);
     renderCreditOffer(ctx);
     renderNext(ctx);
     renderSectionHead(ctx);
@@ -7025,7 +7057,6 @@
       }
       case 'guide-fill': addFromGuide(lastCtx.guide.items.map(function (r, i) { return i; }), ''); break;
       case 'guide-pin':
-        ev.preventDefault();
         state.guidePinned = !state.guidePinned;
         if (state.guidePinned) ui.guideOpen = true;
         renderGuide(lastCtx);

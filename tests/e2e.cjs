@@ -1405,7 +1405,7 @@ async function renderPdf(page, key, mode, orient, file) {
   const quiet = await lay.evaluate(() => { const b = document.querySelector('#grid .defer-btn'); b.closest('.subj').scrollIntoView({ block: 'center' }); return b.dataset.slot; });
   const toolOpacity = () => lay.$eval(`#slot-${quiet} .subj-edit`, b => getComputedStyle(b).opacity);
   await lay.mouse.move(0, 0);
-  check(await toolOpacity() === '0.78' && await lay.$eval(`#slot-${quiet}`, c => c.getBoundingClientRect().height < 112), 'a card at rest should show its tools quietly, with no empty room under them');
+  check(await toolOpacity() === '1' && await lay.$eval(`#slot-${quiet}`, c => c.getBoundingClientRect().height < 112), 'a card at rest should show its tools quietly, with no empty room under them');
   await lay.hover(`#slot-${quiet} .subj-title`);
   check(await toolOpacity() === '1', 'hovering a card should show its tools');
   await lay.mouse.move(0, 0);
@@ -2765,6 +2765,19 @@ async function renderPdf(page, key, mode, orient, file) {
       llb: c.slots.filter(llb).length, total: c.totalCP, guide: c.guide ? c.guide.items.length : 0, edit: !!c.edit,
     };
   });
+  // the requirement tracker counts each kind of subject, follows the Handbook and moves with a tick
+  const track = () => hb.$$eval('#dock-track .track-item', li => li.map(x => x.querySelector('.track-label').textContent + ' ' + x.querySelector('.track-num').textContent).join(' | '));
+  check(await track() === 'Law core 0 / 190 CP | Non-law core 0 / 120 CP | LLB Alternates 0 / 50 CP | Choices 0 / 40 CP', `the tracker should count the 2027 structure, got ${await track()}`);
+  await hb.selectOption('#sel-cohort', 'pre2027');
+  check(/^Law core 0 \/ 160 CP \| Non-law core 0 \/ 120 CP \| LLB Alternates 0 \/ 80 CP/.test(await track()), `the tracker should follow the pre-2027 structure, got ${await track()}`);
+  await hb.selectOption('#sel-cohort', '2027');
+  await hb.click(`#slot-${await hb.evaluate(() => WSLSA.context().slots.find(x => x.code === 'LAWS 1003').id)} .tick`);
+  check(/^Law core 10 \/ 190 CP/.test(await track()) && await hb.$eval('#dock-track .tk-law .tb-done', i => i.style.width !== '0%'), `ticking a subject should move the tracker at once, got ${await track()}`);
+  await hb.click('#section-tools [data-action="undo"]');
+  check(await hb.evaluate(() => { const d = document.querySelector('#sel-degree'); const p = document.querySelector('#dock .progress'); return p.getBoundingClientRect().top > d.getBoundingClientRect().bottom - 1 && getComputedStyle(document.getElementById('tracker')).display === 'none' && document.querySelector('#guide summary .guide-pin') === null; }), 'the dock should keep its progress and the tracker on a second line on a wide screen');
+  await hb.setViewportSize({ width: 900, height: 900 });
+  check(await hb.evaluate(() => getComputedStyle(document.getElementById('dock-track')).display === 'none' && document.querySelectorAll('#tracker .track-item').length === 4 && document.getElementById('tracker').getBoundingClientRect().height > 0), 'on a narrow screen the tracker should sit under the advisory instead');
+  await hb.setViewportSize({ width: 1440, height: 1000 });
   // an edited pathway moves to the pre-2027 structure and back exactly as it was
   const torts = await hb.evaluate(() => WSLSA.context().slots.find(x => x.code === 'LAWS 2013').id);
   await hb.selectOption(`#slot-${torts} .move-sel`, '2|Spring');
