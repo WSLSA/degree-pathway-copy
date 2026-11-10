@@ -363,6 +363,8 @@
       loads: sanitiseLoads(c.loads),
       // a student's own note on a session, by its place in the plan
       notes: sanitiseNotes(c.notes),
+      // suggestions the student has dismissed from the guide: a subject by its code, or a choice by its pathway row
+      skip: (Array.isArray(c.skip) ? c.skip : []).slice(0, MAX_SLOTS).map(function (k) { return sanitiseSkip(k, tpl); }).filter(Boolean),
       slots: (Array.isArray(c.slots) ? c.slots : []).slice(0, MAX_SLOTS).map(function (x) { return sanitiseCSlot(x, tpl); }).filter(Boolean),
     };
     if (out.cohort === startCohort(out.start)) out.cohort = '';
@@ -377,6 +379,12 @@
       if (/^\d+$/.test(k) && +k < MAX_YEARS * 3 && cp !== LOAD_CP.FT && SESSION_LOADS.some(function (x) { return x[0] === cp; })) out[+k] = cp;
     });
     return out;
+  }
+  function sanitiseSkip(k, tpl) {
+    if (!k || typeof k !== 'object') return null;
+    const code = normCode(str(k.code, 16));
+    if (code && !GLOBAL_BY_CODE[code] && !EXTRA_BY_CODE[code]) return null;
+    return { code: code, o: !code && tpl && typeof k.o === 'string' && PATH[tpl].some(function (r) { return r.id === k.o; }) ? k.o : '' };
   }
   function sanitiseNotes(n) {
     const out = {};
@@ -554,6 +562,7 @@
     if (plan.years) parts.push('yr=' + plan.years);
     const lk = Object.keys(plan.loads || {});
     if (lk.length) parts.push('ld=' + lk.map(function (k) { return k + '.' + plan.loads[k]; }).join(','));
+    if ((plan.skip || []).length) parts.push('sk=' + plan.skip.map(function (k) { return k.code ? linkCode(k.code) : k.o && tIdx[k.o] != null ? 'o' + tIdx[k.o] : ''; }).join(','));
     const nk = Object.keys(plan.notes || {});
     if (nk.length) parts.push('nt=' + nk.map(function (k) { return k + ':' + enc(plan.notes[k]); }).join(','));
     if (plan.need.length) parts.push('nd=' + needLink(plan.need, tIdx, plan.tpl));
@@ -701,6 +710,7 @@
       cp: f.cp ? +f.cp : tdeg ? tdeg.cp : 10, tpl: tpl, start: +f.st || 0, pace: +f.pc || 0, cohort: f.co === 'p' ? 'pre2027' : f.co === 'n' ? '2027' : '',
       years: +f.yr || 0, need: needFromLink(typeof f.nd === 'string' ? f.nd : '', tpl), slots: slots,
       loads: (typeof f.ld === 'string' ? f.ld.split(',') : []).reduce(function (o, it) { const v = it.split('.'); o[v[0]] = +v[1]; return o; }, {}),
+      skip: (typeof f.sk === 'string' ? f.sk.split(',') : []).map(function (it) { const m = /^o(\d+)$/.exec(it); const typed = dec(it); return m ? { code: '', o: base[+m[1]] ? base[+m[1]].o : '' } : { code: normCode(typed) || typed, o: '' }; }),
       notes: (typeof f.nt === 'string' ? f.nt.split(',') : []).reduce(function (o, it) { const i = it.indexOf(':'); if (i > 0) o[it.slice(0, i)] = dec(it.slice(i + 1)); return o; }, {}),
     });
   }
@@ -987,6 +997,12 @@
     // any credit points still missing beyond the requirements are open subject slots
     const short = plan.cp - ctx.totalCP - items.reduce(function (a, r) { return a + r.cp; }, 0);
     for (let n = 0; n < short && items.length < MAX_SLOTS; n += 10) items.push({ code: '', cp: 10, o: '', sess: '', type: 'choice', list: null });
+    // a suggestion the student has dismissed is left out, one for one, and is not replaced by an open slot
+    let skipped = 0;
+    (plan.skip || []).forEach(function (k) {
+      const i = items.findIndex(function (r) { return k.code ? !!r.code && sameAs(k.code).indexOf(r.code) >= 0 : !r.code && (r.o || '') === k.o; });
+      if (i >= 0) { items.splice(i, 1); skipped++; }
+    });
     if (!items.length) return null;
     // a suggested session for each: named subjects first, in the order of the list (an audit's own list puts those being
     // phased out first), then choices, each in the earliest session it runs in, after its known prerequisites, at up to
@@ -1029,7 +1045,7 @@
     const counted = ctx.slots.filter(function (s) { return s.done && !s.pending && LEGACY_EQUIVALENTS[s.code]; })
       .map(function (s) { return { from: s.code, to: LEGACY_EQUIVALENTS[s.code] }; });
     order.forEach(function (r) { delete r.by; delete r.list; });
-    return { items: order, cp: order.reduce(function (a, r) { return a + r.cp; }, 0), firstK: firstK, lastK: lastK, lastYear: Math.floor(lastK / 3) + 1, open: open, counted: counted };
+    return { skipped: skipped, items: order, cp: order.reduce(function (a, r) { return a + r.cp; }, 0), firstK: firstK, lastK: lastK, lastYear: Math.floor(lastK / 3) + 1, open: open, counted: counted };
   }
   // the guide's items by suggested session, in order
   function guideSessions(g) {
@@ -1073,7 +1089,8 @@
         '<span class="gi-main">' + (r.code ? '<code>' + esc(r.code) + '</code><span class="gi-title">' + esc(r.label) + '</span>' : '<span class="gi-title gi-open">' + esc(r.label) + '</span>') +
         '<span class="gi-cp">' + r.cp + ' CP</span>' + (note ? '<small class="gi-note">' + esc(note) + '</small>' : '') + '</span>' +
         '<span class="gi-add"><span class="select-wrap"><select id="gi-' + x.i + '" aria-label="Session for ' + esc(name) + '">' + sessOpts(r) + '</select></span>' +
-        '<button type="button" class="tbtn tbtn-outline gi-btn" data-action="guide-add" data-gi="' + x.i + '" aria-label="Add ' + esc(name) + ' to the chosen session">+ Add</button></span></li>';
+        '<button type="button" class="tbtn tbtn-outline gi-btn" data-action="guide-add" data-gi="' + x.i + '" aria-label="Add ' + esc(name) + ' to the chosen session">+ Add</button>' +
+        '<button type="button" class="gi-x" data-action="guide-dismiss" data-gi="' + x.i + '" aria-label="Dismiss the suggestion ' + esc(name) + '" title="Dismiss this suggestion. Undo or Restore brings it back.">Dismiss ×</button></span></li>';
     };
     const open = ui.guideOpen !== false;
     const pinned = !!state.guidePinned;
@@ -1090,6 +1107,7 @@
       '<div class="guide-cols"><div class="guide-check"><h3>Remaining degree checklist</h3><ul>' +
       order.map(function (k) { return '<li><b>' + count(k) + '</b> (' + cpOf(kinds[k]) + ' CP)' + (k === 'law' || k === 'core' ? ': ' + kinds[k].map(function (r) { return esc(r.code); }).join(', ') : '') + '</li>'; }).join('') +
       '<li class="gc-total"><b>' + g.cp + ' CP</b> remaining of ' + ctx.plan.cp + ' CP</li></ul>' +
+      (g.skipped ? '<p class="guide-counted guide-skipped">' + plural(g.skipped, 'suggestion') + ' dismissed. <button type="button" class="linkish" data-action="guide-restore">Restore</button></p>' : '') +
       (g.counted.length ? '<p class="guide-counted">Already counted, so not listed again: ' + g.counted.map(function (c) { return esc(c.from) + ' for ' + esc(c.to); }).join(', ') + '.</p>' : '') +
       (ctx.tdeg ? '<button type="button" class="text-btn strong guide-compare" data-action="handbook-compare">Compare Pre-2027 vs 2027 Handbook for my progress →</button>' : '') + '</div>' +
       '<div class="guide-plan"><h3>Suggested session by session</h3><div class="guide-sessions">' + sessions.map(function (gs, i) {
@@ -2856,6 +2874,7 @@
       '<button type="button" class="tbtn tbtn-primary" data-action="repace-open" title="Change your load for the rest of your degree, take a session off, start in Spring or finish earlier">Re-Pace / Switch Load</button>' +
       '<div class="pop plan-tools"><button type="button" class="tbtn pop-btn" data-action="pop-toggle" aria-expanded="false" aria-controls="plan-tools-menu">Plan Tools</button><div class="pop-menu" id="plan-tools-menu" hidden>' +
       suggestItem(ctx) + pinItems() + item('transfer-open', 'Simulate Degree Transfer', 'See how your completed subjects would count in another degree') +
+      (ctx.custom && (ctx.plan.skip || []).length ? item('guide-restore', 'Restore Dismissed Suggestions', 'Bring back the ' + plural(ctx.plan.skip.length, 'suggestion') + ' you dismissed from the Suggested Remaining Guide') : '') +
       ((ctx.custom ? ctx.tdeg : true) ? item('handbook-compare', 'Compare Handbooks', 'See what you would still need under the pre-2027 and the 2027 Handbook, side by side') : '') +
       '<span class="pop-sep"></span>' + (canResetSequence(ctx) ? item('reset-sequence', 'Reset to Default Sequence', 'Put back the WSLSA order and subjects, keeping your ticks') : '') + (isCustom()
         ? item('custom-setup', 'Custom Plan Setup', 'Change the degree name, credit points or starting template') +
@@ -3040,6 +3059,7 @@
     plan.pace = 0;
     plan.years = 0;
     plan.need = [];
+    plan.skip = [];
     const taken = {};
     let kept = 0;
     old.filter(function (x) { return x.code; }).forEach(function (x) {
@@ -4130,7 +4150,7 @@
       return Object.assign({}, r.slot, { y: Math.floor(r.k / 3) + 1, s: PLAN_SESSIONS[r.k % 3] });
     });
     // a re-paced plan runs at one load, so loads set by hand go; the student's notes stay with their sessions
-    return sanitiseCustom(Object.assign(head, { start: o.start === START_YEAR ? 0 : o.start, pace: o.load, cohort: o.cohort, slots: slots, notes: ctx.custom ? ctx.plan.notes : {} }));
+    return sanitiseCustom(Object.assign(head, { start: o.start === START_YEAR ? 0 : o.start, pace: o.load, cohort: o.cohort, slots: slots, notes: ctx.custom ? ctx.plan.notes : {}, skip: ctx.custom ? ctx.plan.skip : [] }));
   }
   function paceSummary(res, o) {
     const rest = res.todo.reduce(function (a, r) { return a + r.cp; }, 0);
@@ -5582,6 +5602,7 @@
     plan.need = [];
     plan.loads = {};
     plan.notes = {};
+    plan.skip = [];
     plan.cohort = cohort === startCohort(0) ? '' : cohort;
     plan.slots = plan.tpl ? restructure(plan.tpl, templateSlots(plan.tpl, false), cohort, 0) : [];
     fitToCP(plan);
@@ -5683,8 +5704,8 @@
     const prev = state.custom;
     const filled = prev ? prev.slots.filter(function (x) { return x.code; }).length : 0;
     if (filled && start !== 'keep' && !window.confirm('Start again? This replaces the ' + plural(filled, 'subject') + ' in your current custom plan.')) return;
-    const plan = { name: $('#cs-name').value.trim().slice(0, 120), code: $('#cs-code').value.trim().slice(0, 16), cp: clampCP(cpRaw), tpl: '', start: 0, pace: 0, cohort: '', years: 0, need: [], loads: {}, notes: {}, slots: [] };
-    if (start === 'keep' && prev) { plan.tpl = prev.tpl; plan.slots = prev.slots; plan.pace = prev.pace; plan.years = prev.years || 0; plan.need = prev.need || []; plan.loads = prev.loads || {}; plan.notes = prev.notes || {}; }
+    const plan = { name: $('#cs-name').value.trim().slice(0, 120), code: $('#cs-code').value.trim().slice(0, 16), cp: clampCP(cpRaw), tpl: '', start: 0, pace: 0, cohort: '', years: 0, need: [], loads: {}, notes: {}, skip: [], slots: [] };
+    if (start === 'keep' && prev) { plan.tpl = prev.tpl; plan.slots = prev.slots; plan.pace = prev.pace; plan.years = prev.years || 0; plan.need = prev.need || []; plan.loads = prev.loads || {}; plan.notes = prev.notes || {}; plan.skip = prev.skip || []; }
     else if (start === 'template') { plan.tpl = $('#cs-tpl-major').value; plan.slots = templateSlots(plan.tpl, $('#cs-tpl-mine').checked); }
     const began = +$('#cs-year').value;
     plan.start = began < START_YEAR ? began : 0;
@@ -7303,6 +7324,29 @@
       case 'guide-add': {
         const sel = document.getElementById('gi-' + el.dataset.gi);
         addFromGuide([+el.dataset.gi], sel ? sel.value : '');
+        break;
+      }
+      case 'guide-dismiss': {
+        const r = lastCtx.guide && lastCtx.guide.items[+el.dataset.gi];
+        const plan = editPlan();
+        if (!r || !plan) break;
+        const name = r.code || r.label;
+        noteChange('dismissed the suggestion ' + name);
+        // a subject is remembered by the code the list holds it under, and a choice by its pathway row
+        plan.skip.push({ code: r.was && LEGACY[r.was] ? r.was : r.code || '', o: r.code ? '' : r.o || '' });
+        renderMoving();
+        toast(name + ' dismissed from the guide. Your degree may still need it, so check before you enrol.', { action: 'undo', label: 'Undo' });
+        break;
+      }
+      case 'guide-restore': {
+        const plan = editPlan();
+        if (!plan || !plan.skip.length) break;
+        noteChange('restored the dismissed suggestions');
+        const n = plan.skip.length;
+        plan.skip = [];
+        ui.guideOpen = true;
+        renderMoving();
+        toast(plural(n, 'dismissed suggestion') + ' restored to the guide.', { action: 'undo', label: 'Undo' });
         break;
       }
       case 'guide-fill': addFromGuide(lastCtx.guide.items.map(function (r, i) { return i; }), ''); break;

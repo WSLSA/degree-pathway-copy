@@ -1595,3 +1595,8 @@ html[data-theme="dark"] .subj:hover { box-shadow: 0 10px 24px -12px rgba(0, 0, 0
 .type-sel:hover, .type-sel:focus-visible { border-color: var(--crimson); color: var(--crimson); }
 .type-sel option { font: 500 13px var(--sans); color: var(--ink); background: var(--surface); }
 @media (pointer: coarse) { .type-sel { min-height: 34px; } }
+
+/* ---------- dismissing one suggestion in the guide */
+.gi-x { min-height: 34px; padding: 0 4px; border: 0; border-bottom: 1px solid transparent; background: none; color: var(--muted); font: 700 10px var(--sans); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; cursor: pointer; }
+.gi-x:hover, .gi-x:focus-visible { color: var(--crimson); border-bottom-color: var(--crimson); }
+.guide-skipped { margin-top: 8px; }

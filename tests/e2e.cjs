@@ -2994,6 +2994,26 @@ async function renderPdf(page, key, mode, orient, file) {
   check(first.sel === first.at, 'the session beside a guide item should start at the one suggested');
   await hb.click('#guide [data-action="guide-add"][data-gi="0"]');
   check(await hb.evaluate(c => WSLSA.context().slots.some(x => x.code === c && x.year === 4) && WSLSA.guide().cp === 140, first.code) && /140 CP/.test(await hb.textContent('#guide .guide-counts')), 'adding from the guide should place the subject and update the count');
+  // one suggestion can be dismissed on its own: the rest stay, nothing takes its place, and it comes back
+  const g0 = await hb.evaluate(() => { const g = WSLSA.guide(); return { n: g.items.length, cp: g.cp, codes: g.items.map(r => r.code || r.kind).join(','), buttons: document.querySelectorAll('#guide [data-action="guide-dismiss"]').length }; });
+  check(g0.buttons === g0.n, `every suggestion should have its own Dismiss, got ${g0.buttons} for ${g0.n}`);
+  const gone = await hb.evaluate(() => { const g = WSLSA.guide(); const i = g.items.findIndex(r => r.code === 'LAWS 3018'); return i; });
+  await hb.evaluate(() => document.querySelectorAll('#guide .guide-sess').forEach(d => { d.open = true; }));
+  await hb.click(`#guide [data-action="guide-dismiss"][data-gi="${gone}"]`);
+  let g1 = await hb.evaluate(() => { const g = WSLSA.guide(); return { n: g.items.length, cp: g.cp, has: g.items.some(r => r.code === 'LAWS 3018'), open: g.items.filter(r => r.kind === 'open').length, skip: WSLSA.custom().skip, text: document.querySelector('#guide .guide-skipped').textContent, link: WSLSA.linkText() }; });
+  check(g1.n === g0.n - 1 && g1.cp === g0.cp - 10 && !g1.has && g1.open === 0 && JSON.stringify(g1.skip) === '[{"code":"LAWS 3018","o":""}]' && /1 suggestion dismissed/.test(g1.text) && /\/sk=LAWS3018/.test(g1.link), `dismissing one suggestion should take only that one out, got ${JSON.stringify(g1)}`);
+  const llbAt = await hb.evaluate(() => WSLSA.guide().items.findIndex(r => r.kind === 'llb'));
+  await hb.evaluate(() => document.querySelectorAll('#guide .guide-sess').forEach(d => { d.open = true; }));
+  await hb.click(`#guide [data-action="guide-dismiss"][data-gi="${llbAt}"]`);
+  g1 = await hb.evaluate(() => { const g = WSLSA.guide(); return { n: g.items.length, llb: g.items.filter(r => r.kind === 'llb').length, skipped: g.skipped }; });
+  check(g1.n === g0.n - 2 && g1.llb === 5 && g1.skipped === 2, `dismissing an open choice should take one of them out, got ${JSON.stringify(g1)}`);
+  await hb.click('#guide [data-action="guide-restore"]');
+  check(await hb.evaluate(() => { const g = WSLSA.guide(); return g.items.map(r => r.code || r.kind).join(','); }) === g0.codes && !(await hb.$('#guide .guide-skipped')), 'Restore should bring the dismissed suggestions back');
+  await hb.click('#section-tools [data-action="undo"]');
+  check(await hb.evaluate(() => WSLSA.custom().skip.length) === 2, 'Undo should step back through the restore');
+  await hb.click('#section-tools [data-action="undo"]');
+  await hb.click('#section-tools [data-action="undo"]');
+  check(await hb.evaluate(() => WSLSA.custom().skip.length === 0 && WSLSA.guide().items.length) === g0.n, 'Undo should bring each dismissed suggestion back in turn');
   // the guide pins to the bottom of the screen as a tray, and stays pinned after a reload
   await hb.click('#guide [data-action="guide-pin"]');
   const tray = await hb.evaluate(() => { const g = document.getElementById('guide'); const r = g.getBoundingClientRect(); return { fixed: getComputedStyle(g).position, bottom: Math.round(innerHeight - r.bottom), tall: r.height <= innerHeight * 0.38 + 1, open: document.getElementById('guide-box').open, saved: WSLSA.state().guidePinned }; });
