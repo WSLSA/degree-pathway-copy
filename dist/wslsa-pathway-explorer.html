@@ -1609,6 +1609,15 @@ html[data-theme="dark"] .subj:hover { box-shadow: 0 10px 24px -12px rgba(0, 0, 0
 }
 @media (prefers-reduced-motion: reduce) { .subj.is-open .subj-edit { animation: none; } }
 
+/* ---------- the kind of slot a card is, changed on the card */
+.type-wrap { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 24px; padding-left: 8px; }
+.type-l { font: 700 10px var(--sans); letter-spacing: .11em; text-transform: uppercase; color: var(--muted); }
+.type-wrap::after { content: "▾"; position: absolute; right: 8px; font-size: 10px; color: var(--crimson); pointer-events: none; }
+.type-sel { appearance: none; -webkit-appearance: none; min-height: 24px; max-width: 190px; padding: 0 20px 0 9px; background: var(--surface); border: 1px solid var(--hairline-2); border-radius: 999px; font: 600 11.5px var(--sans); color: var(--text); cursor: pointer; text-overflow: ellipsis; }
+.type-sel:hover, .type-sel:focus-visible { border-color: var(--crimson); color: var(--crimson); }
+.type-sel option { font: 500 13px var(--sans); color: var(--ink); background: var(--surface); }
+@media (pointer: coarse) { .type-sel { min-height: 34px; } }
+
 </style>
 <style>
 /* WSLSA 2027 Degree Guide: print / PDF document styles, aligned with wslsa.com.au.
@@ -1822,6 +1831,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
             <button type="button" class="tbtn pop-item" data-action="export-open" title="Choose guide type, orientation and LLB Alternate filters, with a live A4 preview">PDF Options</button>
             <button type="button" class="tbtn pop-item top-quiet" data-action="reset" title="Clear choices and progress for this pathway">Reset Plan</button>
             <button type="button" class="tbtn pop-item" data-action="backup-save" title="Save your whole plan to a file on this device">Download Backup (.json)</button>
+            <a class="tbtn pop-item top-link" href="https://www.westernsydney.edu.au/students/dates" target="_blank" rel="noopener" title="Western Sydney University's semester and session dates">Semester &amp; Session Dates ↗</a>
             <a class="tbtn pop-item top-link" href="https://wslsa.com.au/" target="_blank" rel="noopener">wslsa.com.au ↗</a>
           </div>
         </div>
@@ -1975,14 +1985,18 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     'LAWS 2015': 'Professional Responsibility and Legal Ethics', 'LAWS 4004': 'Criminal Procedure and Evidence',
     'LAWS 4013': 'Civil Procedure and Arbitration', 'ECON 2002': 'Corporate Financial Management',
   };
-  // The code a subject not yet completed goes by in a session of a given calendar year. From 2027 a student enrols in
-  // the 2027 subject, whichever structure they follow; before 2027 a student on the pre-2027 structure took the
-  // pre-2027 one. A completed subject keeps the code it was passed under, so this is never asked of one.
-  function codeFor(code, cohort, year) {
-    const old = cohort === 'pre2027' && year < START_YEAR;
-    if (LEGACY_EQUIVALENTS[code]) return old ? code : LEGACY_EQUIVALENTS[code];
-    return LEGACY_OF[code] && old ? LEGACY_OF[code] : code;
+  // The code a subject not yet completed goes by in a session of a given calendar year. A student who started before
+  // 2027 (past) and follows the pre-2027 structure keeps to the pre-2027 subject for as long as it is offered, up to its
+  // final offering in PHASE_OUT, and takes the 2027 subject after that. A 2027 pathway shown in the pre-2027 structure
+  // starts in 2027, so it shows the 2027 subjects and says what each replaces. A completed subject keeps the code it was
+  // passed under, so this is never asked of one.
+  function codeFor(code, cohort, year, past) {
+    const old = LEGACY_EQUIVALENTS[code] ? code : LEGACY_OF[code];
+    if (!old) return code;
+    const last = past && PHASE_YEAR[old] ? PHASE_YEAR[old] : START_YEAR - 1;
+    return cohort === 'pre2027' && year <= last ? old : LEGACY_EQUIVALENTS[old];
   }
+  function startedBefore(start) { return !!start && start < START_YEAR; }
   function isNewCore(row) { return !!row && row.kind === 'fixed' && NEW_2027_CORES.indexOf(row.code) >= 0; }
   function cohortSet(name, value, note) {
     return '<fieldset class="cohort-set"><legend>Cohort Structure</legend>' + ['pre2027', '2027'].map(function (c) {
@@ -2940,6 +2954,11 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       r.k = k;
       r.y = Math.floor(k / 3) + 1;
       r.s = PLAN_SESSIONS[k % 3];
+      // a pre-2027 subject suggested for a session after its final offering is the 2027 subject that replaces it
+      if (r.code && startedBefore(plan.start)) {
+        const c = codeFor(r.code, cohortOf(plan), plan.start + r.y - 1, true);
+        if (c !== r.code) { r.was = LEGACY_EQUIVALENTS[r.code] ? r.code : ''; r.code = c; }
+      }
       r.kind = r.code ? (/^LAWS /.test(r.code) ? 'law' : 'core') : !rows[r.o] ? 'open' : rows[r.o].kind === 'llb' ? 'llb' : rows[r.o].kind === 'elective' ? 'elective' : 'choice';
       r.label = r.code ? (GLOBAL_BY_CODE[r.code] || EXTRA_BY_CODE[r.code] || { title: r.code }).title : r.kind === 'llb' ? 'LLB Alternate' : r.kind === 'elective' ? 'Elective (any WSU subject)' : r.kind === 'choice' ? 'Choice: ' + cleanPoolTitle(rows[r.o].title) : 'Any subject';
       lastK = Math.max(lastK, k);
@@ -2960,7 +2979,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   const GUIDE_KIND = { law: ['Law core subject', 'Law core subjects'], core: ['other required subject', 'other required subjects'], llb: ['LLB Alternate slot', 'LLB Alternate slots'], elective: ['elective', 'electives'], choice: ['choice', 'choices'], open: ['open subject slot', 'open subject slots'] };
   function guideNote(r) {
     if (r.was) return 'Replaces pre-2027 ' + r.was + (PHASE_YEAR[r.was] ? ' · last offered ' + PHASE_YEAR[r.was] : '');
-    if (LEGACY[r.code]) return 'Pre-2027 subject' + (PHASE_YEAR[r.code] ? ' · last offered ' + PHASE_YEAR[r.code] : '') + (LEGACY_EQUIVALENTS[r.code] ? ' · or ' + LEGACY_EQUIVALENTS[r.code] + ' from 2027' : '');
+    if (LEGACY[r.code]) return 'Pre-2027 subject' + (PHASE_YEAR[r.code] ? ' · last offered ' + PHASE_YEAR[r.code] + (LEGACY_EQUIVALENTS[r.code] ? ' · after that, ' + LEGACY_EQUIVALENTS[r.code] : '') : '');
     if (LEGACY_OF[r.code] && ctxCohort(lastCtx) === 'pre2027') return 'Replaces pre-2027 ' + LEGACY_OF[r.code] + (PHASE_YEAR[LEGACY_OF[r.code]] ? ' · last offered ' + PHASE_YEAR[LEGACY_OF[r.code]] : '');
     return '';
   }
@@ -3156,7 +3175,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     // a subject still ahead goes by the code a student enrols in that year: the 2027 one from 2027
     const out = slots.map(function (x) {
       if (kept(x) || !x.code) return x;
-      const to = codeFor(x.code, cohort, (start || START_YEAR) + x.y - 1);
+      const to = codeFor(x.code, cohort, (start || START_YEAR) + x.y - 1, startedBefore(start));
       if (to === x.code || held[to]) return x;
       held[to] = 1;
       return Object.assign({}, x, { code: to, title: '' });
@@ -3201,7 +3220,8 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       if (pre) {
         if (NEW_2027_CORES.indexOf(n.code) >= 0 && t.llb.length) return { code: '', was: '', cp: n.cp, o: t.llb[0].id, sess: '' };
         const now = LEGACY_EQUIVALENTS[n.code] || n.code;
-        return Object.assign({}, n, { code: now, was: LEGACY_OF[now] || '' });
+        // a student who started before 2027 is listed the pre-2027 subject, and one who did not, the 2027 subject with a note
+        return startedBefore(plan.start) ? Object.assign({}, n, { code: LEGACY_OF[now] || now, was: '' }) : Object.assign({}, n, { code: now, was: LEGACY_OF[now] || '' });
       }
       return Object.assign({}, n, { code: LEGACY_EQUIVALENTS[n.code] || n.code, was: '' });
     });
@@ -3962,6 +3982,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     else if (s.kind === 'option' && s.pick) out.push(tool('clear', 'Reset', 'Back to the WSLSA pick for this slot'));
     else if (s.kind === 'inline' && s.chosen && s.raw.options.length > 1) out.push(tool('clear', 'Clear', 'Clear your choice for this slot'));
     if (!pt) out.push(moveSelect(s));
+    if (!pt) out.push(typeSelect(s, ctx));
     if (picked && s.code && hasChain(s.code, ctx)) out.push(tool('xray', 'Chain', 'Show what this subject depends on and unlocks', 'chain-btn', ' aria-pressed="' + (ui.xrayPin === s.id) + '"'));
     if (picked && !s.done && s.code && !pt) out.push(tool('defer', 'Defer ↷', 'Move to the next session it runs in, and move any subject that needs it' + (ctx.custom ? '' : ', in your edited copy of this pathway'), 'defer-btn', ' aria-label="Defer ' + esc(s.code) + ' to its next offered session"'));
     if (!pt) out.push(tool('cremove', '<span class="tl">Remove </span>×', 'Remove ' + name + ' from your plan', 'rm-btn', ' aria-label="Remove ' + esc(name) + ' from your plan"'));
@@ -4034,13 +4055,43 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     document.addEventListener(type, function (ev) { if (ev.target.classList && ev.target.classList.contains('move-sel')) fillMove(ev.target); }, true);
   });
   // + Add slot: a slot for any subject, or one tied to the pathway's own kinds of choice
+  function kindLabel(r) {
+    return !r ? '' : r.kind === 'llb' ? 'LLB Alternate slot' : r.kind === 'elective' ? 'Elective slot' : r.kind === 'option' ? 'Major option slot' : r.kind === 'pool' ? 'Choice: ' + cleanPoolTitle(r.title) : '';
+  }
+  // The kind of slot a card is, changed on the card itself: a subject put in as any WSU subject that should have been an
+  // LLB Alternate, say, is set right without taking the card out and adding it again.
+  function typeSelect(s, ctx) {
+    const kinds = slotKinds(ctx);
+    const row = ctx.custom ? (s.newCore ? null : s.orig) : s.raw;
+    const can = ctx.custom ? !s.orig || s.newCore || !!kindLabel(s.orig) : s.kind === 'llb' || s.kind === 'elective' || s.kind === 'pool';
+    if (!kinds.length || !can) return '';
+    const now = s.newCore ? 'LLB Alternate slot' : kindLabel(row);
+    return '<label class="type-wrap" title="What this slot counts as in your degree"><span class="type-l">Type</span><select class="type-sel" data-slot="' + s.id + '" aria-label="Type of slot for ' + esc(s.pending ? 'this open slot' : s.code) + '">' +
+      '<option value=""' + (now ? '' : ' selected') + '>Any WSU subject</option>' +
+      kinds.map(function (k) { return '<option value="' + k.o + '"' + (k.label === now ? ' selected' : '') + '>' + esc(k.label.replace(/ slot$/, '').replace(/^Choice: /, '')) + '</option>'; }).join('') + '</select></label>';
+  }
+  function setSlotType(slotId, o) {
+    const sid = ensureEditable(slotId);
+    const s = lastCtx.byId[sid];
+    const plan = editPlan();
+    if (!s || !plan) return;
+    const row = o && plan.tpl ? PATH[plan.tpl].find(function (r) { return r.id === o; }) : null;
+    const x = plan.slots[s.idx];
+    const name = s.pending ? 'The ' + where(s) + ' slot' : s.code;
+    noteChange('changed what ' + (s.pending ? 'a slot' : s.code) + ' counts as');
+    x.o = row ? row.id : '';
+    if (!x.code) x.cp = row ? row.cp : 10;
+    ui.openCard = sid;
+    renderMoving(function () { flashSlot(sid, true); });
+    toast(name + ' now counts as ' + (row ? kindLabel(row).replace(/ slot$/, '').replace(/^Choice: /, 'a choice from ') : 'any WSU subject') + '.', { action: 'undo', label: 'Undo' });
+  }
   function slotKinds(ctx) {
     const key = ctx.custom ? ctx.plan.tpl : ctx.key;
     if (!key) return [];
     const out = [];
     const seen = {};
     PATH[key].forEach(function (r) {
-      const label = r.kind === 'llb' ? 'LLB Alternate slot' : r.kind === 'elective' ? 'Elective slot' : r.kind === 'option' ? 'Major option slot' : r.kind === 'pool' ? 'Choice: ' + cleanPoolTitle(r.title) : '';
+      const label = kindLabel(r);
       if (!label || seen[label]) return;
       seen[label] = 1;
       out.push({ o: r.id, label: label });
@@ -7345,7 +7396,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   // a subject not yet completed goes by the code a student enrols in for the year it now sits in
   function yearCode(plan, x) {
     if (!x.code || x.done) return;
-    const to = codeFor(x.code, cohortOf(plan), (plan.start || START_YEAR) + x.y - 1);
+    const to = codeFor(x.code, cohortOf(plan), (plan.start || START_YEAR) + x.y - 1, startedBefore(plan.start));
     if (to === x.code || plan.slots.some(function (o) { return o !== x && o.code === to; })) return;
     x.code = to;
     x.title = '';
@@ -8094,8 +8145,11 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
           let code = r.codes[0];
           if (had[code]) return;
           // a pre-2027 subject still needed shows as the 2027 subject that replaces it, the one to enrol in, with a note
-          const was = LEGACY_EQUIVALENTS[code] ? code : '';
+          // under the pre-2027 structure a pre-2027 subject still needed stays as it is; under the 2027 structure it is
+          // the 2027 subject that replaces it, with a note
+          const was = !pre && LEGACY_EQUIVALENTS[code] ? code : '';
           if (was) code = LEGACY_EQUIVALENTS[was];
+          else if (pre && LEGACY_OF[code]) code = LEGACY_OF[code];
           const t = fixed.find(function (x) { return sameAs(code).indexOf(x.code) >= 0 && !used[x.id]; });
           if (t) used[t.id] = 1;
           rest.push({ code: code, was: was, first: PHASE_YEAR[was || code], cp: GLOBAL_BY_CODE[code] ? GLOBAL_BY_CODE[code].cp : r.cp, o: t ? t.id : '', sess: t ? t.session : offeredIn(code) });
@@ -8118,9 +8172,9 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
         if (!s.pending && had[s.code]) return;
         if (pre && NEW_2027_CORES.indexOf(s.code) >= 0) { rest.push({ code: '', cp: s.cp, o: llbId, sess: '', newCore: s.code }); return; }
         // in the pre-2027 structure a 2027 subject that replaces a pre-2027 one the student has not passed says so
-        const was = pre && !s.pending && LEGACY_OF[s.code] && !had[LEGACY_OF[s.code]] ? LEGACY_OF[s.code] : '';
+        const old = pre && !s.pending && LEGACY_OF[s.code] && !had[LEGACY_OF[s.code]] ? LEGACY_OF[s.code] : '';
         // an open choice can go in any session its options run in
-        rest.push({ code: s.pending ? '' : s.code, was: was, cp: s.cp, o: s.id, sess: s.pending ? (s.kind === 'inline' ? runsIn(s.raw.options.map(function (x) { return x.code; })) : '') : s.session });
+        rest.push({ code: s.pending ? '' : old || s.code, was: '', first: PHASE_YEAR[old], cp: s.cp, o: s.id, sess: s.pending ? (s.kind === 'inline' ? runsIn(s.raw.options.map(function (x) { return x.code; })) : '') : s.session });
       });
     }
     const cp = clampCP(info.cp || (tdeg ? tdeg.cp : 0) || slots.concat(rest).reduce(function (a, x) { return a + x.cp; }, 0));
@@ -8251,6 +8305,8 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     if (p.failed.length) notes.push(esc(p.failed.map(function (f) { return f.code; }).join(', ')) + (p.failed.length === 1 ? ' looks' : ' look') + ' like a fail or withdrawal, so ' + (p.failed.length === 1 ? 'it is' : 'they are') + ' left out.');
     if (p.counted.length) notes.push('Counted for the 2027 subjects they match: ' + p.counted.map(function (c) { return esc(c.from) + ' for ' + esc(c.to); }).join(', ') + '.');
     if (p.newCores.length) notes.push('Under the pre-2027 structure, ' + esc(p.newCores.join(', ')) + (p.newCores.length === 1 ? ' is' : ' are') + ' not part of your degree, so ' + plural(p.newCores.length, 'more LLB Alternate slot') + ' take their place.');
+    const olds = p.rest.filter(function (r) { return r.code && LEGACY[r.code]; });
+    if (olds.length) notes.push('Still needed from before 2027, and suggested while each is still offered: ' + olds.map(function (r) { return esc(r.code) + (PHASE_YEAR[r.code] ? ' (last offered ' + PHASE_YEAR[r.code] + ')' : ''); }).join(', ') + '. After its final offering, the 2027 subject that replaces it is suggested. Check with the School of Law which one to enrol in.');
     if (p.swapped.length) notes.push('Still needed and shown as the 2027 subject that replaces it: ' + p.swapped.map(function (r) { return esc(r.code) + ' for ' + esc(r.was) + (PHASE_YEAR[r.was] ? ' (last offered ' + PHASE_YEAR[r.was] + ')' : ''); }).join(', ') + '. Check with the School of Law which one to enrol in.');
     if (p.auditSetAside) notes.push('Your audit lists what you still need under the ' + (p.cohort === 'pre2027' ? '2027' : 'pre-2027') + ' structure, so with the structure chosen here the rest follows the WSLSA 2027 pathway instead.');
     const filled = state.custom ? state.custom.slots.filter(function (x) { return x.code; }).length : 0;
@@ -9379,6 +9435,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     else if (t.id === 'tr-credit') { ui.transfer.credit = t.checked; renderTransfer(); }
     else if (t.id === 'sel-campus') { state.campus = t.value; render(); }
     else if (t.id === 'sel-cohort') setCohort(t.value);
+    else if (t.classList && t.classList.contains('type-sel')) setSlotType(t.dataset.slot, t.value);
     else if (t.classList && t.classList.contains('move-sel')) { if (t.value) quickMove(t.dataset.slot, t.value); }
     else if (t.dataset && t.dataset.action === 'done') {
       const ticked = lastCtx.byId[t.dataset.slot];

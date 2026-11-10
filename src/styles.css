@@ -1586,3 +1586,12 @@ html[data-theme="dark"] .subj:hover { box-shadow: 0 10px 24px -12px rgba(0, 0, 0
   .tool-btn.rm-btn { font-size: 14px; }
 }
 @media (prefers-reduced-motion: reduce) { .subj.is-open .subj-edit { animation: none; } }
+
+/* ---------- the kind of slot a card is, changed on the card */
+.type-wrap { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 24px; padding-left: 8px; }
+.type-l { font: 700 10px var(--sans); letter-spacing: .11em; text-transform: uppercase; color: var(--muted); }
+.type-wrap::after { content: "▾"; position: absolute; right: 8px; font-size: 10px; color: var(--crimson); pointer-events: none; }
+.type-sel { appearance: none; -webkit-appearance: none; min-height: 24px; max-width: 190px; padding: 0 20px 0 9px; background: var(--surface); border: 1px solid var(--hairline-2); border-radius: 999px; font: 600 11.5px var(--sans); color: var(--text); cursor: pointer; text-overflow: ellipsis; }
+.type-sel:hover, .type-sel:focus-visible { border-color: var(--crimson); color: var(--crimson); }
+.type-sel option { font: 500 13px var(--sans); color: var(--ink); background: var(--surface); }
+@media (pointer: coarse) { .type-sel { min-height: 34px; } }

@@ -551,7 +551,7 @@ async function renderPdf(page, key, mode, orient, file) {
     `history should sit in its real sessions, with passes and subjects in progress ticked, got ${['LAWS 1003', 'MATH 1030', 'ECON 2002', 'LAWS 1009', 'LAWS 2012', 'LAWS 2008'].map(where).join(' ')}`);
   check(at(dw, 'ECON 2002').twin === 'FINC 2003' && !at(dw, 'ECON 2002').replaced && at(dw, 'MATH 1030').kind === 'Choice' && at(dw, 'LAWS 2012').kind === 'LLB Alternate', 'history should be tied to the pathway slots it fills, a pre-2027 subject counting for its 2027 twin');
   const gAt = c => { const r = dg.items.find(x => x.code === c); return r ? r.y + r.s : ''; };
-  check(gAt('LAWS 2020') === '3Autumn' && !dg.items.some(x => x.code === 'LAWS 2015') && gAt('LAWS 3018') === '3Autumn' && gAt('LAWS 2013') === '3Spring', `the guide should suggest from Autumn 2027, LAWS 2015 as LAWS 2020 and first, each in its session, got ${['LAWS 2020', 'LAWS 3018', 'LAWS 2013'].map(gAt).join(' ')}`);
+  check(gAt('LAWS 2015') === '3Autumn' && !dg.items.some(x => x.code === 'LAWS 2020') && gAt('LAWS 3018') === '3Autumn' && gAt('LAWS 2013') === '3Spring', `the guide should suggest from Autumn 2027, LAWS 2015 itself and first, each in its session, got ${['LAWS 2015', 'LAWS 3018', 'LAWS 2013'].map(gAt).join(' ')}`);
   check(!dw.slots.concat(dg.items).some(x => ['LAWS 1010', 'LAWS 2019', 'LAWS 3099', 'LAWS 3102'].indexOf(x.code) >= 0), 'a pre-2027 audit should add no 2027 subject its record already counts for, and none of the three new 2027 cores');
   check(dg.items.filter(x => x.kind === 'llb').length === 2 && !dg.items.concat(dw.slots).some(x => ['LAWS 3001', 'JUST 2013', 'NOAW 0004', 'FINC 2003'].indexOf(x.code) >= 0), 'a list to choose from should become LLB Alternate slots in the guide, with no listed code placed');
   check(JSON.stringify(await ip.$$eval('.year-bar h2 small', s => s.slice(0, 3).map(x => x.textContent))) === JSON.stringify(['2025', '2026', '2027']) && /started 2025/i.test(await ip.getAttribute('.hp-finish', 'title')) && /started 2025/.test(await ip.textContent('#details')), 'year bars and facts should show the real calendar years');
@@ -600,7 +600,7 @@ async function renderPdf(page, key, mode, orient, file) {
   const sg = await ip.evaluate(() => WSLSA.guide());
   const srAt = c => { const x = at(sr, c); return x.y + x.s + (x.done ? '+' : '-'); };
   const sgAt = c => { const r = sg.items.find(x => x.code === c); return r ? r.y + r.s : ''; };
-  check(sr.start === 2025 && ['LAWS 2003', 'ACCT 2005', 'ACCT 3007'].map(srAt).join(' ') === '1Autumn+ 1Autumn+ 2Autumn+' && sgAt('ACCT 1007') === '3Spring' && sr.total + sg.cp === 400,
+  check(sr.start === 2025 && ['LAWS 2003', 'ACCT 2005', 'ACCT 3007'].map(srAt).join(' ') === '1Autumn+ 1Autumn+ 2Autumn+' && /Spring$/.test(sgAt('ACCT 1007')) && sr.total + sg.cp === 400,
     `results should place passes in their sessions and suggest the rest of the pathway from 2027, got start ${sr.start} ${['LAWS 2003', 'ACCT 2005', 'ACCT 3007'].map(srAt).join(' ')} ${sgAt('ACCT 1007')} ${sr.total} + ${sg.cp} CP`);
   check(ip.errors.length === 0, 'Import my progress console errors: ' + ip.errors.join('; '));
   await ip.close();
@@ -661,7 +661,8 @@ async function renderPdf(page, key, mode, orient, file) {
     'Ellucian Degree Works - Copyright 1995-2026 Ellucian Company L.P.',
   ];
   const NEVER = ['LAWS 1010', 'LAWS 2018', 'FINC 2003', 'LAWS 2019', 'LAWS 3099', 'LAWS 3101', 'LAWS 3102'];
-  const CORES = ['LAWS 2020', 'LAWS 3018', 'LAWS 3082', 'LAWS 3081', 'LAWS 3045', 'LAWS 4015', 'LAWS 3100', 'LAWS 4014', 'LAWS 3103'];
+  // a student who started before 2027 is suggested the pre-2027 subjects while they are still offered
+  const CORES = ['LAWS 2015', 'LAWS 3018', 'LAWS 3082', 'LAWS 3081', 'LAWS 3045', 'LAWS 4015', 'LAWS 4004', 'LAWS 4014', 'LAWS 4013'];
   const read = async (lines, name) => pr.evaluate(([l, now, n]) => WSLSA.importPdfLines(l, now, n), [lines, NOW, name]);
   const prPlan = () => pr.evaluate(() => {
     const c = WSLSA.context();
@@ -683,7 +684,7 @@ async function renderPdf(page, key, mode, orient, file) {
   check(await pr.$$eval('.pp-badge', b => b.map(x => x.textContent).join('|')) === Array(4).fill('In Progress (2026 Spring)').join('|'), 'each subject in progress should carry its session');
   check(await pr.isChecked('#pp-inprogress') && (await pr.textContent('label.check-row:has(#pp-inprogress)')).trim() === 'Mark In-Progress subjects as completed/enrolled in their session', 'the in-progress option should be on by default');
   check(/LAWS 1009 for LAWS 1010/.test(both) && /LAWS 2004 for LAWS 2018/.test(both) && /LAWS 2001 for LAWS 3101/.test(both) && /ECON 2002 for FINC 2003/.test(both), 'the preview should say which subjects count for their 2027 replacements');
-  check(/LAWS 2020 for LAWS 2015 \(last offered 2028\)/.test(both) && /LAWS 3100 for LAWS 4004/.test(both) && /LAWS 3103 for LAWS 4013/.test(both) && /Still needed lists in your audit/.test(both), 'the preview should show the pre-2027 subjects still needed as their 2027 replacements');
+  check(/Still needed from before 2027[^.]*LAWS 2015 \(last offered 2028\)/.test(both) && /LAWS 4004 \(last offered 2029\)/.test(both) && /LAWS 4013 \(last offered 2029\)/.test(both) && !/LAWS 2020 for LAWS 2015/.test(both) && /Still needed lists in your audit/.test(both), 'the preview should name the pre-2027 subjects still needed, under their own codes');
   await pr.click('#progress-apply');
   const imported = await prPlan();
   const pg = await pr.evaluate(() => WSLSA.guide());
@@ -693,7 +694,7 @@ async function renderPdf(page, key, mode, orient, file) {
   check(pg.items.filter(x => x.kind === 'llb').length === 6 && pg.items.filter(x => x.kind === 'choice').length === 1, `the guide should list six LLB Alternate slots and one Alternate Accounting choice, got ${pg.items.filter(x => !x.code).map(x => x.kind).join(', ')}`);
   check(Array.from(new Set(pg.items.map(term))).join(', ') === '2027 Autumn, 2027 Spring, 2028 Autumn, 2028 Spring', `the guide should suggest Autumn 2027 to Spring 2028, got ${Array.from(new Set(pg.items.map(term))).join(', ')}`);
   const panel = await pr.innerText('#guide');
-  check(/Suggested Remaining Guide/i.test(panel) && /160 CP to place/.test(panel) && /9 Law core subjects/.test(panel) && /6 LLB Alternate slots/.test(panel) && /Already counted, so not listed again: .*LAWS 1009 for LAWS 1010/.test(panel) && /Replaces pre-2027 LAWS 2015 · last offered 2028/.test(panel), `the guide should sum up what is left, got ${panel.replace(/\n+/g, ' | ').slice(0, 300)}`);
+  check(/Suggested Remaining Guide/i.test(panel) && /160 CP to place/.test(panel) && /9 Law core subjects/.test(panel) && /6 LLB Alternate slots/.test(panel) && /Already counted, so not listed again: .*LAWS 1009 for LAWS 1010/.test(panel) && /Pre-2027 subject · last offered 2028 · after that, LAWS 2020/.test(panel), `the guide should sum up what is left, got ${panel.replace(/\n+/g, ' | ').slice(0, 300)}`);
   check((await pr.$$('#grid .year')).length === 5 && (await pr.$$('#grid .slot-empty')).length === 4 && /nothing planned yet/.test(await pr.textContent('#next')) && /following the guide/.test(await pr.textContent('.hp-finish')), 'Years 4 and 5 should be shown empty and ready to fill, with the finish following the guide');
   // one subject from the guide into a session of the student's choosing, then the rest in one step
   const firstItem = pg.items[0];
@@ -712,7 +713,7 @@ async function renderPdf(page, key, mode, orient, file) {
   check(Array.from(new Set(rest.map(term))).join(', ') === '2027 Autumn, 2027 Spring, 2028 Autumn, 2028 Spring' && rest.every(x => x.s !== 'Summer'), `the rest should run from Autumn 2027 to Spring 2028, got ${Array.from(new Set(rest.map(term))).join(', ')}`);
   const super_ = pre.slots.find(x => x.code === 'LAWS 3067');
   check(super_ && super_.done && term(super_) === '2026 Spring' && /^3S[34]$/.test(super_.o) && super_.kind !== 'LLB Alternate', `LAWS 3067 should fill an Alternate Accounting choice before an LLB Alternate slot, got ${JSON.stringify(super_)}`);
-  check(pre.slots.find(x => x.code === 'LAWS 2020').note === 'Replaces Pre-2027 LAWS 2015' && /Replaces Pre-2027 LAWS 4004/.test(pre.slots.find(x => x.code === 'LAWS 3100').note) && !pre.slots.find(x => x.code === 'LAWS 3018').note, 'a 2027 subject shown for a pre-2027 one should say which it replaces');
+  check(pre.slots.find(x => x.code === 'LAWS 2015').note === 'Pre-2027 subject' && /Pre-2027 subject/.test(pre.slots.find(x => x.code === 'LAWS 4004').note) && !pre.slots.find(x => x.code === 'LAWS 3018').note && !pre.slots.some(x => ['LAWS 2020', 'LAWS 3100', 'LAWS 3103'].indexOf(x.code) >= 0), 'a pre-2027 subject placed from the guide should keep its own code and say so');
   check(['LAWS 1009', 'ECON 2002', 'ACCT 3001', 'LAWS 2008'].every(c => { const x = pre.slots.find(y => y.code === c); return x && x.done; }) && term(pre.slots.find(x => x.code === 'ACCT 3001')) === '2026 Spring', 'history should keep its sessions, with subjects in progress enrolled');
   // a returning student opens the page with that plan saved
   await pr.reload();
@@ -2792,6 +2793,22 @@ async function renderPdf(page, key, mode, orient, file) {
       llb: c.slots.filter(llb).length, total: c.totalCP, guide: c.guide ? c.guide.items.length : 0, edit: !!c.edit,
     };
   });
+  check(await hb.$eval('#top-more-menu a[href="https://www.westernsydney.edu.au/students/dates"]', l => l.target === '_blank' && /Semester & Session Dates/.test(l.textContent)), 'More should link to the university\'s semester and session dates');
+  // a slot added as any WSU subject is set right as an LLB Alternate on the card itself, with no need to remove it
+  await hb.click('#year-1 .session[data-s="Autumn"] .add-menu [data-action="cadd"]:not([data-o])');
+  const wrong = await hb.evaluate(() => { const c = WSLSA.context(); return c.slots[c.slots.length - 1].id; });
+  await hb.click(`#slot-${wrong} [data-action="picker-open"]`);
+  await hb.fill('#pick-q', 'LAWS 4010');
+  await hb.click('#pick-results [data-action="cpick"][data-code="LAWS 4010"]');
+  const typeOpts = await hb.$$eval(`#slot-${wrong} .type-sel option`, o => o.map(x => x.textContent + (x.selected ? '*' : '')));
+  check(JSON.stringify(typeOpts) === JSON.stringify(['Any WSU subject*', 'LLB Alternate', 'Alternate Accounting subject']), `a card should offer the kinds of slot it can be, got ${JSON.stringify(typeOpts)}`);
+  const llbRow = await hb.$eval(`#slot-${wrong} .type-sel option:nth-child(2)`, o => o.value);
+  await hb.selectOption(`#slot-${wrong} .type-sel`, llbRow);
+  const typed = await hb.evaluate(() => { const c = WSLSA.context(); const x = c.slots.find(y => y.code === 'LAWS 4010'); const el = document.getElementById('slot-' + x.id); return { kind: x.orig && x.orig.kind, label: x.typeLabel, slots: c.slots.length, sel: el.querySelector('.type-sel').selectedOptions[0].textContent, open: el.classList.contains('is-open'), llb: Array.from(document.querySelectorAll('#dock-track .tk-llb .track-num')).map(n => n.textContent).join('') }; });
+  check(typed.kind === 'llb' && typed.label === 'LLB Alternate' && typed.slots === 41 && typed.sel === 'LLB Alternate' && typed.open && /60 CP/.test(typed.llb) && /LAWS 4010 now counts as LLB Alternate/.test(await hb.textContent('#toast')), `changing the type should keep the card and its subject and count it as an LLB Alternate, got ${JSON.stringify(typed)}`);
+  check(!(await hb.$(`#slot-${await hb.evaluate(() => WSLSA.context().slots.find(x => x.code === 'LAWS 1003').id)} .type-sel`)), 'a core subject should not offer a type');
+  for (let i = 0; i < 3; i++) await hb.click('#section-tools [data-action="undo"]');
+  check(await hb.evaluate(() => !WSLSA.context().edit), 'Undo should take the type change, the subject and the slot back');
   // year options: delete a year, insert an empty one, clear what is unticked, each one step for Undo
   const shape = () => hb.evaluate(() => { const c = WSLSA.context(); return { years: document.querySelectorAll('#grid .year').length, slots: c.slots.length, total: c.totalCP, edit: !!c.edit, y2: c.slots.filter(x => x.year === 2).map(x => x.code || '-').sort().join(','), guide: c.guide ? c.guide.cp : 0 }; });
   const start = await shape();
@@ -2925,9 +2942,9 @@ async function renderPdf(page, key, mode, orient, file) {
     };
   });
   check(imp.cohort === 'pre2027' && imp.done === 250 && imp.slots === 25 && imp.last === 3 && imp.years === 5 && imp.emptyAhead, `the import should hold 250 CP of history and leave 2027 and 2028 empty, got ${JSON.stringify(imp)}`);
-  check(imp.cp === 150 && JSON.stringify(imp.law) === JSON.stringify(['LAWS 2020', 'LAWS 3018', 'LAWS 3045', 'LAWS 3081', 'LAWS 3082', 'LAWS 3100', 'LAWS 3103', 'LAWS 4014', 'LAWS 4015']) && imp.llb === 6 && imp.other.length === 0, `the guide should hold nine Law cores and six LLB Alternates, 150 CP, got ${JSON.stringify(imp)}`);
-  check(['LAWS 1010', 'LAWS 2018', 'FINC 2003', 'LAWS 2019', 'LAWS 3099', 'LAWS 3101', 'LAWS 3102'].every(c => imp.codes.indexOf(c) < 0), `no subject already counted should be asked for again, got ${imp.codes.join(' ')}`);
-  check(imp.super === 'pool' && JSON.stringify(imp.notes) === JSON.stringify(['LAWS 2020<LAWS 2015', 'LAWS 3100<LAWS 4004', 'LAWS 3103<LAWS 4013']), `LAWS 3067 should count as an Alternate Accounting subject first, and the 2027 codes should say what they replace, got ${imp.super} ${imp.notes}`);
+  check(imp.cp === 150 && JSON.stringify(imp.law) === JSON.stringify(['LAWS 2015', 'LAWS 3018', 'LAWS 3045', 'LAWS 3081', 'LAWS 3082', 'LAWS 4004', 'LAWS 4013', 'LAWS 4014', 'LAWS 4015']) && imp.llb === 6 && imp.other.length === 0, `the guide should hold nine Law cores and six LLB Alternates, 150 CP, got ${JSON.stringify(imp)}`);
+  check(['LAWS 1010', 'LAWS 2018', 'FINC 2003', 'LAWS 2019', 'LAWS 3099', 'LAWS 3101', 'LAWS 3102', 'LAWS 2020', 'LAWS 3100', 'LAWS 3103'].every(c => imp.codes.indexOf(c) < 0), `no subject already counted should be asked for again, got ${imp.codes.join(' ')}`);
+  check(imp.super === 'pool' && imp.notes.length === 0 && /Pre-2027 subject · last offered 2028 · after that, LAWS 2020/.test(await hb.evaluate(() => document.getElementById('guide').textContent)), `LAWS 3067 should count as an Alternate Accounting subject first, and the pre-2027 subjects should be suggested under their own codes, got ${imp.super} ${imp.notes}`);
   // history shows its pre-2027 codes with no 2027 offering warnings
   const past = await hb.evaluate(() => { const c = WSLSA.context(); const s = c.slots.find(x => x.code === 'LAWS 1009'); const el = document.getElementById('slot-' + s.id); return { flags: Array.from(el.querySelectorAll('.flag')).map(f => f.textContent), pills: el.querySelector('.pills').textContent, risks: c.risks.notOffered.length + c.risks.tbc.length }; });
   check(past.flags.indexOf('Counts for LAWS 1010') >= 0 && past.pills === '' && past.risks === 0, `a completed pre-2027 subject should say what it counts for and carry no offering warnings, got ${JSON.stringify(past)}`);
@@ -2995,20 +3012,18 @@ async function renderPdf(page, key, mode, orient, file) {
   await hb.click('#section-tools [data-action="undo"]');
   // a subject moved across 2027 takes the code a student enrols in that year
   await hb.evaluate(() => { const d = document.querySelectorAll('#guide .guide-sess'); d.forEach(x => { x.open = true; }); });
-  const eth = await hb.evaluate(() => WSLSA.guide().items.findIndex(r => r.code === 'LAWS 3100'));
-  await hb.selectOption('#gi-' + eth, '4|Autumn');
-  await hb.click(`#guide [data-action="guide-add"][data-gi="${eth}"]`);
-  const ethId = () => hb.evaluate(() => { const x = WSLSA.context().slots.find(y => y.code === 'LAWS 3100' || y.code === 'LAWS 4004'); return x ? x.id + ':' + x.code + ':' + x.year : ''; });
-  check(/:LAWS 3100:4$/.test(await ethId()) && /Replaces Pre-2027 LAWS 4004/.test(await hb.textContent('#slot-' + (await ethId()).split(':')[0])), `a subject placed in 2027 should show its 2027 code and what it replaces, got ${await ethId()}`);
-  await hb.selectOption(`#slot-${(await ethId()).split(':')[0]} .move-sel`, '3|Autumn');
-  check(/:LAWS 4004:3$/.test(await ethId()), `moved back into 2026 on the pre-2027 structure it should be the pre-2027 subject, got ${await ethId()}`);
+  // LAWS 2015 was added to 2027 above: it keeps its pre-2027 code while it is offered (to 2028), and is LAWS 2020 after
+  const ethId = () => hb.evaluate(() => { const x = WSLSA.context().slots.find(y => y.code === 'LAWS 2020' || y.code === 'LAWS 2015'); return x ? x.id + ':' + x.code + ':' + x.year : ''; });
+  check(/:LAWS 2015:4$/.test(await ethId()) && /Pre-2027 subject/.test(await hb.textContent('#slot-' + (await ethId()).split(':')[0])), `a pre-2027 subject placed in 2027 should keep its code while it is offered, got ${await ethId()}`);
+  await hb.selectOption(`#slot-${(await ethId()).split(':')[0]} .move-sel`, '6|Autumn');
+  check(/:LAWS 2020:6$/.test(await ethId()) && /Replaces Pre-2027 LAWS 2015/.test(await hb.textContent('#slot-' + (await ethId()).split(':')[0])), `moved past its final offering it should be the 2027 subject that replaces it, got ${await ethId()}`);
   await hb.selectOption(`#slot-${(await ethId()).split(':')[0]} .move-sel`, '5|Spring');
-  check(/:LAWS 3100:5$/.test(await ethId()) && await hb.evaluate(() => !WSLSA.context().risks.dupes.length), `and the 2027 subject again from 2027, never both, got ${await ethId()}`);
+  check(/:LAWS 2015:5$/.test(await ethId()) && await hb.evaluate(() => !WSLSA.context().risks.dupes.length), `and the pre-2027 subject again in 2028, never both, got ${await ethId()}`);
   // paper: what is unplaced has its own box, and a year with nothing in it takes no room
   const gap = await hb.evaluate(() => { WSLSA.preparePrint({ mode: 'A', orient: 'portrait' }); const r = document.getElementById('print-root'); return r.querySelectorAll('.pd-year').length + '|' + r.querySelectorAll('.pd-empty').length; });
-  check(/^5|/.test(gap), `the PDF should print the five years in use, got ${gap}`);
+  check(/^4\|/.test(gap), `the PDF should print the four years in use, got ${gap}`);
   const pd = await hb.evaluate(() => { WSLSA.preparePrint({ mode: 'A', orient: 'portrait' }); const r = document.getElementById('print-root'); return { years: r.querySelectorAll('.pd-year').length, box: (r.querySelector('.pd-unplaced') || {}).textContent || '', bad: /NaN|undefined|\[object/.test(r.textContent) }; });
-  check(pd.years === 5 && /Remaining unplaced subjects · 130 CP still to place/.test(pd.box) && /Autumn 2027: LAWS 3018/.test(pd.box) && !pd.bad, `the PDF should list what is unplaced under its suggested sessions, got ${JSON.stringify(pd).slice(0, 300)}`);
+  check(pd.years === 4 && /Remaining unplaced subjects · 140 CP still to place/.test(pd.box) && /Autumn 2027: LAWS 4013/.test(pd.box) && /Years 4 and 6 have nothing in them yet/.test(pd.box) && !pd.bad, `the PDF should list what is unplaced under its suggested sessions, got ${JSON.stringify(pd).slice(0, 300)}`);
   // starting an own plan again keeps its Handbook
   await hb.click('[data-action="reset"]');
   const rebuilt = await hb.evaluate(() => { const c = WSLSA.context(); return { cohort: document.getElementById('sel-cohort').value, cores: c.slots.filter(x => ['LAWS 2019', 'LAWS 3099', 'LAWS 3102'].indexOf(x.code) >= 0).length, llb: c.slots.filter(x => x.orig && x.orig.kind === 'llb').length, guide: !!c.guide }; });
