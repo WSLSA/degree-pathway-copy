@@ -804,7 +804,8 @@ table.cat tr.extra td.c-code { color: var(--slate); }
   .year-bar h2 { font-size: 25px; }
   .year-bar::after { font-size: 72px; }
   /* a card reads top down: tick, code and credit points; title; type and tools; campuses */
-  .subj { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "lead cp" "main main" "pills pills" "edit edit"; }
+  .subj { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "lead cp" "main main" "pills pills"; }
+  .subj.is-open, .subj.is-pending, .subj.tour-target { grid-template-areas: "lead cp" "main main" "pills pills" "edit edit"; }
   .subj-lead { grid-area: lead; }
   .subj-side { display: contents; }
   .subj-side .subj-end { grid-area: cp; justify-self: end; }
@@ -1400,9 +1401,9 @@ body.drag-on .subj-edit { pointer-events: none; }
 
 /* ---------- the guide: sessions that fold, and a tray that stays at the bottom of the screen */
 #guide { position: relative; }
-.guide > summary { padding-right: 300px; }
-.guide .adv-cta { position: absolute; right: 16px; top: 17px; }
-.guide-pin { position: absolute; right: 118px; top: 11px; z-index: 3; min-height: 26px; padding: 0 10px; border: 1px solid var(--hairline-2); border-radius: 999px; background: var(--surface); color: var(--text); font: 700 10.5px var(--sans); letter-spacing: .06em; cursor: pointer; white-space: nowrap; }
+.guide > summary { padding-right: calc(var(--pin-w, 0px) + 28px); }
+.guide .adv-cta { margin-left: auto; }
+.guide-pin { position: absolute; right: 16px; top: 11px; z-index: 3; display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 10px; border: 1px solid var(--hairline-2); border-radius: 999px; background: var(--surface); color: var(--text); font: 700 10.5px var(--sans); letter-spacing: .06em; cursor: pointer; white-space: nowrap; }
 .guide-pin:hover, .guide-pin[aria-pressed="true"] { border-color: var(--gold); background: var(--gold-tint); }
 .guide-sessions { gap: 6px; }
 .guide-plan, .guide-check { min-width: 0; }
@@ -1427,14 +1428,14 @@ body.drag-on .subj-edit { pointer-events: none; }
 body.guide-pinned { padding-bottom: 40vh; }
 body.guide-pinned .enq { bottom: calc(38vh + 12px); }
 body.guide-pinned #toast { bottom: calc(38vh + 16px); }
+body.guide-pinned #xray-note, body.guide-pinned .tour-prompt { bottom: calc(38vh + 16px); }
 @media (max-width: 1040px) {
-  #guide.is-pinned { bottom: 56px; max-height: 34vh; z-index: 44; }
+  #guide.is-pinned { bottom: var(--mini-h, 0px); max-height: 34vh; z-index: 44; }
 }
 .gp-sr { display: none; }
 @media (max-width: 760px) {
   .guide-kinds { display: none; }
   .gs-codes { display: none; }
-  .guide > summary { padding-right: 150px; }
   .gp-text { display: none; }
   .gp-sr { display: block; }
 }
@@ -1479,7 +1480,8 @@ body.guide-pinned #toast { bottom: calc(38vh + 16px); }
 .track-inline { display: none; }
 @media (min-width: 1041px) {
   .dock-card { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.7fr) minmax(0, 1.15fr) minmax(188px, 1.1fr) auto; }
-  .dock-card .progress { grid-column: 1 / span 2; grid-template-columns: auto minmax(60px, 1fr) auto; align-items: center; gap: 12px; }
+  .dock-card .progress { grid-column: 1 / span 2; grid-template-columns: auto minmax(40px, 1fr) auto; align-items: center; gap: 12px; }
+  .dock-card .progress-meta { overflow: visible; }
   .dock-card .progress-top { gap: 10px; }
   #tracker { display: none; }
   .track-inline:not([hidden]) { grid-column: 3 / -1; display: flex; gap: 16px; min-width: 0; border: 0; border-left: 1px solid var(--hairline); border-radius: 0; box-shadow: none; background: none; padding-left: 14px; }
@@ -1489,9 +1491,9 @@ body.guide-pinned #toast { bottom: calc(38vh + 16px); }
   .track-inline .track-bar { height: 3px; }
 }
 @media (min-width: 1041px) and (max-width: 1499px) {
-  .dock-card .progress-meta { display: none; }
-  .dock-card .progress { grid-column: 1 / span 1; grid-template-columns: auto minmax(40px, 1fr); }
-  .track-inline:not([hidden]) { grid-column: 2 / -1; }
+  .dock-card .progress { gap: 10px; }
+  .track-inline:not([hidden]) { gap: 12px; padding-left: 12px; }
+  .track-inline .track-label { letter-spacing: .06em; }
 }
 
 /* ---------- Handbook structures side by side, and the breakdown note */
@@ -1557,8 +1559,10 @@ html[data-theme="dark"] .subj:hover { box-shadow: 0 10px 24px -12px rgba(0, 0, 0
 
 /* ---------- lighter cards: a card's tools stay folded away until its ••• button is pressed, so a plan reads as a list */
 .subj-end { display: inline-flex; align-items: center; gap: 6px; }
-.subj-more { display: inline-grid; place-items: center; width: 30px; height: 24px; padding: 0; border: 1px solid transparent; border-radius: 999px; background: none; color: var(--muted); font: 700 9px/1 var(--sans); letter-spacing: .12em; cursor: pointer; transition: background .12s, border-color .12s, color .12s; }
-.subj:hover .subj-more, .subj-more:focus-visible { border-color: var(--hairline-2); background: var(--surface); color: var(--text); }
+.subj-more { display: inline-grid; place-items: center; width: auto; height: 24px; padding: 0 9px; border: 1px solid var(--hairline-2); border-radius: 999px; background: var(--surface-2); color: var(--muted); font: 700 9.5px/1 var(--sans); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: background .12s, border-color .12s, color .12s; }
+.subj:hover .subj-more, .subj-more:focus-visible { background: var(--surface); color: var(--text); }
+.subj.is-pending .subj-edit { display: flex; }
+.subj.is-pending { padding-bottom: 6px; }
 .subj-more:hover { border-color: var(--crimson); color: var(--crimson); }
 .subj-more[aria-expanded="true"] { border-color: var(--gold); background: var(--gold-tint); color: var(--ink); }
 .subj { padding-bottom: 10px; }
@@ -1573,14 +1577,15 @@ html[data-theme="dark"] .subj:hover { box-shadow: 0 10px 24px -12px rgba(0, 0, 0
 .note-body textarea { width: 100%; resize: vertical; min-height: 84px; font: 14.5px/1.5 var(--sans); }
 @media (hover: hover) and (pointer: fine) {
   /* a session's and a year's secondary tools wait until it is in use */
-  .session-tools .note-btn, .session-tools [data-action="session-done"] { opacity: 0; transition: opacity .12s, color .15s, border-color .15s; }
-  .session:hover .session-tools .note-btn, .session:hover .session-tools [data-action="session-done"], .session-tools:focus-within .note-btn, .session-tools:focus-within [data-action="session-done"] { opacity: 1; }
-  .year-foot .text-btn, .yf-label { opacity: 0; transition: opacity .12s; }
+  .session-tools .note-btn, .session-tools [data-action="session-done"] { opacity: 0; pointer-events: none; transition: opacity .12s, color .15s, border-color .15s; }
+  .session:hover .session-tools .note-btn, .session:hover .session-tools [data-action="session-done"], .session:focus-within .session-tools .note-btn, .session:focus-within .session-tools [data-action="session-done"] { opacity: 1; pointer-events: auto; }
+  .year-foot .text-btn, .yf-label { opacity: 0; pointer-events: none; transition: opacity .12s; }
+  .year:hover .year-foot .text-btn, .year-foot:focus-within .text-btn { pointer-events: auto; }
   .year:hover .year-foot .text-btn, .year:hover .yf-label, .year-foot:focus-within .text-btn, .year-foot:focus-within .yf-label { opacity: 1; }
   .year-foot { padding-block: 2px 4px; background: none; border-top-color: transparent; }
   .year:hover .year-foot, .year-foot:focus-within { border-top-color: var(--hairline); }
 }
-@media (pointer: coarse) { .subj-more { width: 40px; height: 32px; border-color: var(--hairline-2); } }
+@media (pointer: coarse) { .subj-more { height: 32px; padding: 0 12px; } }
 @media (max-width: 760px) {
   .rm-btn .tl { display: none; }
   .tool-btn.rm-btn { font-size: 14px; }
@@ -1600,3 +1605,90 @@ html[data-theme="dark"] .subj:hover { box-shadow: 0 10px 24px -12px rgba(0, 0, 0
 .gi-x { min-height: 34px; padding: 0 4px; border: 0; border-bottom: 1px solid transparent; background: none; color: var(--muted); font: 700 10px var(--sans); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; cursor: pointer; }
 .gi-x:hover, .gi-x:focus-visible { color: var(--crimson); border-bottom-color: var(--crimson); }
 .guide-skipped { margin-top: 8px; }
+
+/* ====================================================================== ambient light, glass and motion (same colours) */
+/* the canvas: two slow, faint pools of light behind everything */
+body::before {
+  content: ""; position: fixed; inset: -10vmax; z-index: -1; pointer-events: none;
+  background: radial-gradient(42vmax 42vmax at 12% 8%, rgba(125, 0, 40, .04), transparent 70%), radial-gradient(48vmax 48vmax at 92% 96%, rgba(197, 155, 39, .05), transparent 70%);
+  animation: canvas-breathe 24s ease-in-out infinite alternate;
+}
+html[data-theme="dark"] body::before { background: radial-gradient(42vmax 42vmax at 12% 8%, rgba(139, 0, 41, .14), transparent 70%), radial-gradient(48vmax 48vmax at 92% 96%, rgba(197, 155, 39, .08), transparent 70%); }
+@keyframes canvas-breathe { from { transform: translate3d(0, 0, 0) scale(1); opacity: .8; } to { transform: translate3d(2vmax, -2vmax, 0) scale(1.08); opacity: 1; } }
+
+/* the hero: a drifting aurora, a floating watermark and a glow on the crest */
+.hero-band::before {
+  content: ""; position: absolute; inset: -30% -10%; z-index: 0; pointer-events: none;
+  background: radial-gradient(circle at 20% 30%, rgba(197, 155, 39, .22), transparent 45%), radial-gradient(circle at 80% 70%, rgba(153, 0, 51, .45), transparent 55%);
+  animation: hero-aurora 16s ease-in-out infinite alternate;
+}
+.hero-band > .wrap { position: relative; z-index: 1; }
+@keyframes hero-aurora { from { transform: translate3d(-3%, -2%, 0) scale(1); } to { transform: translate3d(4%, 3%, 0) scale(1.12); } }
+.hero-watermark { animation: crest-float 22s ease-in-out infinite alternate; }
+@keyframes crest-float { from { transform: translate3d(0, 0, 0) rotate(0deg); } to { transform: translate3d(-18px, 14px, 0) rotate(-1.2deg); } }
+.hero-seal .hero-crest { filter: drop-shadow(0 6px 20px rgba(197, 155, 39, .25)); }
+
+/* glass: the dock, the search bar, the degree map and the pinned guide let the page show through, under a gold to crimson line */
+.dock-card, .gridbar.is-searching, #dmap, #guide.is-pinned .guide {
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4);
+}
+.dock-card { position: relative; border-top-color: transparent; }
+.dock-card::after, #guide.is-pinned .guide::after { content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 2px; border-radius: 10px 10px 0 0; background: linear-gradient(90deg, var(--gold), var(--crimson) 55%, var(--gold)); pointer-events: none; }
+#guide.is-pinned .guide { position: relative; border-top-color: transparent; }
+@supports not (background: color-mix(in srgb, red 50%, blue)) { .dock-card, .gridbar.is-searching, #dmap, #guide.is-pinned .guide { background: var(--surface); } }
+
+/* the stage a student has reached; a phone shows it in place of the credit point pill, which the progress bar already gives */
+@media (max-width: 760px) { #hero-meta .hp-cp { display: none; } }
+.tl-short { display: none; }
+@media (min-width: 1041px) and (max-width: 1499px) { .track-inline .tl-full { display: none; } .track-inline .tl-short { display: inline; } }
+.hp-stage { cursor: pointer; font-family: inherit; background: rgba(255, 255, 255, .08); border: 1px solid rgba(227, 199, 116, .7); color: var(--gold-soft); transition: background .15s, transform .15s; }
+.hp-stage:hover { background: rgba(227, 199, 116, .2); transform: translateY(-1px); }
+.hp-stage.st-4 { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
+.hp-stage.is-new { animation: stage-in .6s cubic-bezier(.3, 1.6, .55, 1); }
+@keyframes stage-in { from { transform: scale(.86); box-shadow: 0 0 0 0 rgba(227, 199, 116, .7); } to { transform: none; box-shadow: 0 0 0 14px rgba(227, 199, 116, 0); } }
+
+/* each requirement meter is a button that picks out its cards */
+.track-item { cursor: default; padding: 0; }
+.track-btn { display: grid; gap: 6px; width: 100%; min-height: 24px; padding: 9px 14px 10px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: 8px; transition: background .15s; }
+.track-btn:hover { background: var(--surface-2); }
+.track-btn[aria-pressed="true"] { background: color-mix(in srgb, var(--k) 10%, transparent); box-shadow: inset 0 0 0 1.5px var(--k); }
+.track-inline .track-item { padding: 0; }
+.track-inline .track-btn { gap: 3px; padding: 2px 6px 3px; margin: -2px -6px -3px; border-radius: 6px; }
+#grid.is-tracking .subj:not(.is-track) { opacity: .3; }
+#grid.is-tracking .subj.is-track { box-shadow: 0 0 0 1.5px var(--k), 0 10px 24px -16px rgba(30, 29, 32, .4); }
+
+/* the card under the pointer: a soft light that follows it */
+@media (hover: hover) and (pointer: fine) {
+  .subj:hover { background-image: radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--k) 7%, transparent), transparent 70%); }
+}
+
+/* ticking: the box springs and a gold ring spreads from it */
+.tick-box { position: relative; }
+.subj.just-done .tick-box { animation: tick-pop .42s cubic-bezier(.3, 1.7, .5, 1); }
+.subj.just-done .tick-box::before { content: ""; position: absolute; inset: -2px; border-radius: 5px; border: 2px solid var(--gold); animation: tick-ripple .7s ease-out forwards; pointer-events: none; }
+@keyframes tick-pop { 0% { transform: scale(.7); } 60% { transform: scale(1.22); } 100% { transform: scale(1.05); } }
+@keyframes tick-ripple { from { transform: scale(.8); opacity: .9; } to { transform: scale(2.4); opacity: 0; } }
+
+/* a finished session or year: a gold sweep, and a ring from the year's seal */
+.session-head.is-celebrating, .year-bar.is-celebrating { overflow: hidden; }
+.session-head.is-celebrating::after, .year-bar.is-celebrating::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -40%; width: 40%; z-index: 2; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(227, 199, 116, .55), transparent); animation: gold-sweep 1.5s ease-out forwards;
+}
+@keyframes gold-sweep { to { left: 110%; } }
+.year-bar.is-celebrating .year-seal { animation: seal-pulse 1.5s ease-out; border-radius: 50%; }
+@keyframes seal-pulse { 0% { box-shadow: 0 0 0 0 rgba(227, 199, 116, .8); } 100% { box-shadow: 0 0 0 22px rgba(227, 199, 116, 0); } }
+#confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 200; pointer-events: none; }
+.next-grad { background: linear-gradient(90deg, var(--crimson), var(--bronze-ink), var(--crimson)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+html[data-theme="dark"] .next-grad { background-image: linear-gradient(90deg, var(--gold-soft), var(--gold), var(--gold-soft)); }
+
+@media (prefers-reduced-motion: reduce) {
+  body::before, .hero-band::before, .hero-watermark { animation: none; }
+  .subj:hover { background-image: none; }
+}
+@media (forced-colors: active) {
+  body::before, .hero-band::before { display: none; }
+  .next-grad { background: none; color: CanvasText; }
+}
+@media (max-width: 760px) { .track-btn { padding: 6px 12px 7px; gap: 4px; } }

@@ -826,7 +826,8 @@ table.cat tr.extra td.c-code { color: var(--slate); }
   .year-bar h2 { font-size: 25px; }
   .year-bar::after { font-size: 72px; }
   /* a card reads top down: tick, code and credit points; title; type and tools; campuses */
-  .subj { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "lead cp" "main main" "pills pills" "edit edit"; }
+  .subj { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "lead cp" "main main" "pills pills"; }
+  .subj.is-open, .subj.is-pending, .subj.tour-target { grid-template-areas: "lead cp" "main main" "pills pills" "edit edit"; }
   .subj-lead { grid-area: lead; }
   .subj-side { display: contents; }
   .subj-side .subj-end { grid-area: cp; justify-self: end; }
@@ -1422,9 +1423,9 @@ body.drag-on .subj-edit { pointer-events: none; }
 
 /* ---------- the guide: sessions that fold, and a tray that stays at the bottom of the screen */
 #guide { position: relative; }
-.guide > summary { padding-right: 300px; }
-.guide .adv-cta { position: absolute; right: 16px; top: 17px; }
-.guide-pin { position: absolute; right: 118px; top: 11px; z-index: 3; min-height: 26px; padding: 0 10px; border: 1px solid var(--hairline-2); border-radius: 999px; background: var(--surface); color: var(--text); font: 700 10.5px var(--sans); letter-spacing: .06em; cursor: pointer; white-space: nowrap; }
+.guide > summary { padding-right: calc(var(--pin-w, 0px) + 28px); }
+.guide .adv-cta { margin-left: auto; }
+.guide-pin { position: absolute; right: 16px; top: 11px; z-index: 3; display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 10px; border: 1px solid var(--hairline-2); border-radius: 999px; background: var(--surface); color: var(--text); font: 700 10.5px var(--sans); letter-spacing: .06em; cursor: pointer; white-space: nowrap; }
 .guide-pin:hover, .guide-pin[aria-pressed="true"] { border-color: var(--gold); background: var(--gold-tint); }
 .guide-sessions { gap: 6px; }
 .guide-plan, .guide-check { min-width: 0; }
@@ -1449,14 +1450,14 @@ body.drag-on .subj-edit { pointer-events: none; }
 body.guide-pinned { padding-bottom: 40vh; }
 body.guide-pinned .enq { bottom: calc(38vh + 12px); }
 body.guide-pinned #toast { bottom: calc(38vh + 16px); }
+body.guide-pinned #xray-note, body.guide-pinned .tour-prompt { bottom: calc(38vh + 16px); }
 @media (max-width: 1040px) {
-  #guide.is-pinned { bottom: 56px; max-height: 34vh; z-index: 44; }
+  #guide.is-pinned { bottom: var(--mini-h, 0px); max-height: 34vh; z-index: 44; }
 }
 .gp-sr { display: none; }
 @media (max-width: 760px) {
   .guide-kinds { display: none; }
   .gs-codes { display: none; }
-  .guide > summary { padding-right: 150px; }
   .gp-text { display: none; }
   .gp-sr { display: block; }
 }
@@ -1501,7 +1502,8 @@ body.guide-pinned #toast { bottom: calc(38vh + 16px); }
 .track-inline { display: none; }
 @media (min-width: 1041px) {
   .dock-card { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.7fr) minmax(0, 1.15fr) minmax(188px, 1.1fr) auto; }
-  .dock-card .progress { grid-column: 1 / span 2; grid-template-columns: auto minmax(60px, 1fr) auto; align-items: center; gap: 12px; }
+  .dock-card .progress { grid-column: 1 / span 2; grid-template-columns: auto minmax(40px, 1fr) auto; align-items: center; gap: 12px; }
+  .dock-card .progress-meta { overflow: visible; }
   .dock-card .progress-top { gap: 10px; }
   #tracker { display: none; }
   .track-inline:not([hidden]) { grid-column: 3 / -1; display: flex; gap: 16px; min-width: 0; border: 0; border-left: 1px solid var(--hairline); border-radius: 0; box-shadow: none; background: none; padding-left: 14px; }
@@ -1511,9 +1513,9 @@ body.guide-pinned #toast { bottom: calc(38vh + 16px); }
   .track-inline .track-bar { height: 3px; }
 }
 @media (min-width: 1041px) and (max-width: 1499px) {
-  .dock-card .progress-meta { display: none; }
-  .dock-card .progress { grid-column: 1 / span 1; grid-template-columns: auto minmax(40px, 1fr); }
-  .track-inline:not([hidden]) { grid-column: 2 / -1; }
+  .dock-card .progress { gap: 10px; }
+  .track-inline:not([hidden]) { gap: 12px; padding-left: 12px; }
+  .track-inline .track-label { letter-spacing: .06em; }
 }
 
 /* ---------- Handbook structures side by side, and the breakdown note */
@@ -1579,8 +1581,10 @@ html[data-theme="dark"] .subj:hover { box-shadow: 0 10px 24px -12px rgba(0, 0, 0
 
 /* ---------- lighter cards: a card's tools stay folded away until its ••• button is pressed, so a plan reads as a list */
 .subj-end { display: inline-flex; align-items: center; gap: 6px; }
-.subj-more { display: inline-grid; place-items: center; width: 30px; height: 24px; padding: 0; border: 1px solid transparent; border-radius: 999px; background: none; color: var(--muted); font: 700 9px/1 var(--sans); letter-spacing: .12em; cursor: pointer; transition: background .12s, border-color .12s, color .12s; }
-.subj:hover .subj-more, .subj-more:focus-visible { border-color: var(--hairline-2); background: var(--surface); color: var(--text); }
+.subj-more { display: inline-grid; place-items: center; width: auto; height: 24px; padding: 0 9px; border: 1px solid var(--hairline-2); border-radius: 999px; background: var(--surface-2); color: var(--muted); font: 700 9.5px/1 var(--sans); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: background .12s, border-color .12s, color .12s; }
+.subj:hover .subj-more, .subj-more:focus-visible { background: var(--surface); color: var(--text); }
+.subj.is-pending .subj-edit { display: flex; }
+.subj.is-pending { padding-bottom: 6px; }
 .subj-more:hover { border-color: var(--crimson); color: var(--crimson); }
 .subj-more[aria-expanded="true"] { border-color: var(--gold); background: var(--gold-tint); color: var(--ink); }
 .subj { padding-bottom: 10px; }
@@ -1595,14 +1599,15 @@ html[data-theme="dark"] .subj:hover { box-shadow: 0 10px 24px -12px rgba(0, 0, 0
 .note-body textarea { width: 100%; resize: vertical; min-height: 84px; font: 14.5px/1.5 var(--sans); }
 @media (hover: hover) and (pointer: fine) {
   /* a session's and a year's secondary tools wait until it is in use */
-  .session-tools .note-btn, .session-tools [data-action="session-done"] { opacity: 0; transition: opacity .12s, color .15s, border-color .15s; }
-  .session:hover .session-tools .note-btn, .session:hover .session-tools [data-action="session-done"], .session-tools:focus-within .note-btn, .session-tools:focus-within [data-action="session-done"] { opacity: 1; }
-  .year-foot .text-btn, .yf-label { opacity: 0; transition: opacity .12s; }
+  .session-tools .note-btn, .session-tools [data-action="session-done"] { opacity: 0; pointer-events: none; transition: opacity .12s, color .15s, border-color .15s; }
+  .session:hover .session-tools .note-btn, .session:hover .session-tools [data-action="session-done"], .session:focus-within .session-tools .note-btn, .session:focus-within .session-tools [data-action="session-done"] { opacity: 1; pointer-events: auto; }
+  .year-foot .text-btn, .yf-label { opacity: 0; pointer-events: none; transition: opacity .12s; }
+  .year:hover .year-foot .text-btn, .year-foot:focus-within .text-btn { pointer-events: auto; }
   .year:hover .year-foot .text-btn, .year:hover .yf-label, .year-foot:focus-within .text-btn, .year-foot:focus-within .yf-label { opacity: 1; }
   .year-foot { padding-block: 2px 4px; background: none; border-top-color: transparent; }
   .year:hover .year-foot, .year-foot:focus-within { border-top-color: var(--hairline); }
 }
-@media (pointer: coarse) { .subj-more { width: 40px; height: 32px; border-color: var(--hairline-2); } }
+@media (pointer: coarse) { .subj-more { height: 32px; padding: 0 12px; } }
 @media (max-width: 760px) {
   .rm-btn .tl { display: none; }
   .tool-btn.rm-btn { font-size: 14px; }
@@ -1622,6 +1627,93 @@ html[data-theme="dark"] .subj:hover { box-shadow: 0 10px 24px -12px rgba(0, 0, 0
 .gi-x { min-height: 34px; padding: 0 4px; border: 0; border-bottom: 1px solid transparent; background: none; color: var(--muted); font: 700 10px var(--sans); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; cursor: pointer; }
 .gi-x:hover, .gi-x:focus-visible { color: var(--crimson); border-bottom-color: var(--crimson); }
 .guide-skipped { margin-top: 8px; }
+
+/* ====================================================================== ambient light, glass and motion (same colours) */
+/* the canvas: two slow, faint pools of light behind everything */
+body::before {
+  content: ""; position: fixed; inset: -10vmax; z-index: -1; pointer-events: none;
+  background: radial-gradient(42vmax 42vmax at 12% 8%, rgba(125, 0, 40, .04), transparent 70%), radial-gradient(48vmax 48vmax at 92% 96%, rgba(197, 155, 39, .05), transparent 70%);
+  animation: canvas-breathe 24s ease-in-out infinite alternate;
+}
+html[data-theme="dark"] body::before { background: radial-gradient(42vmax 42vmax at 12% 8%, rgba(139, 0, 41, .14), transparent 70%), radial-gradient(48vmax 48vmax at 92% 96%, rgba(197, 155, 39, .08), transparent 70%); }
+@keyframes canvas-breathe { from { transform: translate3d(0, 0, 0) scale(1); opacity: .8; } to { transform: translate3d(2vmax, -2vmax, 0) scale(1.08); opacity: 1; } }
+
+/* the hero: a drifting aurora, a floating watermark and a glow on the crest */
+.hero-band::before {
+  content: ""; position: absolute; inset: -30% -10%; z-index: 0; pointer-events: none;
+  background: radial-gradient(circle at 20% 30%, rgba(197, 155, 39, .22), transparent 45%), radial-gradient(circle at 80% 70%, rgba(153, 0, 51, .45), transparent 55%);
+  animation: hero-aurora 16s ease-in-out infinite alternate;
+}
+.hero-band > .wrap { position: relative; z-index: 1; }
+@keyframes hero-aurora { from { transform: translate3d(-3%, -2%, 0) scale(1); } to { transform: translate3d(4%, 3%, 0) scale(1.12); } }
+.hero-watermark { animation: crest-float 22s ease-in-out infinite alternate; }
+@keyframes crest-float { from { transform: translate3d(0, 0, 0) rotate(0deg); } to { transform: translate3d(-18px, 14px, 0) rotate(-1.2deg); } }
+.hero-seal .hero-crest { filter: drop-shadow(0 6px 20px rgba(197, 155, 39, .25)); }
+
+/* glass: the dock, the search bar, the degree map and the pinned guide let the page show through, under a gold to crimson line */
+.dock-card, .gridbar.is-searching, #dmap, #guide.is-pinned .guide {
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4);
+}
+.dock-card { position: relative; border-top-color: transparent; }
+.dock-card::after, #guide.is-pinned .guide::after { content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 2px; border-radius: 10px 10px 0 0; background: linear-gradient(90deg, var(--gold), var(--crimson) 55%, var(--gold)); pointer-events: none; }
+#guide.is-pinned .guide { position: relative; border-top-color: transparent; }
+@supports not (background: color-mix(in srgb, red 50%, blue)) { .dock-card, .gridbar.is-searching, #dmap, #guide.is-pinned .guide { background: var(--surface); } }
+
+/* the stage a student has reached; a phone shows it in place of the credit point pill, which the progress bar already gives */
+@media (max-width: 760px) { #hero-meta .hp-cp { display: none; } }
+.tl-short { display: none; }
+@media (min-width: 1041px) and (max-width: 1499px) { .track-inline .tl-full { display: none; } .track-inline .tl-short { display: inline; } }
+.hp-stage { cursor: pointer; font-family: inherit; background: rgba(255, 255, 255, .08); border: 1px solid rgba(227, 199, 116, .7); color: var(--gold-soft); transition: background .15s, transform .15s; }
+.hp-stage:hover { background: rgba(227, 199, 116, .2); transform: translateY(-1px); }
+.hp-stage.st-4 { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
+.hp-stage.is-new { animation: stage-in .6s cubic-bezier(.3, 1.6, .55, 1); }
+@keyframes stage-in { from { transform: scale(.86); box-shadow: 0 0 0 0 rgba(227, 199, 116, .7); } to { transform: none; box-shadow: 0 0 0 14px rgba(227, 199, 116, 0); } }
+
+/* each requirement meter is a button that picks out its cards */
+.track-item { cursor: default; padding: 0; }
+.track-btn { display: grid; gap: 6px; width: 100%; min-height: 24px; padding: 9px 14px 10px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: 8px; transition: background .15s; }
+.track-btn:hover { background: var(--surface-2); }
+.track-btn[aria-pressed="true"] { background: color-mix(in srgb, var(--k) 10%, transparent); box-shadow: inset 0 0 0 1.5px var(--k); }
+.track-inline .track-item { padding: 0; }
+.track-inline .track-btn { gap: 3px; padding: 2px 6px 3px; margin: -2px -6px -3px; border-radius: 6px; }
+#grid.is-tracking .subj:not(.is-track) { opacity: .3; }
+#grid.is-tracking .subj.is-track { box-shadow: 0 0 0 1.5px var(--k), 0 10px 24px -16px rgba(30, 29, 32, .4); }
+
+/* the card under the pointer: a soft light that follows it */
+@media (hover: hover) and (pointer: fine) {
+  .subj:hover { background-image: radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--k) 7%, transparent), transparent 70%); }
+}
+
+/* ticking: the box springs and a gold ring spreads from it */
+.tick-box { position: relative; }
+.subj.just-done .tick-box { animation: tick-pop .42s cubic-bezier(.3, 1.7, .5, 1); }
+.subj.just-done .tick-box::before { content: ""; position: absolute; inset: -2px; border-radius: 5px; border: 2px solid var(--gold); animation: tick-ripple .7s ease-out forwards; pointer-events: none; }
+@keyframes tick-pop { 0% { transform: scale(.7); } 60% { transform: scale(1.22); } 100% { transform: scale(1.05); } }
+@keyframes tick-ripple { from { transform: scale(.8); opacity: .9; } to { transform: scale(2.4); opacity: 0; } }
+
+/* a finished session or year: a gold sweep, and a ring from the year's seal */
+.session-head.is-celebrating, .year-bar.is-celebrating { overflow: hidden; }
+.session-head.is-celebrating::after, .year-bar.is-celebrating::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -40%; width: 40%; z-index: 2; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(227, 199, 116, .55), transparent); animation: gold-sweep 1.5s ease-out forwards;
+}
+@keyframes gold-sweep { to { left: 110%; } }
+.year-bar.is-celebrating .year-seal { animation: seal-pulse 1.5s ease-out; border-radius: 50%; }
+@keyframes seal-pulse { 0% { box-shadow: 0 0 0 0 rgba(227, 199, 116, .8); } 100% { box-shadow: 0 0 0 22px rgba(227, 199, 116, 0); } }
+#confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 200; pointer-events: none; }
+.next-grad { background: linear-gradient(90deg, var(--crimson), var(--bronze-ink), var(--crimson)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+html[data-theme="dark"] .next-grad { background-image: linear-gradient(90deg, var(--gold-soft), var(--gold), var(--gold-soft)); }
+
+@media (prefers-reduced-motion: reduce) {
+  body::before, .hero-band::before, .hero-watermark { animation: none; }
+  .subj:hover { background-image: none; }
+}
+@media (forced-colors: active) {
+  body::before, .hero-band::before { display: none; }
+  .next-grad { background: none; color: CanvasText; }
+}
+@media (max-width: 760px) { .track-btn { padding: 6px 12px 7px; gap: 4px; } }
 
 </style>
 <style>
@@ -3043,6 +3135,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     const sessions = guideSessions(g);
     // the first session to enrol in is open, and the rest wait folded until asked for, unless the list is short
     const sessOpen = function (gs, i) { return ui.guideSess && ui.guideSess[gs.k] != null ? ui.guideSess[gs.k] : i === 0 || g.items.length <= 8; };
+    box.style.setProperty('--pin-w', '0px');
     setHTML(box, '<button type="button" class="guide-pin" data-action="guide-pin" aria-pressed="' + pinned + '" title="' + (pinned ? 'Put the guide back in the page' : 'Keep the guide at the bottom of the screen while you scroll your plan') + '"><span aria-hidden="true">📌</span><span class="gp-text"> ' + (pinned ? 'Unpin Guide' : 'Pin Guide to Bottom') + '</span><span class="sr-only gp-sr">' + (pinned ? 'Unpin Guide' : 'Pin Guide to Bottom') + '</span></button>' +
       '<details class="guide" id="guide-box"' + (open ? ' open' : '') + '>' +
       '<summary><span class="guide-label">Suggested Remaining Guide</span><span class="guide-counts"><b>' + g.cp + ' CP</b> to place<span class="guide-kinds"> · ' + order.map(count).join(' · ') + '</span></span>' +
@@ -3060,6 +3153,12 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
           '<span class="gs-codes">' + gs.items.map(function (x) { return esc(x.r.code || x.r.label); }).join(', ') + '</span></summary><ul class="guide-items">' + gs.items.map(item).join('') + '</ul></details>';
       }).join('') + '</div></div></div>' +
       '<div class="guide-foot"><button type="button" class="tbtn tbtn-primary" data-action="guide-fill">Auto-fill remaining semesters from guide</button><span class="small muted">Everything stays yours to move or change, and Undo takes it back out.</span></div></div></details>');
+  }
+  // the room the guide's summary keeps for the Pin button beside it, so the two never overlap at any width
+  function sizeGuidePin() {
+    const box = $('#guide');
+    const pin = box.querySelector('.guide-pin');
+    if (pin) box.style.setProperty('--pin-w', Math.ceil(pin.getBoundingClientRect().width) + 'px');
   }
   // puts guide items in the plan: each in the session given, or the one suggested
   function addFromGuide(list, at) {
@@ -3569,7 +3668,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   function heroPills(ctx) {
     const f = finishText(ctx);
     const began = (planStart() < START_YEAR ? 'Started ' : 'Starting ') + planStart();
-    return '<span class="hero-pill hp-cp" title="Credit points the degree requires"><span class="num">' + ctx.deg.cp + '</span> CP</span>' +
+    return stagePill(ctx) + '<span class="hero-pill hp-cp" title="Credit points the degree requires"><span class="num">' + ctx.deg.cp + '</span> CP</span>' +
       '<span class="hero-pill hp-finish" title="' + esc(began) + '">Finish ' + esc(f.at) + (f.how ? ' <small>· ' + esc(f.how) + '</small>' : '') + '</span>' +
       '<a class="hero-pill hp-link" href="' + esc(ctx.deg.handbook) + '" target="_blank" rel="noopener">' + (ctx.custom && !ctx.tdeg ? 'WSU Handbook ↗' : '2027 Handbook ↗') + '</a>';
   }
@@ -3606,18 +3705,19 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   }
   // Degree requirements at a glance: for each kind of subject, the credit points completed, planned and still to place.
   // What an imported plan's guide still lists counts towards the total of its kind.
-  const TRACK = [['law', 'Law core'], ['nonlaw', 'Non-law core'], ['major', 'Major / minor'], ['llb', 'LLB Alternates'], ['choice', 'Choices'], ['elective', 'Electives'], ['open', 'Open slots']];
+  const TRACK = [['law', 'Law core', 'Law'], ['nonlaw', 'Non-law core', 'Non-law'], ['major', 'Major / minor', 'Major'], ['llb', 'LLB Alternates', 'LLB Alt'], ['choice', 'Choices', 'Choices'], ['elective', 'Electives', 'Electives'], ['open', 'Open slots', 'Open']];
+  function slotGroup(ctx, s) { return s.newCore ? 'llb' : ctx.custom ? (s.orig ? typeGroup(s.orig.type) : s.pending ? 'open' : /^LAWS /.test(s.code) ? 'law' : 'nonlaw') : s.group; }
   function requirementGroups(ctx) {
     const g = {};
     const at = function (k) { return g[k] = g[k] || { cp: 0, done: 0, planned: 0 }; };
     ctx.slots.forEach(function (s) {
-      const k = s.newCore ? 'llb' : ctx.custom ? (s.orig ? typeGroup(s.orig.type) : s.pending ? 'open' : /^LAWS /.test(s.code) ? 'law' : 'nonlaw') : s.group;
+      const k = slotGroup(ctx, s);
       const t = at(k);
       t.cp += s.cp;
       if (s.done) t.done += s.cp; else if (!s.pending) t.planned += s.cp;
     });
     if (ctx.custom && ctx.guide) ctx.guide.items.forEach(function (r) { at(r.kind === 'core' ? 'nonlaw' : r.kind).cp += r.cp; });
-    return TRACK.filter(function (t) { return g[t[0]] && g[t[0]].cp > 0; }).map(function (t) { return Object.assign({ key: t[0], label: t[1] }, g[t[0]]); });
+    return TRACK.filter(function (t) { return g[t[0]] && g[t[0]].cp > 0; }).map(function (t) { return Object.assign({ key: t[0], label: t[1], short: t[2] }, g[t[0]]); });
   }
   function renderTracker(ctx) {
     const groups = requirementGroups(ctx);
@@ -3627,12 +3727,98 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     const items = groups.map(function (t) {
       const left = t.cp - t.done - t.planned;
       const tip = t.done + ' CP completed, ' + t.planned + ' CP planned' + (left > 0 ? ', ' + left + ' CP still to choose or place' : '');
-      return '<li class="track-item tk-' + t.key + (t.done >= t.cp ? ' is-done' : '') + '" title="' + esc(t.label + ': ' + tip) + '"><span class="track-top"><span class="track-label">' + esc(t.label) + '</span><span class="track-num"><b>' + t.done + '</b> / ' + t.cp + ' CP</span></span>' +
-        '<span class="track-bar" role="img" aria-label="' + esc(t.label + ': ' + tip) + '"><i class="tb-done" style="width:' + (t.done / t.cp * 100) + '%"></i><i class="tb-plan" style="width:' + (t.planned / t.cp * 100) + '%"></i></span></li>';
+      return '<li class="track-item tk-' + t.key + (t.done >= t.cp ? ' is-done' : '') + '"><button type="button" class="track-btn" data-action="track-filter" data-k="' + t.key + '" aria-pressed="' + (ui.trackKey === t.key) + '" title="' + esc(t.label + ': ' + tip + '. Press to pick these out in your plan.') + '"><span class="track-top"><span class="track-label"><span class="tl-full">' + esc(t.label) + '</span><span class="tl-short" aria-hidden="true">' + esc(t.short) + '</span></span><span class="track-num"><b>' + t.done + '</b> / ' + t.cp + ' CP</span></span>' +
+        '<span class="track-bar" role="img" aria-label="' + esc(t.label + ': ' + tip) + '"><i class="tb-done" style="width:' + (t.done / t.cp * 100) + '%"></i><i class="tb-plan" style="width:' + (t.planned / t.cp * 100) + '%"></i></span></button></li>';
     }).join('');
+    if (ui.trackKey && !groups.some(function (t) { return t.key === ui.trackKey; })) ui.trackKey = '';
     setHTML(box, '<ul class="track">' + items + '</ul>');
     const inline = $('#dock-track');
     if (inline) { inline.hidden = groups.length < 2; inline.innerHTML = items; }
+  }
+  // Picks out the cards of one kind of requirement: the rest dim, and the page goes to the first one not yet completed.
+  function applyTrack() {
+    const ctx = lastCtx;
+    const grid = $('#grid');
+    const key = ui.trackKey || '';
+    grid.classList.toggle('is-tracking', !!key);
+    grid.querySelectorAll('.subj').forEach(function (el) {
+      const s = ctx.byId[el.dataset.slot];
+      el.classList.toggle('is-track', !!key && !!s && slotGroup(ctx, s) === key);
+    });
+    document.querySelectorAll('[data-action="track-filter"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.k === key)); });
+  }
+  function setTrack(key) {
+    ui.trackKey = ui.trackKey === key ? '' : key;
+    applyTrack();
+    if (!ui.trackKey) return;
+    const ctx = lastCtx;
+    const mine = sortSlots(ctx.slots.filter(function (s) { return slotGroup(ctx, s) === key; }));
+    const label = (TRACK.filter(function (t) { return t[0] === key; })[0] || ['', 'These'])[1];
+    if (!mine.length) { toast(label + ': nothing is in your plan yet. The Suggested Remaining Guide lists what to add.'); return; }
+    const first = mine.find(function (s) { return !s.done; }) || mine[0];
+    flashSlot(first.id);
+    toast(label + ': ' + plural(mine.length, 'card') + ' picked out, ' + mine.filter(function (s) { return s.done; }).length + ' completed. Press it again, or Esc, to show everything.');
+  }
+  // The stage a student has reached, from the credit points completed
+  function stageOf(ctx) {
+    const done = ctx.doneCP;
+    if (ctx.deg.cp && done >= ctx.deg.cp) return { n: 4, label: 'Graduand Ready ★', tip: 'Every credit point of the degree is completed' };
+    if (done >= 200) return { n: 3, label: 'Stage 3 · Advanced & Electives', tip: '200 CP or more completed' };
+    if (done >= 80) return { n: 2, label: 'Stage 2 · Core Practice', tip: '80 to 190 CP completed. Stage 3 starts at 200 CP' };
+    return { n: 1, label: 'Stage 1 · Foundations', tip: 'Up to 70 CP completed. Stage 2 starts at 80 CP' };
+  }
+  function stagePill(ctx) {
+    const st = stageOf(ctx);
+    return '<button type="button" class="hero-pill hp-stage st-' + st.n + '" data-action="stage" title="' + esc(st.tip + '. Press to go to your next session.') + '">' + esc(st.label) + '</button>';
+  }
+  function syncStage(ctx) {
+    const el = $('#hero-meta .hp-stage');
+    if (!el) return;
+    const st = stageOf(ctx);
+    if (el.textContent === st.label) return;
+    el.textContent = st.label;
+    el.className = 'hero-pill hp-stage st-' + st.n + ' is-new';
+    el.title = st.tip + '. Press to go to your next session.';
+  }
+  // ---- celebrations: a gold sweep when a session or a year is finished, and confetti when the degree is
+  function sessionsDone(ctx) {
+    const out = {};
+    sessionsInOrder(ctx).forEach(function (x) { out[x.year + '|' + x.session] = x.slots.length > 0 && x.slots.every(function (s) { return s.done; }); });
+    return out;
+  }
+  function celebrate(el) {
+    if (!el || !motionOK()) return;
+    el.classList.remove('is-celebrating');
+    void el.offsetWidth;
+    el.classList.add('is-celebrating');
+    setTimeout(function () { el.classList.remove('is-celebrating'); }, 1700);
+  }
+  function confetti() {
+    if (!motionOK() || $('#confetti')) return;
+    const c = document.createElement('canvas');
+    c.id = 'confetti';
+    c.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(c);
+    const g = c.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = c.width = window.innerWidth * dpr;
+    const h = c.height = window.innerHeight * dpr;
+    const colours = ['#C59B27', '#E3C774', '#8B0029', '#7D0028', '#FFFFFF'];
+    const bits = [];
+    for (let i = 0; i < 150; i++) {
+      const side = i % 2 ? 1 : -1;
+      bits.push({ x: w / 2 + side * w * 0.18 * Math.random(), y: h * 0.42, vx: side * (2 + Math.random() * 7) * dpr, vy: -(7 + Math.random() * 11) * dpr, r: (3 + Math.random() * 5) * dpr, a: Math.random() * 6.3, va: (Math.random() - 0.5) * 0.4, c: colours[i % colours.length] });
+    }
+    const start = performance.now();
+    (function frame(now) {
+      const t = (now - start) / 2600;
+      g.clearRect(0, 0, w, h);
+      bits.forEach(function (b) {
+        b.vy += 0.32 * dpr; b.vx *= 0.992; b.x += b.vx; b.y += b.vy; b.a += b.va;
+        g.save(); g.globalAlpha = Math.max(0, 1 - t * t); g.translate(b.x, b.y); g.rotate(b.a); g.fillStyle = b.c; g.fillRect(-b.r, -b.r * 0.45, b.r * 2, b.r * 0.9); g.restore();
+      });
+      if (t < 1) requestAnimationFrame(frame); else c.remove();
+    })(start);
   }
   function renderDock(ctx) {
     const deg = ctx.deg;
@@ -3852,7 +4038,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       const g = ctx.custom ? ctx.guide : null;
       const at = g ? { y: Math.floor(g.firstK / 3) + 1, s: PLAN_SESSIONS[g.firstK % 3] } : null;
       setHTML($('#next'), '<div class="next-card"><div class="next-head"><p class="kicker">Next to enrol</p><h2>' +
-        (at ? sessionLabel(at.y, at.s) + ' <small>Year ' + at.y + ' · nothing planned yet</small>' : ctx.slots.length ? 'Every subject in your plan is ticked off' : 'Your plan has no subjects yet') + '</h2>' +
+        (at ? sessionLabel(at.y, at.s) + ' <small>Year ' + at.y + ' · nothing planned yet</small>' : ctx.slots.length ? (ctx.deg.cp && ctx.doneCP >= ctx.deg.cp ? '<span class="next-grad">🎓 Degree Complete · All ' + ctx.deg.cp + ' CP Mapped &amp; Completed!</span>' : 'Every subject in your plan is ticked off') : 'Your plan has no subjects yet') + '</h2>' +
         (at ? '<p class="next-sub">Add subjects from the <button type="button" class="linkish" data-action="guide-open">Suggested Remaining Guide</button>, or drag them onto a session.</p>' : '') + '</div>' + side([]) + '</div>');
       return;
     }
@@ -4044,7 +4230,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     return '<div class="' + cls.join(' ') + '" id="slot-' + s.id + '" data-slot="' + s.id + '"' + (state.load !== 'PT' ? ' draggable="true"' : '') + (s.vt ? ' style="--vt:' + s.vt + '"' : '') + '>' +
       '<div class="subj-lead">' + check + '<span class="code-pill">' + esc(codeTxt) + '</span></div>' +
       '<div class="subj-main"><div class="subj-title">' + esc(s.title) + '</div><div class="subj-meta"><span class="cat">' + esc(s.typeLabel) + '</span>' + slotFlags(s, ctx) + '</div>' + body + '</div>' +
-      '<div class="subj-side"><span class="pills">' + slotOffer(s, ctx) + '</span><span class="subj-end">' + (tools ? '<button type="button" class="subj-more" data-action="card-tools" data-slot="' + s.id + '" aria-expanded="' + (ui.openCard === s.id) + '" aria-controls="tools-' + s.id + '" aria-label="Tools for ' + esc(s.pending ? 'this open slot' : s.code) + '" title="Change, move or remove"><span aria-hidden="true">•••</span></button>' : '') + '<span class="cp-badge">' + s.cp + ' CP</span></span></div>' +
+      '<div class="subj-side"><span class="pills">' + slotOffer(s, ctx) + '</span><span class="subj-end">' + (tools && !s.pending ? '<button type="button" class="subj-more" data-action="card-tools" data-slot="' + s.id + '" aria-expanded="' + (ui.openCard === s.id) + '" aria-controls="tools-' + s.id + '" aria-label="' + (ui.openCard === s.id ? 'Close the tools for ' : 'Edit ') + esc(s.code) + '" title="Change, move or remove"><span class="sm-t" aria-hidden="true">' + (ui.openCard === s.id ? 'Done ▴' : 'Edit ▾') + '</span></button>' : '') + '<span class="cp-badge">' + s.cp + ' CP</span></span></div>' +
       '<div class="subj-edit" id="tools-' + s.id + '" role="group" aria-label="Tools for ' + esc(s.pending ? 'this open slot' : s.code) + '">' + tools + '</div></div>';
   }
 
@@ -4597,7 +4783,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     { title: 'Next to enrol', text: 'This is your next session. Copy Codes gives you the subject codes for MySR and Export .ics saves a calendar reminder. Already studying? Import my progress rebuilds your plan from a PDF, and Tick off from my results ticks subjects from text you paste.', targets: ['#next'] },
     { title: 'Plan tools', text: 'Undo and Redo step through your changes (' + UNDO_KEYS + ' and ' + REDO_KEYS + '). Re-Pace / Switch Load changes your load for the rest of your degree, with a Leave of Absence, a Spring start and Fast-Track. Plan Tools holds Auto-fill, Pin Snapshot, Simulate Degree Transfer and your own custom plan.', targets: ['#section-tools'] },
     { title: 'Filter bar and degree map', text: 'Show everything, only what remains, or only what needs action. Type in the box, or press /, to filter your plan by code or title. The degree map shows every session, stays on screen as you scroll and jumps to a session when you press it.', targets: ['#gridbar', '#dmap'] },
-    { title: 'Subject cards', text: 'Tick a subject when you pass it. Press ••• on a card for its tools: Change swaps the subject, Move to sends it to any session, Chain shows what it depends on and unlocks, Defer ↷ moves it to the next session it runs in, and Remove × takes it out. Open slots let you pick an LLB Alternate, and you can drag one subject onto another to swap them.', targets: ['#grid .subj'], fallback: '#grid' },
+    { title: 'Subject cards', text: 'Tick a subject when you pass it. Press Edit on a card for its tools: Change swaps the subject, Move to sends it to any session, Chain shows what it depends on and unlocks, Defer ↷ moves it to the next session it runs in, and Remove × takes it out. Open slots let you pick an LLB Alternate, and you can drag one subject onto another to swap them.', targets: ['#grid .subj'], fallback: '#grid' },
     { title: 'Degree details and catalogue', text: 'Credit breakdown, admission, accreditation and exit awards are here. In the subject catalogue tab, + Assign puts a subject straight into an open slot in your plan.', targets: ['#details'] },
     { title: 'Law Enquiry and your PDF', text: 'The Law Enquiry box in the corner holds the School of Law\'s 2027 advice and drafts an email to the School with your plan attached as a link. Print / Save PDF, at the top of the page or in the Menu, saves a sharp A4 guide of your plan, and PDF Options under More sets it up.', targets: ['#enquiry-box'], also: '[data-action="print"]', top: true, corner: true },
   ];
@@ -5032,6 +5218,8 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     return out;
   }
   function refreshDone(ids) {
+    const sessBefore = sessionsDone(lastCtx);
+    const cpBefore = lastCtx.doneCP;
     const before = yearsDone(lastCtx);
     const nextWas = nextSession(lastCtx);
     const ctx = buildContext();
@@ -5087,6 +5275,19 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     }
     showCounters(ctx);
     syncStructure(ctx);
+    syncStage(ctx);
+    applyTrack();
+    const sessNow = sessionsDone(ctx);
+    Object.keys(sessNow).forEach(function (k) {
+      if (!sessNow[k] || sessBefore[k]) return;
+      const v = k.split('|');
+      celebrate(document.querySelector('#year-' + v[0] + ' .session[data-s="' + v[1] + '"] .session-head'));
+    });
+    Object.keys(after).forEach(function (y) { if (after[y] && !before[y]) celebrate(document.querySelector('#year-' + y + ' .year-bar')); });
+    if (ctx.deg.cp && ctx.doneCP >= ctx.deg.cp && cpBefore < ctx.deg.cp) {
+      confetti();
+      toast('Degree complete: all ' + ctx.deg.cp + ' CP mapped and completed. Congratulations.');
+    }
     saveState();
   }
 
@@ -5665,6 +5866,23 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     else if (card) xrayFollow(card.dataset.slot, XRAY_INTENT);
     else xrayFollow('', 60);
   }
+  // a soft light follows the pointer across the card it is on
+  let spotAt = null;
+  $('#grid').addEventListener('pointermove', function (ev) {
+    if (ev.pointerType !== 'mouse' || !motionOK()) return;
+    const first = !spotAt;
+    spotAt = ev;
+    if (!first) return;
+    requestAnimationFrame(function () {
+      const e = spotAt;
+      spotAt = null;
+      const card = e.target.closest ? e.target.closest('.subj') : null;
+      if (!card) return;
+      const r = card.getBoundingClientRect();
+      card.style.setProperty('--mx', Math.round(e.clientX - r.left) + 'px');
+      card.style.setProperty('--my', Math.round(e.clientY - r.top) + 'px');
+    });
+  }, { passive: true });
   document.addEventListener('pointerover', xrayPointer);
   document.addEventListener('pointermove', xrayPointer, { passive: true });
   window.addEventListener('scroll', function () {
@@ -6678,6 +6896,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     if (active && document.getElementById(active) && /^(sel-|cat-|custom-name)/.test(active)) document.getElementById(active).focus({ preventScroll: true });
     saveState();
     afterRender(ctx);
+    if (ctx.custom && ctx.guide) sizeGuidePin();
     if (ui.modal === 'export') renderExportPreview();
   }
 
@@ -6842,6 +7061,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       if (!keepFolds) showYearFold(y.year);
     });
     grid.classList.toggle('is-filtering', matches.length > 0);
+    applyTrack();
     // the map marks where the matches are, as they may be far from the screen
     const map = $('#dmap');
     map.querySelectorAll('.dm-seg i').forEach(function (i) { i.classList.toggle('hit', !!marks[i.dataset.slot]); });
@@ -8873,6 +9093,12 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   }
 
   // ======================================================================== events
+  // --mini-h is the room the progress bar at the bottom of a small screen takes while it is up, and 0 otherwise
+  function syncMiniHeight() {
+    const bar = $('#mini-bar');
+    const up = bar.classList.contains('is-on') && !bar.classList.contains('is-min') && getComputedStyle(bar).display !== 'none';
+    document.documentElement.style.setProperty('--mini-h', up ? Math.round(bar.getBoundingClientRect().height) + 'px' : '0px');
+  }
   function closePops() {
     document.querySelectorAll('.pop-menu:not([hidden])').forEach(function (m) {
       m.hidden = true;
@@ -9161,6 +9387,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       }
       case 'mini-toggle': {
         const small = $('#mini-bar').classList.toggle('is-min');
+        syncMiniHeight();
         el.setAttribute('aria-expanded', String(!small));
         el.setAttribute('aria-label', small ? 'Expand progress bar' : 'Collapse progress bar');
         break;
@@ -9295,18 +9522,27 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       }
       case 'guide-fill': addFromGuide(lastCtx.guide.items.map(function (r, i) { return i; }), ''); break;
       case 'plan-fix': fixPlan(); break;
+      case 'track-filter': setTrack(el.dataset.k); break;
+      case 'stage': {
+        const n = nextSession(lastCtx);
+        const target = n ? document.querySelector('#year-' + n.year + ' .session[data-s="' + n.session + '"]') : $('#next');
+        if (n) { const yr = document.getElementById('year-' + n.year); if (yr && yr.classList.contains('is-folded')) setYearFold(n.year, false); }
+        if (target) target.scrollIntoView({ behavior: scrollMode(), block: 'center' });
+        break;
+      }
       case 'card-tools': {
         const id = el.dataset.slot;
         const opening = ui.openCard !== id;
         document.querySelectorAll('#grid .subj.is-open').forEach(function (c) {
           c.classList.remove('is-open');
           const b = c.querySelector('.subj-more');
-          if (b) b.setAttribute('aria-expanded', 'false');
+          if (b) { b.setAttribute('aria-expanded', 'false'); b.querySelector('.sm-t').textContent = 'Edit ▾'; }
         });
         ui.openCard = opening ? id : '';
         if (opening) {
           el.closest('.subj').classList.add('is-open');
           el.setAttribute('aria-expanded', 'true');
+          el.querySelector('.sm-t').textContent = 'Done ▴';
         }
         break;
       }
@@ -9316,9 +9552,11 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       case 'session-note': openNote(+el.dataset.y, el.dataset.s); break;
       case 'note-remove': setSessionNote(ui.note.y, ui.note.sess, ''); break;
       case 'guide-pin':
+        ev.stopPropagation();
         state.guidePinned = !state.guidePinned;
         if (state.guidePinned) ui.guideOpen = true;
         renderGuide(lastCtx);
+        sizeGuidePin();
         saveState();
         break;
       case 'handbook-compare': openHandbookCompare(); break;
@@ -9560,6 +9798,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
         return;
       }
       if (ui.xrayPin) { ui.xrayPin = ''; ui.xrayHover = ''; xrayClear(); return; }
+      if (ui.trackKey) { ui.trackKey = ''; applyTrack(); return; }
       if (el.id === 'cat-q' && el.value) { el.value = ''; ui.cat.q = ''; renderCatalogueRows(lastCtx); return; }
       xrayClear();
       return;
@@ -9634,6 +9873,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
   if (window.IntersectionObserver) {
     new IntersectionObserver(function (entries) {
       $('#mini-bar').classList.toggle('is-on', !entries[0].isIntersecting && entries[0].boundingClientRect.top < 0);
+      syncMiniHeight();
     }).observe($('#dock-wrap'));
   }
 

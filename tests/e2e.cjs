@@ -59,19 +59,28 @@ async function renderPdf(page, key, mode, orient, file) {
   const plainClick = pageProto.click;
   pageProto.clickRaw = plainClick;
   pageProto.click = async function (selector, options) {
-    await this.evaluate(s => {
+    const over = await this.evaluate(s => {
       let el = null;
-      try { el = document.querySelector(s); } catch (e) { return; }
-      if (!el) return;
+      try { el = document.querySelector(s); } catch (e) { return null; }
+      if (!el) return null;
+      // a session's and a year's quiet tools show once the pointer is on that session or year
+      const quiet = el.matches('.session-tools .note-btn, .session-tools [data-action="session-done"], .year-foot .text-btn') ? el.closest('.session, .year') : null;
+      if (quiet && getComputedStyle(el).pointerEvents === 'none') {
+        el.scrollIntoView({ block: 'center' });
+        const r = el.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      }
       const top = el.closest('#top-actions');
       const menu = document.querySelector('.top-menu-btn');
       if (top && menu.offsetParent && !top.classList.contains('is-open')) menu.click();
       // a card's tools are behind its ••• button
       const card = el.closest('.subj-edit') ? el.closest('.subj') : null;
-      if (card && !card.classList.contains('is-open')) card.querySelector('.subj-more').click();
+      const more = card && !card.classList.contains('is-open') ? card.querySelector('.subj-more') : null; if (more) more.click();
       const pop = el.closest('.pop-menu');
       if (pop && pop.hidden && pop.previousElementSibling.offsetParent) pop.previousElementSibling.click();
-    }, selector).catch(() => {});
+      return null;
+    }, selector).catch(() => null);
+    if (over) await this.mouse.move(over.x, over.y);
     await plainClick.call(this, selector, options);
     // with subjects ticked the dock asks how much to switch; these checks are about the whole plan's view, as before
     if (/data-action="load"/.test(selector) && await this.$('#rp-form')) {
@@ -82,7 +91,7 @@ async function renderPdf(page, key, mode, orient, file) {
   // a student reaches a select by focusing it, which is when a card's Move to list is filled in
   const plainSelect = pageProto.selectOption;
   pageProto.selectOption = async function (selector, values, options) {
-    await this.evaluate(s => { let el = null; try { el = document.querySelector(s); } catch (e) { return; } const card = el && el.closest('.subj-edit') ? el.closest('.subj') : null; if (card && !card.classList.contains('is-open')) card.querySelector('.subj-more').click(); }, selector).catch(() => {});
+    await this.evaluate(s => { let el = null; try { el = document.querySelector(s); } catch (e) { return; } const card = el && el.closest('.subj-edit') ? el.closest('.subj') : null; const more = card && !card.classList.contains('is-open') ? card.querySelector('.subj-more') : null; if (more) more.click(); }, selector).catch(() => {});
     await this.focus(selector).catch(() => {});
     return plainSelect.call(this, selector, values, options);
   };
@@ -99,7 +108,7 @@ async function renderPdf(page, key, mode, orient, file) {
   for (const name of ['hover', 'focus']) {
     const plain = pageProto[name];
     pageProto[name] = async function (selector, options) {
-      await this.evaluate(s => { let el = null; try { el = document.querySelector(s); } catch (e) { return; } const card = el && el.closest('.subj-edit') ? el.closest('.subj') : null; if (card && !card.classList.contains('is-open')) card.querySelector('.subj-more').click(); }, selector).catch(() => {});
+      await this.evaluate(s => { let el = null; try { el = document.querySelector(s); } catch (e) { return; } const card = el && el.closest('.subj-edit') ? el.closest('.subj') : null; const more = card && !card.classList.contains('is-open') ? card.querySelector('.subj-more') : null; if (more) more.click(); }, selector).catch(() => {});
       return plain.call(this, selector, options);
     };
   }
@@ -1438,7 +1447,7 @@ async function renderPdf(page, key, mode, orient, file) {
   check(!cardT.shown && cardT.tall < 84 && cardT.open === 'false', `a card at rest should keep its tools folded away and take no room for them, got ${JSON.stringify(cardT)}`);
   await lay.click(`#slot-${quiet} .subj-more`);
   cardT = await tools(quiet);
-  check(cardT.shown && cardT.open === 'true' && await lay.isVisible(`#slot-${quiet} .defer-btn`), `pressing ••• should open the card's tools in place, got ${JSON.stringify(cardT)}`);
+  check(cardT.shown && cardT.open === 'true' && await lay.textContent(`#slot-${quiet} .subj-more`) === 'Done ▴' && await lay.isVisible(`#slot-${quiet} .defer-btn`), `pressing ••• should open the card's tools in place, got ${JSON.stringify(cardT)}`);
   const otherCard = await lay.evaluate(q => Array.from(document.querySelectorAll('#grid .subj-more')).map(b => b.dataset.slot).find(id => id !== q), quiet);
   await lay.focus(`#slot-${otherCard} .subj-more`);
   await lay.keyboard.press('Enter');
@@ -1998,7 +2007,7 @@ async function renderPdf(page, key, mode, orient, file) {
   await dk.click(themeBtn);
   check(await themeNow() === 'dark' && await dk.getAttribute(themeBtn, 'aria-pressed') === 'true' && /Light mode/.test(await dk.textContent(themeBtn)), 'pressing it should switch to dark and offer light');
   check(await dk.evaluate(() => localStorage.getItem('wslsa-2027-theme')) === 'dark', 'the choice should be saved');
-  check(await paint('body') === 'rgb(17, 17, 20)' && await paint('.topbar') === 'rgb(26, 25, 30)' && await paint('.dock-card') === 'rgb(26, 25, 30)' && await paint('.year') === 'rgb(26, 25, 30)' && await paint('.drawer') === 'rgb(26, 25, 30)', 'every surface should go dark');
+  check(await paint('body') === 'rgb(17, 17, 20)' && await paint('.topbar') === 'rgb(26, 25, 30)' && /^color\(srgb 0\.10\d* 0\.09\d* 0\.11\d* \/ 0\.86\)$/.test(await paint('.dock-card')) && await paint('.year') === 'rgb(26, 25, 30)' && await paint('.drawer') === 'rgb(26, 25, 30)', 'every surface should go dark');
   for (const s of ['.year-bar', '.advisory > summary', '.segmented button[aria-pressed="true"]']) {
     check(await paint(s) === 'rgb(40, 38, 48)' && await paint(s, 'color') === 'rgb(255, 255, 255)', `${s} should stay a dark band with white text`);
   }
@@ -2818,6 +2827,21 @@ async function renderPdf(page, key, mode, orient, file) {
   check(!(await hb.$(`#slot-${await hb.evaluate(() => WSLSA.context().slots.find(x => x.code === 'LAWS 1003').id)} .type-sel`)), 'a core subject should not offer a type');
   for (let i = 0; i < 3; i++) await hb.click('#section-tools [data-action="undo"]');
   check(await hb.evaluate(() => !WSLSA.context().edit), 'Undo should take the type change, the subject and the slot back');
+  // the laptop dock keeps its whole progress line, and the Edit pill and hidden tools behave
+  await hb.setViewportSize({ width: 1180, height: 900 });
+  check(await hb.evaluate(() => { const m = document.getElementById('progress-meta'); const p = document.querySelector('#dock .progress').getBoundingClientRect(); const t = document.getElementById('dock-track').getBoundingClientRect(); return getComputedStyle(m).display !== 'none' && m.getBoundingClientRect().width > 60 && t.left >= p.right - 1 && Math.abs(t.top - p.top) < 14; }), 'a laptop dock should show the progress details beside the tracker');
+  await hb.setViewportSize({ width: 1440, height: 1000 });
+  const edit1 = await hb.evaluate(() => { const c = WSLSA.context(); const s = c.slots.find(x => !x.pending); const p = c.slots.find(x => x.pending); const b = document.querySelector('#slot-' + s.id + ' .subj-more'); const cs = getComputedStyle(b); return { text: b.textContent, shown: cs.borderTopWidth === '1px' && cs.backgroundColor !== 'rgba(0, 0, 0, 0)', pendingTools: getComputedStyle(document.querySelector('#slot-' + p.id + ' .subj-edit')).display, pendingBtn: !!document.querySelector('#slot-' + p.id + ' .subj-more') }; });
+  check(edit1.text === 'Edit ▾' && edit1.shown && edit1.pendingTools === 'flex' && !edit1.pendingBtn, `a card should show an Edit pill, and an open slot its tools, got ${JSON.stringify(edit1)}`);
+  await hb.mouse.move(2, 2);
+  check(await hb.evaluate(() => { const b = document.querySelector('#grid .session-tools [data-action="session-done"]'); const c = getComputedStyle(b); return c.opacity === '0' && c.pointerEvents === 'none'; }), 'a hidden session tool should not take a press');
+  // the stage pill follows the credit points completed, and each requirement meter picks out its cards
+  check(await hb.textContent('#hero-meta .hp-stage') === 'Stage 1 · Foundations', `a new plan should be at Stage 1, got ${await hb.textContent('#hero-meta .hp-stage')}`);
+  await hb.click('#dock-track [data-action="track-filter"][data-k="llb"]');
+  const tr = await hb.evaluate(() => ({ on: document.getElementById('grid').classList.contains('is-tracking'), n: document.querySelectorAll('#grid .subj.is-track').length, pressed: document.querySelector('#dock-track [data-k="llb"]').getAttribute('aria-pressed'), dim: getComputedStyle(document.querySelector('#grid .subj:not(.is-track)')).opacity, all: Array.from(document.querySelectorAll('#grid .subj.is-track')).every(c => /LLB ALT|LLB Alternate/i.test(c.textContent)) }));
+  check(tr.on && tr.n === 5 && tr.pressed === 'true' && tr.dim === '0.3' && tr.all, `pressing the LLB Alternates meter should pick out its five cards, got ${JSON.stringify(tr)}`);
+  await hb.keyboard.press('Escape');
+  check(await hb.evaluate(() => !document.getElementById('grid').classList.contains('is-tracking') && document.querySelector('#dock-track [data-k="llb"]').getAttribute('aria-pressed') === 'false'), 'Esc should show everything again');
   // year options: delete a year, insert an empty one, clear what is unticked, each one step for Undo
   const shape = () => hb.evaluate(() => { const c = WSLSA.context(); return { years: document.querySelectorAll('#grid .year').length, slots: c.slots.length, total: c.totalCP, edit: !!c.edit, y2: c.slots.filter(x => x.year === 2).map(x => x.code || '-').sort().join(','), guide: c.guide ? c.guide.cp : 0 }; });
   const start = await shape();
@@ -2857,7 +2881,7 @@ async function renderPdf(page, key, mode, orient, file) {
   for (let i = 0; i < 3; i++) await hb.click('#section-tools [data-action="undo"]');
   check(!(await shape()).edit, 'Undo should take the notes back');
   // the requirement tracker counts each kind of subject, follows the Handbook and moves with a tick
-  const track = () => hb.$$eval('#dock-track .track-item', li => li.map(x => x.querySelector('.track-label').textContent + ' ' + x.querySelector('.track-num').textContent).join(' | '));
+  const track = () => hb.$$eval('#dock-track .track-item', li => li.map(x => x.querySelector('.track-label .tl-full').textContent + ' ' + x.querySelector('.track-num').textContent).join(' | '));
   check(await track() === 'Law core 0 / 190 CP | Non-law core 0 / 120 CP | LLB Alternates 0 / 50 CP | Choices 0 / 40 CP', `the tracker should count the 2027 structure, got ${await track()}`);
   await hb.selectOption('#sel-cohort', 'pre2027');
   check(/^Law core 0 \/ 160 CP \| Non-law core 0 \/ 120 CP \| LLB Alternates 0 \/ 80 CP/.test(await track()), `the tracker should follow the pre-2027 structure, got ${await track()}`);

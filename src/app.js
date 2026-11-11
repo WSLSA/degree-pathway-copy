@@ -1099,6 +1099,7 @@
     const sessions = guideSessions(g);
     // the first session to enrol in is open, and the rest wait folded until asked for, unless the list is short
     const sessOpen = function (gs, i) { return ui.guideSess && ui.guideSess[gs.k] != null ? ui.guideSess[gs.k] : i === 0 || g.items.length <= 8; };
+    box.style.setProperty('--pin-w', '0px');
     setHTML(box, '<button type="button" class="guide-pin" data-action="guide-pin" aria-pressed="' + pinned + '" title="' + (pinned ? 'Put the guide back in the page' : 'Keep the guide at the bottom of the screen while you scroll your plan') + '"><span aria-hidden="true">📌</span><span class="gp-text"> ' + (pinned ? 'Unpin Guide' : 'Pin Guide to Bottom') + '</span><span class="sr-only gp-sr">' + (pinned ? 'Unpin Guide' : 'Pin Guide to Bottom') + '</span></button>' +
       '<details class="guide" id="guide-box"' + (open ? ' open' : '') + '>' +
       '<summary><span class="guide-label">Suggested Remaining Guide</span><span class="guide-counts"><b>' + g.cp + ' CP</b> to place<span class="guide-kinds"> · ' + order.map(count).join(' · ') + '</span></span>' +
@@ -1116,6 +1117,12 @@
           '<span class="gs-codes">' + gs.items.map(function (x) { return esc(x.r.code || x.r.label); }).join(', ') + '</span></summary><ul class="guide-items">' + gs.items.map(item).join('') + '</ul></details>';
       }).join('') + '</div></div></div>' +
       '<div class="guide-foot"><button type="button" class="tbtn tbtn-primary" data-action="guide-fill">Auto-fill remaining semesters from guide</button><span class="small muted">Everything stays yours to move or change, and Undo takes it back out.</span></div></div></details>');
+  }
+  // the room the guide's summary keeps for the Pin button beside it, so the two never overlap at any width
+  function sizeGuidePin() {
+    const box = $('#guide');
+    const pin = box.querySelector('.guide-pin');
+    if (pin) box.style.setProperty('--pin-w', Math.ceil(pin.getBoundingClientRect().width) + 'px');
   }
   // puts guide items in the plan: each in the session given, or the one suggested
   function addFromGuide(list, at) {
@@ -1625,7 +1632,7 @@
   function heroPills(ctx) {
     const f = finishText(ctx);
     const began = (planStart() < START_YEAR ? 'Started ' : 'Starting ') + planStart();
-    return '<span class="hero-pill hp-cp" title="Credit points the degree requires"><span class="num">' + ctx.deg.cp + '</span> CP</span>' +
+    return stagePill(ctx) + '<span class="hero-pill hp-cp" title="Credit points the degree requires"><span class="num">' + ctx.deg.cp + '</span> CP</span>' +
       '<span class="hero-pill hp-finish" title="' + esc(began) + '">Finish ' + esc(f.at) + (f.how ? ' <small>· ' + esc(f.how) + '</small>' : '') + '</span>' +
       '<a class="hero-pill hp-link" href="' + esc(ctx.deg.handbook) + '" target="_blank" rel="noopener">' + (ctx.custom && !ctx.tdeg ? 'WSU Handbook ↗' : '2027 Handbook ↗') + '</a>';
   }
@@ -1662,18 +1669,19 @@
   }
   // Degree requirements at a glance: for each kind of subject, the credit points completed, planned and still to place.
   // What an imported plan's guide still lists counts towards the total of its kind.
-  const TRACK = [['law', 'Law core'], ['nonlaw', 'Non-law core'], ['major', 'Major / minor'], ['llb', 'LLB Alternates'], ['choice', 'Choices'], ['elective', 'Electives'], ['open', 'Open slots']];
+  const TRACK = [['law', 'Law core', 'Law'], ['nonlaw', 'Non-law core', 'Non-law'], ['major', 'Major / minor', 'Major'], ['llb', 'LLB Alternates', 'LLB Alt'], ['choice', 'Choices', 'Choices'], ['elective', 'Electives', 'Electives'], ['open', 'Open slots', 'Open']];
+  function slotGroup(ctx, s) { return s.newCore ? 'llb' : ctx.custom ? (s.orig ? typeGroup(s.orig.type) : s.pending ? 'open' : /^LAWS /.test(s.code) ? 'law' : 'nonlaw') : s.group; }
   function requirementGroups(ctx) {
     const g = {};
     const at = function (k) { return g[k] = g[k] || { cp: 0, done: 0, planned: 0 }; };
     ctx.slots.forEach(function (s) {
-      const k = s.newCore ? 'llb' : ctx.custom ? (s.orig ? typeGroup(s.orig.type) : s.pending ? 'open' : /^LAWS /.test(s.code) ? 'law' : 'nonlaw') : s.group;
+      const k = slotGroup(ctx, s);
       const t = at(k);
       t.cp += s.cp;
       if (s.done) t.done += s.cp; else if (!s.pending) t.planned += s.cp;
     });
     if (ctx.custom && ctx.guide) ctx.guide.items.forEach(function (r) { at(r.kind === 'core' ? 'nonlaw' : r.kind).cp += r.cp; });
-    return TRACK.filter(function (t) { return g[t[0]] && g[t[0]].cp > 0; }).map(function (t) { return Object.assign({ key: t[0], label: t[1] }, g[t[0]]); });
+    return TRACK.filter(function (t) { return g[t[0]] && g[t[0]].cp > 0; }).map(function (t) { return Object.assign({ key: t[0], label: t[1], short: t[2] }, g[t[0]]); });
   }
   function renderTracker(ctx) {
     const groups = requirementGroups(ctx);
@@ -1683,12 +1691,98 @@
     const items = groups.map(function (t) {
       const left = t.cp - t.done - t.planned;
       const tip = t.done + ' CP completed, ' + t.planned + ' CP planned' + (left > 0 ? ', ' + left + ' CP still to choose or place' : '');
-      return '<li class="track-item tk-' + t.key + (t.done >= t.cp ? ' is-done' : '') + '" title="' + esc(t.label + ': ' + tip) + '"><span class="track-top"><span class="track-label">' + esc(t.label) + '</span><span class="track-num"><b>' + t.done + '</b> / ' + t.cp + ' CP</span></span>' +
-        '<span class="track-bar" role="img" aria-label="' + esc(t.label + ': ' + tip) + '"><i class="tb-done" style="width:' + (t.done / t.cp * 100) + '%"></i><i class="tb-plan" style="width:' + (t.planned / t.cp * 100) + '%"></i></span></li>';
+      return '<li class="track-item tk-' + t.key + (t.done >= t.cp ? ' is-done' : '') + '"><button type="button" class="track-btn" data-action="track-filter" data-k="' + t.key + '" aria-pressed="' + (ui.trackKey === t.key) + '" title="' + esc(t.label + ': ' + tip + '. Press to pick these out in your plan.') + '"><span class="track-top"><span class="track-label"><span class="tl-full">' + esc(t.label) + '</span><span class="tl-short" aria-hidden="true">' + esc(t.short) + '</span></span><span class="track-num"><b>' + t.done + '</b> / ' + t.cp + ' CP</span></span>' +
+        '<span class="track-bar" role="img" aria-label="' + esc(t.label + ': ' + tip) + '"><i class="tb-done" style="width:' + (t.done / t.cp * 100) + '%"></i><i class="tb-plan" style="width:' + (t.planned / t.cp * 100) + '%"></i></span></button></li>';
     }).join('');
+    if (ui.trackKey && !groups.some(function (t) { return t.key === ui.trackKey; })) ui.trackKey = '';
     setHTML(box, '<ul class="track">' + items + '</ul>');
     const inline = $('#dock-track');
     if (inline) { inline.hidden = groups.length < 2; inline.innerHTML = items; }
+  }
+  // Picks out the cards of one kind of requirement: the rest dim, and the page goes to the first one not yet completed.
+  function applyTrack() {
+    const ctx = lastCtx;
+    const grid = $('#grid');
+    const key = ui.trackKey || '';
+    grid.classList.toggle('is-tracking', !!key);
+    grid.querySelectorAll('.subj').forEach(function (el) {
+      const s = ctx.byId[el.dataset.slot];
+      el.classList.toggle('is-track', !!key && !!s && slotGroup(ctx, s) === key);
+    });
+    document.querySelectorAll('[data-action="track-filter"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.k === key)); });
+  }
+  function setTrack(key) {
+    ui.trackKey = ui.trackKey === key ? '' : key;
+    applyTrack();
+    if (!ui.trackKey) return;
+    const ctx = lastCtx;
+    const mine = sortSlots(ctx.slots.filter(function (s) { return slotGroup(ctx, s) === key; }));
+    const label = (TRACK.filter(function (t) { return t[0] === key; })[0] || ['', 'These'])[1];
+    if (!mine.length) { toast(label + ': nothing is in your plan yet. The Suggested Remaining Guide lists what to add.'); return; }
+    const first = mine.find(function (s) { return !s.done; }) || mine[0];
+    flashSlot(first.id);
+    toast(label + ': ' + plural(mine.length, 'card') + ' picked out, ' + mine.filter(function (s) { return s.done; }).length + ' completed. Press it again, or Esc, to show everything.');
+  }
+  // The stage a student has reached, from the credit points completed
+  function stageOf(ctx) {
+    const done = ctx.doneCP;
+    if (ctx.deg.cp && done >= ctx.deg.cp) return { n: 4, label: 'Graduand Ready ★', tip: 'Every credit point of the degree is completed' };
+    if (done >= 200) return { n: 3, label: 'Stage 3 · Advanced & Electives', tip: '200 CP or more completed' };
+    if (done >= 80) return { n: 2, label: 'Stage 2 · Core Practice', tip: '80 to 190 CP completed. Stage 3 starts at 200 CP' };
+    return { n: 1, label: 'Stage 1 · Foundations', tip: 'Up to 70 CP completed. Stage 2 starts at 80 CP' };
+  }
+  function stagePill(ctx) {
+    const st = stageOf(ctx);
+    return '<button type="button" class="hero-pill hp-stage st-' + st.n + '" data-action="stage" title="' + esc(st.tip + '. Press to go to your next session.') + '">' + esc(st.label) + '</button>';
+  }
+  function syncStage(ctx) {
+    const el = $('#hero-meta .hp-stage');
+    if (!el) return;
+    const st = stageOf(ctx);
+    if (el.textContent === st.label) return;
+    el.textContent = st.label;
+    el.className = 'hero-pill hp-stage st-' + st.n + ' is-new';
+    el.title = st.tip + '. Press to go to your next session.';
+  }
+  // ---- celebrations: a gold sweep when a session or a year is finished, and confetti when the degree is
+  function sessionsDone(ctx) {
+    const out = {};
+    sessionsInOrder(ctx).forEach(function (x) { out[x.year + '|' + x.session] = x.slots.length > 0 && x.slots.every(function (s) { return s.done; }); });
+    return out;
+  }
+  function celebrate(el) {
+    if (!el || !motionOK()) return;
+    el.classList.remove('is-celebrating');
+    void el.offsetWidth;
+    el.classList.add('is-celebrating');
+    setTimeout(function () { el.classList.remove('is-celebrating'); }, 1700);
+  }
+  function confetti() {
+    if (!motionOK() || $('#confetti')) return;
+    const c = document.createElement('canvas');
+    c.id = 'confetti';
+    c.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(c);
+    const g = c.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = c.width = window.innerWidth * dpr;
+    const h = c.height = window.innerHeight * dpr;
+    const colours = ['#C59B27', '#E3C774', '#8B0029', '#7D0028', '#FFFFFF'];
+    const bits = [];
+    for (let i = 0; i < 150; i++) {
+      const side = i % 2 ? 1 : -1;
+      bits.push({ x: w / 2 + side * w * 0.18 * Math.random(), y: h * 0.42, vx: side * (2 + Math.random() * 7) * dpr, vy: -(7 + Math.random() * 11) * dpr, r: (3 + Math.random() * 5) * dpr, a: Math.random() * 6.3, va: (Math.random() - 0.5) * 0.4, c: colours[i % colours.length] });
+    }
+    const start = performance.now();
+    (function frame(now) {
+      const t = (now - start) / 2600;
+      g.clearRect(0, 0, w, h);
+      bits.forEach(function (b) {
+        b.vy += 0.32 * dpr; b.vx *= 0.992; b.x += b.vx; b.y += b.vy; b.a += b.va;
+        g.save(); g.globalAlpha = Math.max(0, 1 - t * t); g.translate(b.x, b.y); g.rotate(b.a); g.fillStyle = b.c; g.fillRect(-b.r, -b.r * 0.45, b.r * 2, b.r * 0.9); g.restore();
+      });
+      if (t < 1) requestAnimationFrame(frame); else c.remove();
+    })(start);
   }
   function renderDock(ctx) {
     const deg = ctx.deg;
@@ -1908,7 +2002,7 @@
       const g = ctx.custom ? ctx.guide : null;
       const at = g ? { y: Math.floor(g.firstK / 3) + 1, s: PLAN_SESSIONS[g.firstK % 3] } : null;
       setHTML($('#next'), '<div class="next-card"><div class="next-head"><p class="kicker">Next to enrol</p><h2>' +
-        (at ? sessionLabel(at.y, at.s) + ' <small>Year ' + at.y + ' · nothing planned yet</small>' : ctx.slots.length ? 'Every subject in your plan is ticked off' : 'Your plan has no subjects yet') + '</h2>' +
+        (at ? sessionLabel(at.y, at.s) + ' <small>Year ' + at.y + ' · nothing planned yet</small>' : ctx.slots.length ? (ctx.deg.cp && ctx.doneCP >= ctx.deg.cp ? '<span class="next-grad">🎓 Degree Complete · All ' + ctx.deg.cp + ' CP Mapped &amp; Completed!</span>' : 'Every subject in your plan is ticked off') : 'Your plan has no subjects yet') + '</h2>' +
         (at ? '<p class="next-sub">Add subjects from the <button type="button" class="linkish" data-action="guide-open">Suggested Remaining Guide</button>, or drag them onto a session.</p>' : '') + '</div>' + side([]) + '</div>');
       return;
     }
@@ -2100,7 +2194,7 @@
     return '<div class="' + cls.join(' ') + '" id="slot-' + s.id + '" data-slot="' + s.id + '"' + (state.load !== 'PT' ? ' draggable="true"' : '') + (s.vt ? ' style="--vt:' + s.vt + '"' : '') + '>' +
       '<div class="subj-lead">' + check + '<span class="code-pill">' + esc(codeTxt) + '</span></div>' +
       '<div class="subj-main"><div class="subj-title">' + esc(s.title) + '</div><div class="subj-meta"><span class="cat">' + esc(s.typeLabel) + '</span>' + slotFlags(s, ctx) + '</div>' + body + '</div>' +
-      '<div class="subj-side"><span class="pills">' + slotOffer(s, ctx) + '</span><span class="subj-end">' + (tools ? '<button type="button" class="subj-more" data-action="card-tools" data-slot="' + s.id + '" aria-expanded="' + (ui.openCard === s.id) + '" aria-controls="tools-' + s.id + '" aria-label="Tools for ' + esc(s.pending ? 'this open slot' : s.code) + '" title="Change, move or remove"><span aria-hidden="true">•••</span></button>' : '') + '<span class="cp-badge">' + s.cp + ' CP</span></span></div>' +
+      '<div class="subj-side"><span class="pills">' + slotOffer(s, ctx) + '</span><span class="subj-end">' + (tools && !s.pending ? '<button type="button" class="subj-more" data-action="card-tools" data-slot="' + s.id + '" aria-expanded="' + (ui.openCard === s.id) + '" aria-controls="tools-' + s.id + '" aria-label="' + (ui.openCard === s.id ? 'Close the tools for ' : 'Edit ') + esc(s.code) + '" title="Change, move or remove"><span class="sm-t" aria-hidden="true">' + (ui.openCard === s.id ? 'Done ▴' : 'Edit ▾') + '</span></button>' : '') + '<span class="cp-badge">' + s.cp + ' CP</span></span></div>' +
       '<div class="subj-edit" id="tools-' + s.id + '" role="group" aria-label="Tools for ' + esc(s.pending ? 'this open slot' : s.code) + '">' + tools + '</div></div>';
   }
 
@@ -2653,7 +2747,7 @@
     { title: 'Next to enrol', text: 'This is your next session. Copy Codes gives you the subject codes for MySR and Export .ics saves a calendar reminder. Already studying? Import my progress rebuilds your plan from a PDF, and Tick off from my results ticks subjects from text you paste.', targets: ['#next'] },
     { title: 'Plan tools', text: 'Undo and Redo step through your changes (' + UNDO_KEYS + ' and ' + REDO_KEYS + '). Re-Pace / Switch Load changes your load for the rest of your degree, with a Leave of Absence, a Spring start and Fast-Track. Plan Tools holds Auto-fill, Pin Snapshot, Simulate Degree Transfer and your own custom plan.', targets: ['#section-tools'] },
     { title: 'Filter bar and degree map', text: 'Show everything, only what remains, or only what needs action. Type in the box, or press /, to filter your plan by code or title. The degree map shows every session, stays on screen as you scroll and jumps to a session when you press it.', targets: ['#gridbar', '#dmap'] },
-    { title: 'Subject cards', text: 'Tick a subject when you pass it. Press ••• on a card for its tools: Change swaps the subject, Move to sends it to any session, Chain shows what it depends on and unlocks, Defer ↷ moves it to the next session it runs in, and Remove × takes it out. Open slots let you pick an LLB Alternate, and you can drag one subject onto another to swap them.', targets: ['#grid .subj'], fallback: '#grid' },
+    { title: 'Subject cards', text: 'Tick a subject when you pass it. Press Edit on a card for its tools: Change swaps the subject, Move to sends it to any session, Chain shows what it depends on and unlocks, Defer ↷ moves it to the next session it runs in, and Remove × takes it out. Open slots let you pick an LLB Alternate, and you can drag one subject onto another to swap them.', targets: ['#grid .subj'], fallback: '#grid' },
     { title: 'Degree details and catalogue', text: 'Credit breakdown, admission, accreditation and exit awards are here. In the subject catalogue tab, + Assign puts a subject straight into an open slot in your plan.', targets: ['#details'] },
     { title: 'Law Enquiry and your PDF', text: 'The Law Enquiry box in the corner holds the School of Law\'s 2027 advice and drafts an email to the School with your plan attached as a link. Print / Save PDF, at the top of the page or in the Menu, saves a sharp A4 guide of your plan, and PDF Options under More sets it up.', targets: ['#enquiry-box'], also: '[data-action="print"]', top: true, corner: true },
   ];
@@ -3088,6 +3182,8 @@
     return out;
   }
   function refreshDone(ids) {
+    const sessBefore = sessionsDone(lastCtx);
+    const cpBefore = lastCtx.doneCP;
     const before = yearsDone(lastCtx);
     const nextWas = nextSession(lastCtx);
     const ctx = buildContext();
@@ -3143,6 +3239,19 @@
     }
     showCounters(ctx);
     syncStructure(ctx);
+    syncStage(ctx);
+    applyTrack();
+    const sessNow = sessionsDone(ctx);
+    Object.keys(sessNow).forEach(function (k) {
+      if (!sessNow[k] || sessBefore[k]) return;
+      const v = k.split('|');
+      celebrate(document.querySelector('#year-' + v[0] + ' .session[data-s="' + v[1] + '"] .session-head'));
+    });
+    Object.keys(after).forEach(function (y) { if (after[y] && !before[y]) celebrate(document.querySelector('#year-' + y + ' .year-bar')); });
+    if (ctx.deg.cp && ctx.doneCP >= ctx.deg.cp && cpBefore < ctx.deg.cp) {
+      confetti();
+      toast('Degree complete: all ' + ctx.deg.cp + ' CP mapped and completed. Congratulations.');
+    }
     saveState();
   }
 
@@ -3721,6 +3830,23 @@
     else if (card) xrayFollow(card.dataset.slot, XRAY_INTENT);
     else xrayFollow('', 60);
   }
+  // a soft light follows the pointer across the card it is on
+  let spotAt = null;
+  $('#grid').addEventListener('pointermove', function (ev) {
+    if (ev.pointerType !== 'mouse' || !motionOK()) return;
+    const first = !spotAt;
+    spotAt = ev;
+    if (!first) return;
+    requestAnimationFrame(function () {
+      const e = spotAt;
+      spotAt = null;
+      const card = e.target.closest ? e.target.closest('.subj') : null;
+      if (!card) return;
+      const r = card.getBoundingClientRect();
+      card.style.setProperty('--mx', Math.round(e.clientX - r.left) + 'px');
+      card.style.setProperty('--my', Math.round(e.clientY - r.top) + 'px');
+    });
+  }, { passive: true });
   document.addEventListener('pointerover', xrayPointer);
   document.addEventListener('pointermove', xrayPointer, { passive: true });
   window.addEventListener('scroll', function () {
@@ -4734,6 +4860,7 @@
     if (active && document.getElementById(active) && /^(sel-|cat-|custom-name)/.test(active)) document.getElementById(active).focus({ preventScroll: true });
     saveState();
     afterRender(ctx);
+    if (ctx.custom && ctx.guide) sizeGuidePin();
     if (ui.modal === 'export') renderExportPreview();
   }
 
@@ -4898,6 +5025,7 @@
       if (!keepFolds) showYearFold(y.year);
     });
     grid.classList.toggle('is-filtering', matches.length > 0);
+    applyTrack();
     // the map marks where the matches are, as they may be far from the screen
     const map = $('#dmap');
     map.querySelectorAll('.dm-seg i').forEach(function (i) { i.classList.toggle('hit', !!marks[i.dataset.slot]); });
@@ -6929,6 +7057,12 @@
   }
 
   // ======================================================================== events
+  // --mini-h is the room the progress bar at the bottom of a small screen takes while it is up, and 0 otherwise
+  function syncMiniHeight() {
+    const bar = $('#mini-bar');
+    const up = bar.classList.contains('is-on') && !bar.classList.contains('is-min') && getComputedStyle(bar).display !== 'none';
+    document.documentElement.style.setProperty('--mini-h', up ? Math.round(bar.getBoundingClientRect().height) + 'px' : '0px');
+  }
   function closePops() {
     document.querySelectorAll('.pop-menu:not([hidden])').forEach(function (m) {
       m.hidden = true;
@@ -7217,6 +7351,7 @@
       }
       case 'mini-toggle': {
         const small = $('#mini-bar').classList.toggle('is-min');
+        syncMiniHeight();
         el.setAttribute('aria-expanded', String(!small));
         el.setAttribute('aria-label', small ? 'Expand progress bar' : 'Collapse progress bar');
         break;
@@ -7351,18 +7486,27 @@
       }
       case 'guide-fill': addFromGuide(lastCtx.guide.items.map(function (r, i) { return i; }), ''); break;
       case 'plan-fix': fixPlan(); break;
+      case 'track-filter': setTrack(el.dataset.k); break;
+      case 'stage': {
+        const n = nextSession(lastCtx);
+        const target = n ? document.querySelector('#year-' + n.year + ' .session[data-s="' + n.session + '"]') : $('#next');
+        if (n) { const yr = document.getElementById('year-' + n.year); if (yr && yr.classList.contains('is-folded')) setYearFold(n.year, false); }
+        if (target) target.scrollIntoView({ behavior: scrollMode(), block: 'center' });
+        break;
+      }
       case 'card-tools': {
         const id = el.dataset.slot;
         const opening = ui.openCard !== id;
         document.querySelectorAll('#grid .subj.is-open').forEach(function (c) {
           c.classList.remove('is-open');
           const b = c.querySelector('.subj-more');
-          if (b) b.setAttribute('aria-expanded', 'false');
+          if (b) { b.setAttribute('aria-expanded', 'false'); b.querySelector('.sm-t').textContent = 'Edit ▾'; }
         });
         ui.openCard = opening ? id : '';
         if (opening) {
           el.closest('.subj').classList.add('is-open');
           el.setAttribute('aria-expanded', 'true');
+          el.querySelector('.sm-t').textContent = 'Done ▴';
         }
         break;
       }
@@ -7372,9 +7516,11 @@
       case 'session-note': openNote(+el.dataset.y, el.dataset.s); break;
       case 'note-remove': setSessionNote(ui.note.y, ui.note.sess, ''); break;
       case 'guide-pin':
+        ev.stopPropagation();
         state.guidePinned = !state.guidePinned;
         if (state.guidePinned) ui.guideOpen = true;
         renderGuide(lastCtx);
+        sizeGuidePin();
         saveState();
         break;
       case 'handbook-compare': openHandbookCompare(); break;
@@ -7616,6 +7762,7 @@
         return;
       }
       if (ui.xrayPin) { ui.xrayPin = ''; ui.xrayHover = ''; xrayClear(); return; }
+      if (ui.trackKey) { ui.trackKey = ''; applyTrack(); return; }
       if (el.id === 'cat-q' && el.value) { el.value = ''; ui.cat.q = ''; renderCatalogueRows(lastCtx); return; }
       xrayClear();
       return;
@@ -7690,6 +7837,7 @@
   if (window.IntersectionObserver) {
     new IntersectionObserver(function (entries) {
       $('#mini-bar').classList.toggle('is-on', !entries[0].isIntersecting && entries[0].boundingClientRect.top < 0);
+      syncMiniHeight();
     }).observe($('#dock-wrap'));
   }
 
