@@ -1745,6 +1745,11 @@ button.pbadge-pre:hover { background: rgba(227, 199, 116, .18); }
   .pre-st { grid-column: 1 / -1; justify-self: start; }
 }
 
+/* ---------- the moving background: soft gold and crimson lights that drift behind the page */
+#bg-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
+#bg-canvas[hidden] { display: none; }
+@media print { #bg-canvas { display: none; } }
+
 </style>
 <style>
 /* WSLSA 2027 Degree Guide: print / PDF document styles, aligned with wslsa.com.au.
@@ -1939,6 +1944,7 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
 <style id="page-size">@page { size: A4 portrait; margin: 10mm; }</style>
 </head>
 <body>
+<canvas id="bg-canvas" aria-hidden="true"></canvas>
 <div class="app" id="app">
   <a class="skip-link" href="#plan-heading" data-action="skip">Skip to your plan</a>
   <header class="topbar">
@@ -3713,26 +3719,48 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       (ctx.tdeg ? ' This plan started from the ' + esc(tplLabel(ctx.plan.tpl)) + ' pathway, and anything you change or choose turns gold.' : '') +
       ' A custom plan is not a WSLSA recommendation, so confirm it with the Academic Program Advisor before you enrol.';
   }
-  // the finish replaces a plain duration: it moves with the load and with subjects taken over Summer
+  // How long the plan takes: from its first session to its last, counted in half years, with both ends in. A start
+  // in Autumn 2024 and a finish in Autumn 2028 is nine half years, so 4.5 years, not the degree's nominal five.
+  // Summer falls in the same half as the Spring before it.
+  function halfIdx(year, session) { return (year - 1) * 2 + (session === 'Autumn' ? 0 : 1); }
+  function planDuration(ctx, end) {
+    const first = sessionsInOrder(ctx)[0];
+    const g = ctx.custom ? ctx.guide : null;
+    const from = first || (g ? { year: Math.floor(g.firstK / 3) + 1, session: PLAN_SESSIONS[g.firstK % 3] } : null);
+    if (!from || !end) return null;
+    const halves = halfIdx(end.year, end.session) - halfIdx(from.year, from.session) + 1;
+    if (halves < 1) return null;
+    const years = halves / 2;
+    return { years: years, halves: halves, text: fmt(years) + (years === 1 ? ' yr' : ' yrs'), span: sessionLabel(from.year, from.session) + ' to ' + sessionLabel(end.year, end.session) };
+  }
+  // the finish moves with the load and with subjects taken over Summer, and the time it takes is counted from the plan
   function finishText(ctx) {
     const end = finishOf(ctx);
     // an imported plan, or one with nothing planned ahead, finishes where the guide's suggestions end
     const g = ctx.custom ? ctx.guide : null;
     const ahead = g && ctx.slots.some(function (s) { return !s.done && orderIdx(s.year, s.session) >= g.open; });
-    if (g && (ctx.plan.need.length || !ahead) && (!end || g.lastK > orderIdx(end.year, end.session))) return { at: sessionLabel(Math.floor(g.lastK / 3) + 1, PLAN_SESSIONS[g.lastK % 3]), how: 'following the guide' };
-    if (!end) return { at: 'No subjects yet', how: '' };
+    if (g && (ctx.plan.need.length || !ahead) && (!end || g.lastK > orderIdx(end.year, end.session))) {
+      const last = { year: Math.floor(g.lastK / 3) + 1, session: PLAN_SESSIONS[g.lastK % 3] };
+      const d = planDuration(ctx, last);
+      return { at: sessionLabel(last.year, last.session), how: (d ? d.text + ' · ' : '') + 'following the guide', span: d ? d.span : '', years: d ? d.years : 0 };
+    }
+    if (!end) return { at: 'No subjects yet', how: '', span: '', years: 0 };
     const pace = ctx.custom ? ctx.plan.pace : 0;
     const pt = state.load === 'PT';
+    const d = planDuration(ctx, end);
+    // a plan with past years has usually run at more than one load, so it is not called full-time or part-time
+    const load = pace ? ' · ' + PACE_NAME[pace] : pt ? ' part-time' : ctx.custom && ctx.plan.start ? '' : ' full-time';
     return {
       at: sessionLabel(end.year, end.session),
-      how: pace ? PACE_NAME[pace] : fmt(pt ? ctx.deg.ptYears : ctx.deg.ftYears) + ' yrs ' + (pt ? 'part-time' : 'full-time'),
+      how: d ? d.text + load : load.replace(/^ (· )?/, ''),
+      span: d ? d.span : '', years: d ? d.years : 0,
     };
   }
   function heroPills(ctx) {
     const f = finishText(ctx);
     const began = (planStart() < START_YEAR ? 'Started ' : 'Starting ') + planStart();
     return stagePill(ctx) + '<span class="hero-pill hp-cp" title="Credit points the degree requires"><span class="num">' + ctx.deg.cp + '</span> CP</span>' +
-      '<span class="hero-pill hp-finish" title="' + esc(began) + '">Finish ' + esc(f.at) + (f.how ? ' <small>· ' + esc(f.how) + '</small>' : '') + '</span>' +
+      '<span class="hero-pill hp-finish" title="' + esc(began + (f.span ? ' · ' + f.span + ' is ' + fmt(f.years) + (f.years === 1 ? ' year' : ' years') + ', counting the first and last sessions' : '')) + '">Finish ' + esc(f.at) + (f.how ? ' <small>· ' + esc(f.how) + '</small>' : '') + '</span>' +
       '<a class="hero-pill hp-link" href="' + esc(ctx.deg.handbook) + '" target="_blank" rel="noopener">' + (ctx.custom && !ctx.tdeg ? 'WSU Handbook ↗' : '2027 Handbook ↗') + '</a>';
   }
   function renderHero(ctx) {
@@ -5973,6 +6001,56 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
     else if (card) xrayFollow(card.dataset.slot, XRAY_INTENT);
     else xrayFollow('', 60);
   }
+  // The background: a few large, soft lights in the association's gold and crimson drift slowly behind the page. It is
+  // drawn at half size and about twenty frames a second, stops while the tab is hidden, and is not drawn at all under
+  // reduced motion.
+  (function () {
+    const c = $('#bg-canvas');
+    if (!c || !c.getContext) return;
+    const g = c.getContext('2d');
+    let w = 0;
+    let h = 0;
+    let lights = [];
+    let last = 0;
+    let raf = 0;
+    const size = function () {
+      w = c.width = Math.ceil(window.innerWidth / 2);
+      h = c.height = Math.ceil(window.innerHeight / 2);
+      const n = Math.max(6, Math.min(12, Math.round(w * h / 60000)));
+      lights = [];
+      for (let i = 0; i < n; i++) {
+        lights.push({ x: Math.random() * w, y: Math.random() * h, r: (0.16 + Math.random() * 0.2) * Math.max(w, h), vx: (Math.random() - 0.5) * 0.14, vy: (Math.random() - 0.5) * 0.14, gold: i % 2 === 0, ph: Math.random() * 6.3 });
+      }
+    };
+    const draw = function (now) {
+      raf = requestAnimationFrame(draw);
+      if (now - last < 50) return;
+      last = now;
+      const dark = document.documentElement.dataset.theme === 'dark';
+      g.clearRect(0, 0, w, h);
+      lights.forEach(function (l) {
+        l.x += l.vx; l.y += l.vy;
+        if (l.x < -l.r) l.x = w + l.r; else if (l.x > w + l.r) l.x = -l.r;
+        if (l.y < -l.r) l.y = h + l.r; else if (l.y > h + l.r) l.y = -l.r;
+        const a = (dark ? (l.gold ? 0.12 : 0.24) : (l.gold ? 0.15 : 0.085)) * (0.7 + 0.3 * Math.sin(now / 4200 + l.ph));
+        const grad = g.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
+        grad.addColorStop(0, (l.gold ? 'rgba(197, 155, 39, ' : 'rgba(139, 0, 41, ') + a.toFixed(3) + ')');
+        grad.addColorStop(1, l.gold ? 'rgba(197, 155, 39, 0)' : 'rgba(139, 0, 41, 0)');
+        g.fillStyle = grad;
+        g.fillRect(l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
+      });
+    };
+    const start = function () {
+      cancelAnimationFrame(raf);
+      c.hidden = !motionOK();
+      if (motionOK() && !document.hidden) raf = requestAnimationFrame(draw);
+    };
+    size();
+    start();
+    window.addEventListener('resize', size);
+    document.addEventListener('visibilitychange', start);
+    window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', start);
+  })();
   // a soft light follows the pointer across the card it is on
   let spotAt = null;
   $('#grid').addEventListener('pointermove', function (ev) {

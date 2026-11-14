@@ -1722,3 +1722,8 @@ button.pbadge-pre:hover { background: rgba(227, 199, 116, .18); }
   .pre-row { grid-template-columns: minmax(0, 1fr) auto; }
   .pre-st { grid-column: 1 / -1; justify-self: start; }
 }
+
+/* ---------- the moving background: soft gold and crimson lights that drift behind the page */
+#bg-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
+#bg-canvas[hidden] { display: none; }
+@media print { #bg-canvas { display: none; } }

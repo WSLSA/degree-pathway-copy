@@ -2869,6 +2869,20 @@ async function renderPdf(page, key, mode, orient, file) {
   await hb.selectOption('#sel-cohort', '2027');
   await hb.click('#tab-structure');
   await hb.evaluate(() => WSLSA.select('2785|BASE'));
+  // the time a plan takes runs from its first session to its last, in half years
+  const finish = () => hb.evaluate(() => { const p = document.querySelector('#hero-meta .hp-finish'); return p.textContent + ' | ' + p.title; });
+  check(/^Finish Spring 2031 · 5 yrs full-time \| Starting 2027 · Autumn 2027 to Spring 2031 is 5 years/.test(await finish()), `a five year pathway should say five years, got ${await finish()}`);
+  const lastCards = await hb.evaluate(() => WSLSA.context().slots.filter(x => x.year === 5 && x.session === 'Spring').map(x => x.id));
+  for (const id of lastCards) await hb.selectOption(`#slot-${await hb.evaluate(i => { const c = WSLSA.context(); const s = c.byId[i] || c.slots.find(x => x.year === 5 && x.session === 'Spring'); return s.id; }, id)} .move-sel`, '5|Autumn');
+  check(/^Finish Autumn 2031 · 4\.5 yrs full-time \| Starting 2027 · Autumn 2027 to Autumn 2031 is 4\.5 years/.test(await finish()), `a plan that ends in Autumn should count the half year, got ${await finish()}`);
+  for (let i = 0; i < lastCards.length; i++) await hb.click('#section-tools [data-action="undo"]');
+  check(/5 yrs full-time/.test(await finish()) && await hb.evaluate(() => !WSLSA.context().edit), 'Undo should bring the five years back');
+  check(await hb.evaluate(() => { const c = document.getElementById('bg-canvas'); const s = getComputedStyle(c); return s.position === 'fixed' && s.pointerEvents === 'none' && s.zIndex === '-1' && c.hidden; }), 'the background should sit behind the page, and stay still under reduced motion');
+  const lively = await newPage(browser, { reducedMotion: 'no-preference' });
+  await lively.goto(APP);
+  await lively.waitForTimeout(400);
+  check(await lively.evaluate(() => { const c = document.getElementById('bg-canvas'); if (c.hidden) return false; const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i]) return true; return false; }), 'with motion allowed the background should be drawing');
+  await lively.close();
   // the site's name, and the University's pre-2027 sequence beside the plan
   check(await hb.title() === 'WSLSA Degree Explorer · 2785 Bachelor of Accounting/Bachelor of Laws' && /WSLSA Degree Explorer/.test(await hb.textContent('.crest-text small')), `the site should be named WSLSA Degree Explorer, got ${await hb.title()}`);
   await hb.click('#tab-pre2027');
