@@ -302,7 +302,7 @@
     switch (type) {
       case 'Law': return 'law';
       case 'Non-law': return 'nonlaw';
-      case 'Major': case 'Major (option)': return 'major';
+      case 'Major': case 'Major (option)': case 'Minor': return 'major';
       case 'LLB alternate': return 'llb';
       case 'Choice': return 'choice';
       case 'Elective': return 'elective';
@@ -311,6 +311,7 @@
   }
   const TYPE_LABEL = { law: 'Law core', nonlaw: 'Non-law core', major: 'Major / minor', llb: 'LLB Alternate', choice: 'Choice', elective: 'Elective' };
   function typeLabel(raw, opt) {
+    if (raw.type === 'Minor') return 'Minor';
     if (raw.type === 'Major') return opt.majorKind === 'Minor' ? 'Minor' : 'Major';
     if (raw.type === 'Major (option)') return 'Major option';
     return TYPE_LABEL[typeGroup(raw.type)];
@@ -840,10 +841,12 @@
   function planUrl() { return location.href.split('#')[0] + '#' + scrambleLink(encodeLink()); }
 
   // ======================================================================== slot resolution
+  // a slot the student fills with a subject of the major or minor they chose, in a degree that leaves both to them
+  function ownChoice(raw) { return !!raw && raw.kind === 'elective' && (raw.type === 'Major' || raw.type === 'Minor'); }
   function placeholder(raw) {
     if (raw.kind === 'llb') return 'LLB Alternate subject';
     if (raw.kind === 'pool') return 'Choose: ' + cleanPoolTitle(raw.title);
-    if (raw.kind === 'elective') return 'Elective (any WSU subject)';
+    if (raw.kind === 'elective') return ownChoice(raw) ? raw.title : 'Elective (any WSU subject)';
     if (raw.kind === 'inline') return 'Choose one of the options below';
     return raw.title;
   }
@@ -1571,7 +1574,7 @@
     const o = ctx.opt;
     if (o.majorCode !== 'BASE') return o.majorLabel;
     const built = builtInMajor(ctx.deg);
-    return built ? 'Built-in major: ' + built : 'No major or minor';
+    return built ? 'Built-in major: ' + built : ctx.deg.majorNote ? o.majorLabel : 'No major or minor';
   }
 
   function pill(code, opts) {
@@ -1623,7 +1626,7 @@
     const deg = ctx.deg;
     if (!o.groupLetter) {
       return deg.fixedStructure
-        ? '<b>Single recommended pathway.</b> ' + deg.code + ' has one structure, so one WSLSA Autumn/Spring sequence covers every student, and you can still move or change any subject in it.'
+        ? '<b>Single recommended pathway.</b> ' + deg.code + ' has one structure, so one WSLSA Autumn/Spring sequence covers every student, and you can still move or change any subject in it.' + (deg.majorNote ? ' ' + esc(deg.majorNote) + '.' : '')
         : '<b>Single recommended pathway.</b> One Autumn/Spring sequence fits all ' + plural(deg.options.length, (o.majorKind === 'Minor' ? 'minor' : 'major')) + ' in ' + deg.code + ' against the published 2027 offerings; only the ' + (o.majorKind === 'Minor' ? 'minor' : 'major') + ' subjects change.';
     }
     const kind = (o.majorKind || 'major').toLowerCase().replace('testamur ', '');
@@ -1681,7 +1684,7 @@
     }
     $('#hero-title').innerHTML = titleHTML(d.title);
     $('#hero-meta').innerHTML = '<span class="course" title="Course code">' + d.code + '</span>' +
-      '<span class="major">' + esc(o.majorCode === 'BASE' && !builtInMajor(d) ? 'No major or minor' : selectionLabel(ctx)) + '</span>' +
+      '<span class="major">' + esc(o.majorCode === 'BASE' && !builtInMajor(d) && !d.majorNote ? 'No major or minor' : selectionLabel(ctx)) + '</span>' +
       '<span class="pbadge">' + (o.groupLetter ? 'Pathway ' + o.groupLetter : 'Single pathway') + '</span>' +
       (ctx.edit ? '<span class="pbadge pbadge-edit" title="Your changes to this pathway are kept in this browser. Reset to Default Sequence in Plan Tools puts the WSLSA order back.">Edited by you</span>' : '') +
       (ctxCohort(ctx) === 'pre2027' ? '<button type="button" class="pbadge pbadge-pre" data-action="pre-tab" title="' + esc(COHORT_LABEL.pre2027) + '. Press to see the University\'s pre-2027 sequence.">Pre-2027 structure</button>' : '') + heroPills(ctx) +
@@ -1830,7 +1833,7 @@
       majorField = '<input class="input" id="custom-name" maxlength="120" autocomplete="off" placeholder="Type your degree, e.g. Bachelor of Laws (Graduate Entry)" value="' + esc(ctx.plan.name) + '">';
     } else if (deg.fixedStructure) {
       const built = builtInMajor(deg);
-      majorField = '<div class="locked" id="major-locked"><span><b>One structure.</b> ' + (built ? 'Built-in: ' + esc(built) : 'No major or minor to choose') + '</span></div>';
+      majorField = '<div class="locked" id="major-locked"' + (deg.majorNote ? ' title="' + esc(deg.majorNote) + '"' : '') + '><span>' + (deg.majorNote ? '<b>Your major and minor.</b> Fill their slots' : '<b>One structure.</b> ' + (built ? 'Built-in: ' + esc(built) : 'No major or minor to choose')) + '</span></div>';
     } else {
       const opts = deg.options.map(function (k) { return OPT[k]; });
       const letters = Array.from(new Set(opts.map(function (o) { return o.groupLetter; })));
@@ -2075,7 +2078,7 @@
 
   function selectLabel(s) {
     if (s.kind === 'llb') return 'Select LLB Alternate';
-    if (s.kind === 'elective') return 'Select Elective';
+    if (s.kind === 'elective') return ownChoice(s.raw) ? 'Select ' + s.raw.type + ' Subject' : 'Select Elective';
     return 'Select Subject';
   }
   // The pools a subject can count towards in a plan, when its degree lists it in more than one (LAWS 3067 in 2785 is both
@@ -2219,7 +2222,7 @@
       body += '<div class="subj-actions"><button type="button" class="select-btn" data-action="picker-open" data-slot="' + s.id + '" title="' + esc(tip) + '">+ ' + (s.raw.kind === 'llb' ? 'Select LLB Alternate' : 'Choose subject') + ' →</button></div>';
     }
     const tools = slotTools(s, ctx);
-    const codeTxt = s.pending ? (s.kind === 'cslot' ? s.pendingCode : s.kind === 'llb' ? 'LLB ALT' : s.kind === 'elective' ? 'ELECTIVE' : 'CHOICE') : s.code;
+    const codeTxt = s.pending ? (s.kind === 'cslot' ? s.pendingCode : s.kind === 'llb' ? 'LLB ALT' : s.kind === 'elective' ? (ownChoice(s.raw) ? s.raw.type.toUpperCase() : 'ELECTIVE') : 'CHOICE') : s.code;
     const check = '<label class="tick" title="Mark complete"><input type="checkbox" data-action="done" data-slot="' + s.id + '"' + (s.done ? ' checked' : '') + ' aria-label="Mark ' + esc((s.pending ? '' : s.code + ' ') + s.title) + ' complete"><span class="tick-box" aria-hidden="true"></span></label>';
     return '<div class="' + cls.join(' ') + '" id="slot-' + s.id + '" data-slot="' + s.id + '"' + (state.load !== 'PT' ? ' draggable="true"' : '') + (s.vt ? ' style="--vt:' + s.vt + '"' : '') + '>' +
       '<div class="subj-lead">' + check + '<span class="code-pill">' + esc(codeTxt) + '</span></div>' +
@@ -2259,7 +2262,7 @@
   });
   // + Add slot: a slot for any subject, or one tied to the pathway's own kinds of choice
   function kindLabel(r) {
-    return !r ? '' : r.kind === 'llb' ? 'LLB Alternate slot' : r.kind === 'elective' ? 'Elective slot' : r.kind === 'option' ? 'Major option slot' : r.kind === 'pool' ? 'Choice: ' + cleanPoolTitle(r.title) : '';
+    return !r ? '' : r.kind === 'llb' ? 'LLB Alternate slot' : ownChoice(r) ? r.type + ' subject slot' : r.kind === 'elective' ? 'Elective slot' : r.kind === 'option' ? 'Major option slot' : r.kind === 'pool' ? 'Choice: ' + cleanPoolTitle(r.title) : '';
   }
   // The kind of slot a card is, changed on the card itself: a subject put in as any WSU subject that should have been an
   // LLB Alternate, say, is set right without taking the card out and adding it again.
@@ -6892,7 +6895,7 @@
   function pendingPrintTitle(s) {
     if (s.kind === 'cslot') return s.pendingLabel;
     if (s.kind === 'llb') return 'LLB Alternate subject: to choose';
-    if (s.kind === 'elective') return 'Elective (any WSU subject)';
+    if (s.kind === 'elective') return placeholder(s.raw);
     if (s.kind === 'inline') return 'Choose: ' + s.raw.options.map(function (x) { return x.code; }).join(' or ');
     return cleanPoolTitle(s.raw.title);
   }

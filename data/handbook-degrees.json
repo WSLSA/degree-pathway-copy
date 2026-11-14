@@ -1,0 +1,3026 @@
+{
+ "about": "Degrees that are not in the WSLSA workbook, built by scripts/make_arts_laws.py from the 2027 Handbook and the workbook's own Law sequence. build_app.py adds them to the workbook's degrees.",
+ "degrees": [
+  {
+   "code": "2537",
+   "title": "Bachelor of Arts/Bachelor of Laws",
+   "label": "2537 – Bachelor of Arts/Bachelor of Laws",
+   "cp": 400,
+   "ftYears": 5,
+   "ptYears": 10,
+   "intake": "See the Handbook",
+   "intakeList": [],
+   "campuses": "Parramatta South, Campbelltown",
+   "campusList": [
+    "Parramatta South",
+    "Campbelltown"
+   ],
+   "students": "Domestic, International",
+   "majorChoices": "29 majors and 22 minors",
+   "pathwayGroups": 1,
+   "assumedKnowledge": "Assumed Knowledge: Any two units of HSC English; Assumed Knowledge: Recommended Studies: HSC English Standard or equivalent",
+   "accreditation": [
+    {
+     "name": "Legal Profession Admission Board (LPAB)",
+     "abbr": "LPAB",
+     "status": "Essential to work in profession"
+    }
+   ],
+   "exitAwards": [
+    {
+     "code": "1706",
+     "name": "Bachelor of Arts",
+     "exitOnly": false
+    },
+    {
+     "code": "2848",
+     "name": "Bachelor of Laws",
+     "exitOnly": false
+    },
+    {
+     "code": "2827",
+     "name": "Diploma in Laws",
+     "exitOnly": true
+    }
+   ],
+   "tbcSubjects": [
+    "LAWS 3099",
+    "LAWS 3101",
+    "LAWS 3102",
+    "LAWS 3103"
+   ],
+   "cricos": "041113G",
+   "handbook": "https://studenthandbook.westernsydney.edu.au/course/2027/2537",
+   "fixedStructure": true,
+   "sheet": "2537 Arts-Laws",
+   "sheetIntro": "2027 Student Handbook data. This degree has no sheet in the WSLSA 2027 Degree Guides workbook, so its pathway is put together from the Handbook's structure for 2537 and the WSLSA Law sequence used for the other double degrees. The Handbook lists your Arts major and minor without a session for each subject, so their slots are yours to fill. It is not an official WSU sequence.",
+   "structure": [
+    {
+     "component": "Core",
+     "cp": 230
+    },
+    {
+     "component": "Arts Major",
+     "cp": 80
+    },
+    {
+     "component": "Arts Minor",
+     "cp": 40
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "cp": 50
+    }
+   ],
+   "structureTotal": 400,
+   "catalogueNote": "Autumn / Spring show the campuses where each subject runs in that session.",
+   "advisorNotes": [],
+   "options": [
+    "2537|BASE"
+   ],
+   "qrSvg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 37 37\" class=\"qr\"><path stroke=\"#1b2433\" d=\"M2 2.5h7m3 0h2m1 0h1m3 0h2m3 0h1m3 0h7m-33 1h1m5 0h1m1 0h1m2 0h1m1 0h2m1 0h3m1 0h3m3 0h1m5 0h1m-33 1h1m1 0h3m1 0h1m1 0h1m1 0h1m1 0h1m1 0h3m1 0h5m3 0h1m1 0h3m1 0h1m-33 1h1m1 0h3m1 0h1m1 0h2m4 0h1m2 0h3m1 0h1m2 0h1m1 0h1m1 0h3m1 0h1m-33 1h1m1 0h3m1 0h1m2 0h3m5 0h1m1 0h1m3 0h2m1 0h1m1 0h3m1 0h1m-33 1h1m5 0h1m6 0h1m2 0h2m2 0h3m3 0h1m5 0h1m-33 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-25 1h2m1 0h1m3 0h1m3 0h2m-21 1h1m5 0h1m1 0h1m3 0h4m1 0h1m1 0h1m2 0h1m1 0h3m2 0h3m-32 1h2m2 0h2m1 0h6m1 0h2m2 0h2m3 0h1m4 0h3m-31 1h1m2 0h1m1 0h2m2 0h1m1 0h2m2 0h1m2 0h1m5 0h2m2 0h1m1 0h2m-32 1h3m1 0h2m4 0h2m4 0h1m1 0h2m2 0h1m2 0h1m1 0h5m-31 1h2m1 0h3m1 0h3m2 0h3m2 0h3m2 0h1m2 0h2m3 0h1m-32 1h1m3 0h2m2 0h2m3 0h1m1 0h1m1 0h1m1 0h1m3 0h1m2 0h2m1 0h4m-32 1h2m2 0h4m1 0h2m2 0h5m1 0h3m2 0h4m1 0h2m-28 1h2m1 0h2m2 0h2m1 0h1m7 0h1m1 0h2m1 0h1m1 0h2m1 0h1m-33 1h2m1 0h1m1 0h2m3 0h1m1 0h1m1 0h5m3 0h1m1 0h2m1 0h2m3 0h1m-32 1h2m6 0h3m2 0h3m1 0h4m1 0h1m1 0h2m2 0h4m-33 1h1m1 0h5m1 0h1m2 0h3m1 0h1m2 0h3m2 0h1m2 0h2m1 0h2m1 0h1m-28 1h1m2 0h3m4 0h1m2 0h1m1 0h1m1 0h1m5 0h5m-33 1h1m1 0h1m1 0h3m1 0h1m3 0h1m2 0h4m3 0h1m1 0h2m1 0h3m-30 1h3m2 0h1m1 0h1m3 0h1m2 0h4m1 0h1m1 0h1m1 0h1m1 0h1m2 0h2m-30 1h1m2 0h6m5 0h2m1 0h1m2 0h2m2 0h1m6 0h1m-32 1h1m1 0h2m1 0h1m1 0h1m1 0h1m2 0h1m1 0h2m2 0h2m3 0h1m1 0h2m1 0h4m-32 1h4m1 0h4m1 0h1m1 0h1m1 0h2m3 0h2m3 0h6m-22 1h1m2 0h6m2 0h2m2 0h2m3 0h1m1 0h3m-33 1h7m2 0h1m4 0h4m3 0h4m1 0h1m1 0h1m1 0h2m-32 1h1m5 0h1m5 0h1m1 0h1m4 0h1m3 0h2m3 0h3m-31 1h1m1 0h3m1 0h1m2 0h1m2 0h2m1 0h6m1 0h1m1 0h6m1 0h2m-33 1h1m1 0h3m1 0h1m2 0h1m2 0h1m2 0h1m2 0h3m1 0h1m1 0h2m1 0h6m-33 1h1m1 0h3m1 0h1m3 0h2m1 0h3m3 0h4m1 0h1m2 0h2m1 0h3m-33 1h1m5 0h1m3 0h3m2 0h2m2 0h1m2 0h1m2 0h1m1 0h4m-31 1h7m1 0h2m2 0h3m2 0h1m4 0h1m1 0h2m1 0h1m1 0h1m1 0h1\"/></svg>",
+   "catalogue": [
+    {
+     "component": "Core",
+     "level": "Level 1",
+     "code": "HUMN 1052",
+     "title": "Australian Politics and Active Citizenship",
+     "autumn": "PE BC ON",
+     "spring": "PS",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PE",
+       "BC",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 1",
+     "code": "LANG 1029",
+     "title": "Foundations of Academic English",
+     "autumn": "PS PE BC ON",
+     "spring": "PS PE BC ON",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS",
+       "PE",
+       "BC",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [
+       "PS",
+       "PE",
+       "BC",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 1",
+     "code": "HUMN 1053",
+     "title": "Diversity, Language and Culture",
+     "autumn": "PS",
+     "spring": "PE BC",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [
+       "PE",
+       "BC"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 1",
+     "code": "LANG 1030",
+     "title": "Thinking Critically About Texts and Society",
+     "autumn": "PE BC",
+     "spring": "PS",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PE",
+       "BC"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 1",
+     "code": "LAWS 1003",
+     "title": "Fundamentals of Australian Law",
+     "autumn": "PS CA PC ON",
+     "spring": "PS ON",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS",
+       "CA",
+       "PC",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [
+       "PS",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 1",
+     "code": "LAWS 1010",
+     "title": "Legal Methods",
+     "autumn": "PS CA",
+     "spring": "PS CA",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS",
+       "CA"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [
+       "PS",
+       "CA"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 2",
+     "code": "LAWS 2013",
+     "title": "Torts Law",
+     "autumn": "—",
+     "spring": "PS CA ON",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "PS",
+       "CA",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 2",
+     "code": "LAWS 2003",
+     "title": "Contracts",
+     "autumn": "PS CA ON",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS",
+       "CA",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 2",
+     "code": "LAWS 2008",
+     "title": "Government and Public Law",
+     "autumn": "—",
+     "spring": "PS CA ON",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "PS",
+       "CA",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 2",
+     "code": "LAWS 2018",
+     "title": "Criminal Law and Procedure",
+     "autumn": "—",
+     "spring": "PS CA",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "PS",
+       "CA"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 2",
+     "code": "LAWS 2019",
+     "title": "Law and Technology",
+     "autumn": "ON",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 2",
+     "code": "LAWS 2020",
+     "title": "Legal Ethics",
+     "autumn": "PC ON",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PC",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 3",
+     "code": "LAWS 3018",
+     "title": "Equity & Trusts",
+     "autumn": "PS CA ON",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS",
+       "CA",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 3",
+     "code": "LAWS 3099",
+     "title": "Global Law",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 3",
+     "code": "LAWS 3100",
+     "title": "Evidence",
+     "autumn": "—",
+     "spring": "PS CA",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "PS",
+       "CA"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 3",
+     "code": "LAWS 3101",
+     "title": "Legal Practice Skills",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 3",
+     "code": "LAWS 3102",
+     "title": "Law for the Future",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 3",
+     "code": "LAWS 3103",
+     "title": "Civil Procedure",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 3",
+     "code": "LAWS 3082",
+     "title": "Property Law",
+     "autumn": "PS CA ON",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS",
+       "CA",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 3",
+     "code": "LAWS 3045",
+     "title": "Law of Associations",
+     "autumn": "—",
+     "spring": "PS ON",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "PS",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 3",
+     "code": "LAWS 3081",
+     "title": "Administrative Law",
+     "autumn": "—",
+     "spring": "PS CA ON",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "PS",
+       "CA",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 4",
+     "code": "LAWS 4015",
+     "title": "Constitutional Law",
+     "autumn": "PS CA ON",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS",
+       "CA",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "Core",
+     "level": "Level 4",
+     "code": "LAWS 4014",
+     "title": "Remedies",
+     "autumn": "CA ON",
+     "spring": "PS CA ON",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "CA",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [
+       "PS",
+       "CA",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 4",
+     "code": "LAWS 4017",
+     "title": "Access to Justice Clinic",
+     "autumn": "PS",
+     "spring": "PS",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3001",
+     "title": "Advanced Family Law",
+     "autumn": "—",
+     "spring": "ON",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 4",
+     "code": "LAWS 4003",
+     "title": "Advanced Taxation Law",
+     "autumn": "PC",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PC"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3002",
+     "title": "Advanced Torts and Civil Wrongs",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3003",
+     "title": "Advocacy",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3090",
+     "title": "Animal Law",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3004",
+     "title": "Anti-Discrimination Law",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3098",
+     "title": "Artificial Intelligence and the Law (UG)",
+     "autumn": "—",
+     "spring": "PS",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3005",
+     "title": "Australian Competition Law",
+     "autumn": "—",
+     "spring": "ON",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3006",
+     "title": "Australian Consumer Law",
+     "autumn": "ON",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3007",
+     "title": "Banking and Securities Law",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 2",
+     "code": "LAWS 2014",
+     "title": "Bioethics",
+     "autumn": "PS",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3089",
+     "title": "Children's Rights: Local and International",
+     "autumn": "—",
+     "spring": "PS",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3011",
+     "title": "Comparative Law: Legal Systems of the World",
+     "autumn": "—",
+     "spring": "PS",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3088",
+     "title": "Construction Law",
+     "autumn": "ON",
+     "spring": "ON",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3014",
+     "title": "Corporate Governance",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 4",
+     "code": "LAWS 4010",
+     "title": "Designing Law Apps for Access to Justice",
+     "autumn": "PS",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3096",
+     "title": "Drug Policy and Law",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3016",
+     "title": "Elder Law",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3022",
+     "title": "Family Dispute Resolution",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3023",
+     "title": "Family Law",
+     "autumn": "PS CA PC ON",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS",
+       "CA",
+       "PC",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 2",
+     "code": "LAWS 2005",
+     "title": "Financial Services Law",
+     "autumn": "PC ON",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PC",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 2",
+     "code": "LAWS 2007",
+     "title": "First Peoples and the Australian Legal System",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 4",
+     "code": "LAWS 4012",
+     "title": "First Nations Peoples' Access to Justice Clinic",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 2",
+     "code": "LAWS 2017",
+     "title": "Indonesia: Law, Governance and Culture",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3083",
+     "title": "Gender and the Law",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3091",
+     "title": "Globalisation, Law, Governance and Culture",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3027",
+     "title": "Human Rights Law",
+     "autumn": "—",
+     "spring": "PS ON",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "PS",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3029",
+     "title": "Immigration Law",
+     "autumn": "—",
+     "spring": "ON",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3030",
+     "title": "Information and Data Governance Law and Regulation",
+     "autumn": "PS",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3032",
+     "title": "Intellectual Property",
+     "autumn": "PS",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3034",
+     "title": "International Criminal Law",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 4",
+     "code": "LAWS 4007",
+     "title": "International Environmental Law",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3039",
+     "title": "Islam, International Law and Human Rights",
+     "autumn": "—",
+     "spring": "ON",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "JUST 3011",
+     "title": "Issues in the Criminal Justice System",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3074",
+     "title": "Judicial Internship",
+     "autumn": "PC",
+     "spring": "PC",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PC"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [
+       "PC"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3042",
+     "title": "Jurisprudence",
+     "autumn": "PS",
+     "spring": "—",
+     "cp": 10,
+     "source": "2026 handbook (2027 not yet published)",
+     "autumnInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3079",
+     "title": "Law, Economics, Ethics and Change",
+     "autumn": "PS",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3044",
+     "title": "Law and Public Policy",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3046",
+     "title": "Law of Employment",
+     "autumn": "—",
+     "spring": "PS",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3085",
+     "title": "Law of War",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3077",
+     "title": "Legal Internship",
+     "autumn": "PC",
+     "spring": "PC",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PC"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [
+       "PC"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 4",
+     "code": "LAWS 4016",
+     "title": "Legal Research and Methodology",
+     "autumn": "PS",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3086",
+     "title": "Managing Legal Risk in Construction Law",
+     "autumn": "PS ON",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS",
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3049",
+     "title": "Media Law",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 2",
+     "code": "JUST 2013",
+     "title": "Mediation",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3050",
+     "title": "Medical Law",
+     "autumn": "—",
+     "spring": "PS",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3053",
+     "title": "Moot Court",
+     "autumn": "CA",
+     "spring": "PS",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "CA"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3055",
+     "title": "Planning and Environment Law",
+     "autumn": "PC",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PC"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 4",
+     "code": "LAWS 4018",
+     "title": "Private Equity Deals (UG)",
+     "autumn": "PS PC",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS",
+       "PC"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3061",
+     "title": "Public Health Law",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3063",
+     "title": "Public International Law",
+     "autumn": "PS",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3097",
+     "title": "Refugee Law",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 2",
+     "code": "LAWS 2012",
+     "title": "Regulatory Risk and Compliance",
+     "autumn": "ON",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 4",
+     "code": "LAWS 4008",
+     "title": "Revenue Law",
+     "autumn": "ON",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3067",
+     "title": "Self-Managed Superannuation and Trusts",
+     "autumn": "—",
+     "spring": "ON",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     },
+     "springInfo": {
+      "codes": [
+       "ON"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3087",
+     "title": "Sports Law",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3076",
+     "title": "Technology, Innovation and the Law",
+     "autumn": "TBC",
+     "spring": "TBC",
+     "cp": 10,
+     "source": "Not yet published",
+     "autumnInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": true,
+      "y2026": false,
+      "none": false
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3071",
+     "title": "Wills and Succession",
+     "autumn": "PC",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PC"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    },
+    {
+     "component": "LLB Alternate Subjects",
+     "level": "Level 3",
+     "code": "LAWS 3072",
+     "title": "Work Health and Safety Law",
+     "autumn": "PS",
+     "spring": "—",
+     "cp": 10,
+     "source": "2027 handbook",
+     "autumnInfo": {
+      "codes": [
+       "PS"
+      ],
+      "tbc": false,
+      "y2026": false,
+      "none": false
+     },
+     "springInfo": {
+      "codes": [],
+      "tbc": false,
+      "y2026": false,
+      "none": true
+     }
+    }
+   ],
+   "majorNote": "Choose your Arts major (80 CP) and minor (40 CP) in the Handbook, then put their subjects in the Major and Minor slots"
+  }
+ ],
+ "options": [
+  {
+   "degree": "2537",
+   "degreeLabel": "2537 – Bachelor of Arts/Bachelor of Laws",
+   "majorLabel": "Arts major and minor of your choice",
+   "majorCode": "BASE",
+   "majorName": null,
+   "majorKind": null,
+   "pathwayKey": "2537|BASE",
+   "pathwayGroup": "Single recommended pathway for this degree",
+   "groupLetter": null,
+   "groupUsedFor": []
+  }
+ ],
+ "pathways": {
+  "2537|BASE": [
+   {
+    "rowKey": "2537|BASE|1|Autumn|1",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 1,
+    "session": "Autumn",
+    "slot": 1,
+    "cp": 10,
+    "code": "LAWS 1003",
+    "title": "Fundamentals of Australian Law",
+    "type": "Law",
+    "offered": "PS CA PC ON",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS",
+      "CA",
+      "PC",
+      "ON"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|1|Autumn|2",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 1,
+    "session": "Autumn",
+    "slot": 2,
+    "cp": 10,
+    "code": "LAWS 1010",
+    "title": "Legal Methods",
+    "type": "Law",
+    "offered": "PS CA",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS",
+      "CA"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|1|Autumn|3",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 1,
+    "session": "Autumn",
+    "slot": 3,
+    "cp": 10,
+    "code": "LANG 1029",
+    "title": "Foundations of Academic English",
+    "type": "Non-law",
+    "offered": "PS PE BC ON",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS",
+      "PE",
+      "BC",
+      "ON"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|1|Autumn|4",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 1,
+    "session": "Autumn",
+    "slot": 4,
+    "cp": 10,
+    "code": "HUMN 1053",
+    "title": "Diversity, Language and Culture",
+    "type": "Non-law",
+    "offered": "PS",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|1|Spring|1",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 1,
+    "session": "Spring",
+    "slot": 1,
+    "cp": 10,
+    "code": "LAWS 2018",
+    "title": "Criminal Law and Procedure",
+    "type": "Law",
+    "offered": "PS CA",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS",
+      "CA"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|1|Spring|2",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 1,
+    "session": "Spring",
+    "slot": 2,
+    "cp": 10,
+    "code": "HUMN 1052",
+    "title": "Australian Politics and Active Citizenship",
+    "type": "Non-law",
+    "offered": "PS",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|1|Spring|3",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 1,
+    "session": "Spring",
+    "slot": 3,
+    "cp": 10,
+    "code": "LANG 1030",
+    "title": "Thinking Critically About Texts and Society",
+    "type": "Non-law",
+    "offered": "PS",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|1|Spring|4",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 1,
+    "session": "Spring",
+    "slot": 4,
+    "cp": 10,
+    "code": "Choose",
+    "title": "Arts Major subject",
+    "type": "Major",
+    "offered": null,
+    "notes": "A subject of your Arts major (see its page in the Handbook)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "elective"
+   },
+   {
+    "rowKey": "2537|BASE|2|Autumn|1",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 2,
+    "session": "Autumn",
+    "slot": 1,
+    "cp": 10,
+    "code": "LAWS 2003",
+    "title": "Contracts",
+    "type": "Law",
+    "offered": "PS CA ON",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS",
+      "CA",
+      "ON"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|2|Autumn|2",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 2,
+    "session": "Autumn",
+    "slot": 2,
+    "cp": 10,
+    "code": "LAWS 2019",
+    "title": "Law and Technology",
+    "type": "Law",
+    "offered": "ON",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "ON"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|2|Autumn|3",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 2,
+    "session": "Autumn",
+    "slot": 3,
+    "cp": 10,
+    "code": "Choose",
+    "title": "Arts Minor subject",
+    "type": "Minor",
+    "offered": null,
+    "notes": "A subject of your Arts minor (see its page in the Handbook)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "elective"
+   },
+   {
+    "rowKey": "2537|BASE|2|Autumn|4",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 2,
+    "session": "Autumn",
+    "slot": 4,
+    "cp": 10,
+    "code": "Choose",
+    "title": "Arts Major subject",
+    "type": "Major",
+    "offered": null,
+    "notes": "A subject of your Arts major (see its page in the Handbook)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "elective"
+   },
+   {
+    "rowKey": "2537|BASE|2|Spring|1",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 2,
+    "session": "Spring",
+    "slot": 1,
+    "cp": 10,
+    "code": "LAWS 2013",
+    "title": "Torts Law",
+    "type": "Law",
+    "offered": "PS CA ON",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS",
+      "CA",
+      "ON"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|2|Spring|2",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 2,
+    "session": "Spring",
+    "slot": 2,
+    "cp": 10,
+    "code": "Choose",
+    "title": "Arts Minor subject",
+    "type": "Minor",
+    "offered": null,
+    "notes": "A subject of your Arts minor (see its page in the Handbook)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "elective"
+   },
+   {
+    "rowKey": "2537|BASE|2|Spring|3",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 2,
+    "session": "Spring",
+    "slot": 3,
+    "cp": 10,
+    "code": "Choose",
+    "title": "Arts Major subject",
+    "type": "Major",
+    "offered": null,
+    "notes": "A subject of your Arts major (see its page in the Handbook)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "elective"
+   },
+   {
+    "rowKey": "2537|BASE|2|Spring|4",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 2,
+    "session": "Spring",
+    "slot": 4,
+    "cp": 10,
+    "code": "Choose",
+    "title": "Arts Major subject",
+    "type": "Major",
+    "offered": null,
+    "notes": "A subject of your Arts major (see its page in the Handbook)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "elective"
+   },
+   {
+    "rowKey": "2537|BASE|3|Autumn|1",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 3,
+    "session": "Autumn",
+    "slot": 1,
+    "cp": 10,
+    "code": "LAWS 2020",
+    "title": "Legal Ethics",
+    "type": "Law",
+    "offered": "PC ON",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PC",
+      "ON"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|3|Autumn|2",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 3,
+    "session": "Autumn",
+    "slot": 2,
+    "cp": 10,
+    "code": "Choose",
+    "title": "Arts Minor subject",
+    "type": "Minor",
+    "offered": null,
+    "notes": "A subject of your Arts minor (see its page in the Handbook)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "elective"
+   },
+   {
+    "rowKey": "2537|BASE|3|Autumn|3",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 3,
+    "session": "Autumn",
+    "slot": 3,
+    "cp": 10,
+    "code": "Choose",
+    "title": "Arts Major subject",
+    "type": "Major",
+    "offered": null,
+    "notes": "A subject of your Arts major (see its page in the Handbook)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "elective"
+   },
+   {
+    "rowKey": "2537|BASE|3|Autumn|4",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 3,
+    "session": "Autumn",
+    "slot": 4,
+    "cp": 10,
+    "code": "Choose",
+    "title": "Arts Major subject",
+    "type": "Major",
+    "offered": null,
+    "notes": "A subject of your Arts major (see its page in the Handbook)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "elective"
+   },
+   {
+    "rowKey": "2537|BASE|3|Spring|1",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 3,
+    "session": "Spring",
+    "slot": 1,
+    "cp": 10,
+    "code": "LAWS 2008",
+    "title": "Government and Public Law",
+    "type": "Law",
+    "offered": "PS CA ON",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS",
+      "CA",
+      "ON"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|3|Spring|2",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 3,
+    "session": "Spring",
+    "slot": 2,
+    "cp": 10,
+    "code": "Choose",
+    "title": "Arts Minor subject",
+    "type": "Minor",
+    "offered": null,
+    "notes": "A subject of your Arts minor (see its page in the Handbook)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "elective"
+   },
+   {
+    "rowKey": "2537|BASE|3|Spring|3",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 3,
+    "session": "Spring",
+    "slot": 3,
+    "cp": 10,
+    "code": "Choose",
+    "title": "Arts Major subject",
+    "type": "Major",
+    "offered": null,
+    "notes": "A subject of your Arts major (see its page in the Handbook)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "elective"
+   },
+   {
+    "rowKey": "2537|BASE|3|Spring|4",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 3,
+    "session": "Spring",
+    "slot": 4,
+    "cp": 10,
+    "code": "Choose",
+    "title": "Arts Major subject",
+    "type": "Major",
+    "offered": null,
+    "notes": "A subject of your Arts major (see its page in the Handbook)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "elective"
+   },
+   {
+    "rowKey": "2537|BASE|4|Autumn|1",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 4,
+    "session": "Autumn",
+    "slot": 1,
+    "cp": 10,
+    "code": "LAWS 3018",
+    "title": "Equity & Trusts",
+    "type": "Law",
+    "offered": "PS CA ON",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS",
+      "CA",
+      "ON"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|4|Autumn|2",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 4,
+    "session": "Autumn",
+    "slot": 2,
+    "cp": 10,
+    "code": "LAWS 3082",
+    "title": "Property Law",
+    "type": "Law",
+    "offered": "PS CA ON",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS",
+      "CA",
+      "ON"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|4|Autumn|3",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 4,
+    "session": "Autumn",
+    "slot": 3,
+    "cp": 10,
+    "code": "Choose",
+    "title": "LLB Alternate subject (see list)",
+    "type": "LLB alternate",
+    "offered": null,
+    "notes": "Choose from this degree's subject list (check the Autumn/Spring columns)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "llb",
+    "pool": [
+     "LLB Alternate Subjects"
+    ]
+   },
+   {
+    "rowKey": "2537|BASE|4|Autumn|4",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 4,
+    "session": "Autumn",
+    "slot": 4,
+    "cp": 10,
+    "code": "Choose",
+    "title": "LLB Alternate subject (see list)",
+    "type": "LLB alternate",
+    "offered": null,
+    "notes": "Choose from this degree's subject list (check the Autumn/Spring columns)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "llb",
+    "pool": [
+     "LLB Alternate Subjects"
+    ]
+   },
+   {
+    "rowKey": "2537|BASE|4|Spring|1",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 4,
+    "session": "Spring",
+    "slot": 1,
+    "cp": 10,
+    "code": "LAWS 3045",
+    "title": "Law of Associations",
+    "type": "Law",
+    "offered": "PS ON",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS",
+      "ON"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|4|Spring|2",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 4,
+    "session": "Spring",
+    "slot": 2,
+    "cp": 10,
+    "code": "LAWS 3081",
+    "title": "Administrative Law",
+    "type": "Law",
+    "offered": "PS CA ON",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS",
+      "CA",
+      "ON"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|4|Spring|3",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 4,
+    "session": "Spring",
+    "slot": 3,
+    "cp": 10,
+    "code": "Choose",
+    "title": "LLB Alternate subject (see list)",
+    "type": "LLB alternate",
+    "offered": null,
+    "notes": "Choose from this degree's subject list (check the Autumn/Spring columns)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "llb",
+    "pool": [
+     "LLB Alternate Subjects"
+    ]
+   },
+   {
+    "rowKey": "2537|BASE|4|Spring|4",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 4,
+    "session": "Spring",
+    "slot": 4,
+    "cp": 10,
+    "code": "Choose",
+    "title": "LLB Alternate subject (see list)",
+    "type": "LLB alternate",
+    "offered": null,
+    "notes": "Choose from this degree's subject list (check the Autumn/Spring columns)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "llb",
+    "pool": [
+     "LLB Alternate Subjects"
+    ]
+   },
+   {
+    "rowKey": "2537|BASE|5|Autumn|1",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 5,
+    "session": "Autumn",
+    "slot": 1,
+    "cp": 10,
+    "code": "LAWS 3099",
+    "title": "Global Law",
+    "type": "Law",
+    "offered": "TBC",
+    "notes": "Session not yet published (TBC)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": true,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|5|Autumn|2",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 5,
+    "session": "Autumn",
+    "slot": 2,
+    "cp": 10,
+    "code": "LAWS 3103",
+    "title": "Civil Procedure",
+    "type": "Law",
+    "offered": "TBC",
+    "notes": "Session not yet published (TBC)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": true,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|5|Autumn|3",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 5,
+    "session": "Autumn",
+    "slot": 3,
+    "cp": 10,
+    "code": "LAWS 4015",
+    "title": "Constitutional Law",
+    "type": "Law",
+    "offered": "PS CA ON",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS",
+      "CA",
+      "ON"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|5|Autumn|4",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 5,
+    "session": "Autumn",
+    "slot": 4,
+    "cp": 10,
+    "code": "LAWS 4014",
+    "title": "Remedies",
+    "type": "Law",
+    "offered": "CA ON",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "CA",
+      "ON"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|5|Spring|1",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 5,
+    "session": "Spring",
+    "slot": 1,
+    "cp": 10,
+    "code": "LAWS 3100",
+    "title": "Evidence",
+    "type": "Law",
+    "offered": "PS CA",
+    "notes": null,
+    "offeredInfo": {
+     "codes": [
+      "PS",
+      "CA"
+     ],
+     "tbc": false,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|5|Spring|2",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 5,
+    "session": "Spring",
+    "slot": 2,
+    "cp": 10,
+    "code": "LAWS 3101",
+    "title": "Legal Practice Skills",
+    "type": "Law",
+    "offered": "TBC",
+    "notes": "Session not yet published (TBC)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": true,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|5|Spring|3",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 5,
+    "session": "Spring",
+    "slot": 3,
+    "cp": 10,
+    "code": "LAWS 3102",
+    "title": "Law for the Future",
+    "type": "Law",
+    "offered": "TBC",
+    "notes": "Session not yet published (TBC)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": true,
+     "y2026": false,
+     "none": false
+    },
+    "kind": "fixed"
+   },
+   {
+    "rowKey": "2537|BASE|5|Spring|4",
+    "degree": "2537",
+    "major": "BASE",
+    "year": 5,
+    "session": "Spring",
+    "slot": 4,
+    "cp": 10,
+    "code": "Choose",
+    "title": "LLB Alternate subject (see list)",
+    "type": "LLB alternate",
+    "offered": null,
+    "notes": "Choose from this degree's subject list (check the Autumn/Spring columns)",
+    "offeredInfo": {
+     "codes": [],
+     "tbc": false,
+     "y2026": false,
+     "none": true
+    },
+    "kind": "llb",
+    "pool": [
+     "LLB Alternate Subjects"
+    ]
+   }
+  ]
+ }
+}

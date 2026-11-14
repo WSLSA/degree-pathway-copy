@@ -19,6 +19,7 @@ DATA = ROOT / "data" / "wslsa-2027.json"
 PREREQS = ROOT / "data" / "prerequisites.json"
 PRACTICE = ROOT / "data" / "practice-areas.json"
 PRE2027 = ROOT / "data" / "pre2027.json"
+HANDBOOK_DEGREES = ROOT / "data" / "handbook-degrees.json"
 SRC = ROOT / "src"
 OUT = ROOT / "dist" / "wslsa-pathway-explorer.html"
 
@@ -36,6 +37,8 @@ def payload(d):
     degrees = []
     for deg in d["degrees"]:
         out = {k: deg[k] for k in DEGREE_FIELDS}
+        if deg.get("majorNote"):
+            out["majorNote"] = deg["majorNote"]
         out["accreditation"] = [{k: a[k] for k in ("name", "abbr", "status")} for a in deg["accreditation"]]
         out["exitAwards"] = [{k: e[k] for k in ("code", "name", "exitOnly")} for e in deg["exitAwards"]]
         out["catalogue"] = [[c["component"], c["level"], c["code"], c["title"], c["autumn"], c["spring"], c["cp"],
@@ -85,6 +88,11 @@ def data_uri(name):
 
 def main():
     d = json.loads(DATA.read_text(encoding="utf-8"))
+    # degrees the workbook has no sheet for (see scripts/make_arts_laws.py) join the workbook's own
+    extra = json.loads(HANDBOOK_DEGREES.read_text(encoding="utf-8"))
+    d["degrees"] = d["degrees"] + extra["degrees"]
+    d["options"] = d["options"] + extra["options"]
+    d["pathways"] = dict(d["pathways"], **extra["pathways"])
     data_js = json.dumps(payload(d), ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     html = (SRC / "index.html").read_text(encoding="utf-8")
     parts = {

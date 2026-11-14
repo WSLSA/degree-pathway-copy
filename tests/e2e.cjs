@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* End-to-end checks for dist/wslsa-pathway-explorer.html.
 
-   node tests/e2e.cjs            # behaviour checks across all 48 pathways
+   node tests/e2e.cjs            # behaviour checks across all 49 pathways
    node tests/e2e.cjs --pdf      # also renders every pathway to PDF (needs pdfinfo/pdftotext from poppler)
    node tests/e2e.cjs --samples  # also writes the sample PDFs in samples/
    node tests/e2e.cjs --import   # also imports generated results PDFs, one as text and one as a picture
@@ -18,7 +18,7 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..');
 const APP = 'file://' + path.join(ROOT, 'dist', 'wslsa-pathway-explorer.html');
 const args = new Set(process.argv.slice(2));
-const FIXED = ['2848', '2785', '2843', '2769', '2767', '2766', '2800', '2758'];
+const FIXED = ['2848', '2785', '2843', '2769', '2767', '2766', '2800', '2758', '2537'];
 const TBC_CORE = ['LAWS 3099', 'LAWS 3101', 'LAWS 3102', 'LAWS 3103'];
 
 let failures = 0;
@@ -135,7 +135,7 @@ async function renderPdf(page, key, mode, orient, file) {
       ptYears: ctx.deg.ptYears,
     };
   }));
-  check(info.length === 48, `expected 48 pathways, got ${info.length}`);
+  check(info.length === 49, `expected 49 pathways, got ${info.length}`);
   for (const p of info) {
     check(p.totalCP === p.cp, `${p.key}: pathway sums to ${p.totalCP}, degree requires ${p.cp}`);
     check(p.domSlots === p.slots, `${p.key}: ${p.domSlots} slot cards for ${p.slots} slots`);
@@ -2842,6 +2842,33 @@ async function renderPdf(page, key, mode, orient, file) {
   check(tr.on && tr.n === 5 && tr.pressed === 'true' && tr.dim === '0.3' && tr.all, `pressing the LLB Alternates meter should pick out its five cards, got ${JSON.stringify(tr)}`);
   await hb.keyboard.press('Escape');
   check(await hb.evaluate(() => !document.getElementById('grid').classList.contains('is-tracking') && document.querySelector('#dock-track [data-k="llb"]').getAttribute('aria-pressed') === 'false'), 'Esc should show everything again');
+  // 2537 Bachelor of Arts/Bachelor of Laws: its structure from the Handbook, the WSLSA Law sequence, and slots for the
+  // major and minor a student chooses
+  await hb.evaluate(() => WSLSA.select('2537|BASE'));
+  const arts = await hb.evaluate(() => {
+    const c = WSLSA.context();
+    const of = t => c.slots.filter(s => s.raw.type === t);
+    return {
+      total: c.totalCP, law: of('Law').length, llb: c.slots.filter(s => s.kind === 'llb').length, major: of('Major').length, minor: of('Minor').length,
+      core: of('Non-law').map(s => s.code + '@' + s.year + s.session[0] + ':' + s.offer.codes.join('')).join(' '),
+      titles: Array.from(new Set(c.slots.filter(s => s.pending && s.kind === 'elective').map(s => s.title))).join('|'),
+      card: document.querySelector('#grid .subj.is-pending .code-pill').textContent + '/' + document.querySelector('#grid .subj.is-pending .select-btn').textContent,
+      hero: document.querySelector('#hero-meta .major').textContent, dock: document.getElementById('major-locked').textContent,
+      track: Array.from(document.querySelectorAll('#dock-track .track-item')).map(x => x.querySelector('.tl-full').textContent + ' ' + x.querySelector('.track-num').textContent).join(' | '),
+      parts: Array.from(document.querySelectorAll('#details .structure-row:not(.structure-total):not(.structure-done)')).map(x => x.textContent.replace(/\s+/g, ' ').trim()).join(' | '),
+      inMenu: Array.from(document.querySelectorAll('#sel-degree option')).some(o => /2537 . Bachelor of Arts\/Bachelor of Laws/.test(o.textContent)),
+    };
+  });
+  check(arts.total === 400 && arts.law === 19 && arts.llb === 5 && arts.major === 8 && arts.minor === 4 && arts.inMenu, `2537 should have 190 CP of Law core, 50 CP of LLB Alternates, an 80 CP major and a 40 CP minor, got ${JSON.stringify(arts)}`);
+  check(arts.core === 'LANG 1029@1A:PSPEBCON HUMN 1053@1A:PS HUMN 1052@1S:PS LANG 1030@1S:PS' && arts.titles === 'Arts Major subject|Arts Minor subject' && arts.card === 'MAJOR/+ Select Major Subject →', `2537 should place its Arts core in sessions they run in and leave the major and minor to the student, got ${arts.core} / ${arts.titles} / ${arts.card}`);
+  check(arts.hero === 'Arts major and minor of your choice' && /Your major and minor\. Fill their slots/.test(arts.dock) && /^Law core 0 \/ 190 CP \| Non-law core 0 \/ 40 CP \| Major \/ minor 0 \/ 120 CP \| LLB Alternates 0 \/ 50 CP$/.test(arts.track) && /Core ?230 CP/.test(arts.parts) && /Arts Major ?80 CP/.test(arts.parts) && /Arts Minor ?40 CP/.test(arts.parts), `2537 should say the major and minor are the student's and show the Handbook's breakdown, got ${arts.hero} / ${arts.dock} / ${arts.track} / ${arts.parts}`);
+  await hb.click('#tab-pre2027');
+  check(await hb.evaluate(() => document.querySelectorAll('#details .pre-year').length >= 5 && /2537 Bachelor of Arts\/Bachelor of Laws/.test(document.querySelector('#details .tab-panel').textContent)), 'the Pre-2027 Sequence tab should show the University\'s sequence for 2537');
+  await hb.selectOption('#sel-cohort', 'pre2027');
+  check(await hb.evaluate(() => { const c = WSLSA.context(); return c.totalCP === 400 && c.slots.filter(s => s.kind === 'llb').length === 8 && c.slots.filter(s => s.raw.type === 'Law' && s.kind === 'fixed').length === 16; }), '2537 should follow the pre-2027 structure too');
+  await hb.selectOption('#sel-cohort', '2027');
+  await hb.click('#tab-structure');
+  await hb.evaluate(() => WSLSA.select('2785|BASE'));
   // the site's name, and the University's pre-2027 sequence beside the plan
   check(await hb.title() === 'WSLSA Degree Explorer · 2785 Bachelor of Accounting/Bachelor of Laws' && /WSLSA Degree Explorer/.test(await hb.textContent('.crest-text small')), `the site should be named WSLSA Degree Explorer, got ${await hb.title()}`);
   await hb.click('#tab-pre2027');
