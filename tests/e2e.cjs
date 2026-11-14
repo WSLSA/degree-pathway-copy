@@ -2076,7 +2076,7 @@ async function renderPdf(page, key, mode, orient, file) {
   const promptShows = async p => { await p.waitForTimeout(900); return p.isVisible('#tour-prompt'); };
   const t1 = await firstVisit(APP);
   check(await promptShows(t1), 'a first-time visitor should be offered the tour');
-  check(/New to the Pathway Explorer\? Would you like a quick guided tour of how to map your degree\?/.test(await t1.textContent('#tour-prompt')) && await t1.textContent('[data-action="tour-accept"]') === 'Start Tour →' && await t1.textContent('[data-action="tour-decline"]') === 'No thanks', 'the prompt should ask politely');
+  check(/New to the Degree Explorer\? Would you like a quick guided tour of how to map your degree\?/.test(await t1.textContent('#tour-prompt')) && await t1.textContent('[data-action="tour-accept"]') === 'Start Tour →' && await t1.textContent('[data-action="tour-decline"]') === 'No thanks', 'the prompt should ask politely');
   check(await t1.evaluate(() => !document.getElementById('app').inert) && await t1.isHidden('#tour'), 'the prompt should not block the page');
   await t1.click('[data-action="tour-decline"]');
   check(await t1.isHidden('#tour-prompt') && await t1.evaluate(() => localStorage.getItem('wslsa-2027-tour-dismissed')) === '1', 'No thanks should be remembered');
@@ -2842,6 +2842,16 @@ async function renderPdf(page, key, mode, orient, file) {
   check(tr.on && tr.n === 5 && tr.pressed === 'true' && tr.dim === '0.3' && tr.all, `pressing the LLB Alternates meter should pick out its five cards, got ${JSON.stringify(tr)}`);
   await hb.keyboard.press('Escape');
   check(await hb.evaluate(() => !document.getElementById('grid').classList.contains('is-tracking') && document.querySelector('#dock-track [data-k="llb"]').getAttribute('aria-pressed') === 'false'), 'Esc should show everything again');
+  // the site's name, and the University's pre-2027 sequence beside the plan
+  check(await hb.title() === 'WSLSA Degree Explorer · 2785 Bachelor of Accounting/Bachelor of Laws' && /WSLSA Degree Explorer/.test(await hb.textContent('.crest-text small')), `the site should be named WSLSA Degree Explorer, got ${await hb.title()}`);
+  await hb.click('#tab-pre2027');
+  const preTab = await hb.evaluate(() => { const p = document.querySelector('#details .tab-panel'); return { opts: Array.from(document.querySelectorAll('#pre-seq option')).map(o => o.textContent), years: p.querySelectorAll('.pre-year').length, rows: p.querySelectorAll('.pre-row').length, y1a: Array.from(p.querySelector('.pre-year .pre-sess').querySelectorAll('code')).map(c => c.textContent).join(','), ethics: Array.from(p.querySelectorAll('.pre-row')).filter(r => /LAWS 2015/.test(r.textContent)).map(r => r.querySelector('.pre-st').textContent).join('|'), sum: document.getElementById('pre-sum').textContent }; });
+  check(JSON.stringify(preTab.opts) === JSON.stringify(['Full-time start-year intake', 'Full-time mid-year intake']) && preTab.years === 5 && preTab.rows === 36 && preTab.y1a === 'LAWS 1003,LAWS 2004,ACCT 1005', `the pre-2027 tab should show the University's sequence for 2785, got ${JSON.stringify(preTab).slice(0, 400)}`);
+  check(/^In your plan as LAWS 2020 · Autumn 20\d\d$/.test(preTab.ethics) && /^\d+ of \d+ named subjects/.test(preTab.sum) && /choose Pre-2027 under Handbook/.test(preTab.sum), `each subject should be marked against the plan, counting its 2027 equivalent, got ${preTab.ethics} | ${preTab.sum}`);
+  await hb.selectOption('#pre-seq', '1');
+  check(await hb.evaluate(() => document.querySelector('#details .pre-year .pre-sess h5').textContent.indexOf('Spring') === 0), 'a mid-year sequence should start in Spring');
+  await hb.selectOption('#pre-seq', '0');
+  await hb.click('#tab-structure');
   // year options: delete a year, insert an empty one, clear what is unticked, each one step for Undo
   const shape = () => hb.evaluate(() => { const c = WSLSA.context(); return { years: document.querySelectorAll('#grid .year').length, slots: c.slots.length, total: c.totalCP, edit: !!c.edit, y2: c.slots.filter(x => x.year === 2).map(x => x.code || '-').sort().join(','), guide: c.guide ? c.guide.cp : 0 }; });
   const start = await shape();

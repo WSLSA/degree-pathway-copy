@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data" / "wslsa-2027.json"
 PREREQS = ROOT / "data" / "prerequisites.json"
 PRACTICE = ROOT / "data" / "practice-areas.json"
+PRE2027 = ROOT / "data" / "pre2027.json"
 SRC = ROOT / "src"
 OUT = ROOT / "dist" / "wslsa-pathway-explorer.html"
 
@@ -57,7 +58,24 @@ def payload(d):
         "extra": [[x["code"], x["title"]] for x in d.get("additionalSubjects", [])],
         "prereqs": {k: v for k, v in json.loads(PREREQS.read_text(encoding="utf-8")).items() if k != "about"},
         "practice": {k: v for k, v in json.loads(PRACTICE.read_text(encoding="utf-8")).items() if k != "about"},
+        "pre2027": pre2027(),
     }
+
+
+def pre2027():
+    """The University's pre-2027 recommended sequences (data/pre2027.json), one compact list of rows per sequence:
+    [year, session letter, code or "", title or the wording of a choice, credit points, options or None]."""
+    src = json.loads(PRE2027.read_text(encoding="utf-8"))
+    programs = []
+    for p in src["programs"]:
+        seqs = []
+        for s in p["sequences"]:
+            rows = [[r["y"], r["s"][0], r.get("code", ""), r.get("title", r.get("text", "")), r["cp"], r.get("options")]
+                    for r in s["rows"]]
+            seqs.append({"name": s["name"].strip(), "cp": s["cp"], "total": s.get("total", 0),
+                         "ok": bool(s.get("checked")) and s["cp"] == s.get("total", 0), "rows": rows})
+        programs.append({"program": p["program"], "title": p["title"], "sequences": seqs})
+    return {"source": src["source"], "programs": programs}
 
 
 def data_uri(name):

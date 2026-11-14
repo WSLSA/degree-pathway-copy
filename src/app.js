@@ -1,4 +1,4 @@
-/* WSLSA 2027 Degree Pathway Explorer.
+/* WSLSA Degree Explorer.
    All data comes from the embedded JSON payload built by scripts/build_app.py from the WSLSA 2027
    Degree Guides workbook. No network calls; state lives in localStorage and the URL hash. */
 (function () {
@@ -110,6 +110,36 @@
     if (!EXTRA_BY_CODE[code]) { EXTRA_BY_CODE[code] = { code: code, level: 'Level ' + code.charAt(5), lv: +code.charAt(5), list: true }; EXTRA.push(EXTRA_BY_CODE[code]); }
     EXTRA_BY_CODE[code].title = LEGACY[code];
     EXTRA_BY_CODE[code].legacy = true;
+  });
+  // The University's own recommended sequences for students who started before 2027, from its 2025 Handbook pages.
+  // A program is matched to a degree here by its code; the two Bachelor of Laws programs and the Advanced Information
+  // Systems program had other codes then.
+  const PRE = RAW.pre2027 || { source: '', programs: [] };
+  const PRE_ALIAS = { 2502: '2848', 2501: '2848', 2801: '2800' };
+  const PRE_FOR = {};
+  PRE.programs.forEach(function (p) {
+    const code = DEG[p.program] ? p.program : PRE_ALIAS[p.program];
+    if (!code || !DEG[code]) return;
+    const seen = {};
+    p.sequences.forEach(function (s) {
+      seen[s.name] = (seen[s.name] || 0) + 1;
+      (PRE_FOR[code] = PRE_FOR[code] || []).push({ program: p.program, title: p.title, name: s.name + (seen[s.name] > 1 ? ' (' + seen[s.name] + ')' : ''), cp: s.cp, ok: s.ok, rows: s.rows.map(function (r) { return { y: r[0], s: r[1] === 'A' ? 'Autumn' : r[1] === 'S' ? 'Spring' : 'Summer', code: r[2], title: r[3], cp: r[4], options: r[5] || null }; }) });
+    });
+  });
+  // the session a subject sat in on those sequences, for subjects the 2027 guides have no session for, and the
+  // titles of subjects they name that the 2027 lists do not
+  const PRE_SESSION = {};
+  PRE.programs.forEach(function (p) {
+    p.sequences.forEach(function (s) {
+      if (!/start-year/i.test(s.name) || /part-time/i.test(s.name)) return;
+      s.rows.forEach(function (r) {
+        if (!r[2]) return;
+        const sess = r[1] === 'A' ? 'Autumn' : r[1] === 'S' ? 'Spring' : '';
+        if (!sess) return;
+        PRE_SESSION[r[2]] = PRE_SESSION[r[2]] && PRE_SESSION[r[2]] !== sess ? 'both' : sess;
+        if (r[3] && !GLOBAL_BY_CODE[r[2]] && !EXTRA_BY_CODE[r[2]]) { EXTRA_BY_CODE[r[2]] = { code: r[2], title: r[3], level: 'Level ' + r[2].charAt(5), lv: +r[2].charAt(5), list: true, pre: true }; EXTRA.push(EXTRA_BY_CODE[r[2]]); }
+      });
+    });
   });
   const PICK_LIMIT = 60;
   // Elective slots take any WSU subject: every workbook subject (with its 2027 sessions) plus the subject list.
@@ -1646,7 +1676,7 @@
         '<span class="pbadge">Custom pathway</span>' + heroPills(ctx) +
         '<button type="button" class="why-btn" data-action="why" aria-expanded="' + !!ui.whyOpen + '" aria-controls="why-text">' + (ui.whyOpen ? 'Hide explanation ▴' : 'About custom plans ▾') + '</button>' +
         '<p class="why-text" id="why-text"' + (ui.whyOpen ? '' : ' hidden') + '>' + customWhy(ctx) + '</p>';
-      document.title = 'WSLSA 2027 · ' + (ctx.plan.code ? ctx.plan.code + ' ' : '') + d.title + ' (custom)';
+      document.title = 'WSLSA Degree Explorer · ' + (ctx.plan.code ? ctx.plan.code + ' ' : '') + d.title + ' (custom)';
       return;
     }
     $('#hero-title').innerHTML = titleHTML(d.title);
@@ -1654,10 +1684,10 @@
       '<span class="major">' + esc(o.majorCode === 'BASE' && !builtInMajor(d) ? 'No major or minor' : selectionLabel(ctx)) + '</span>' +
       '<span class="pbadge">' + (o.groupLetter ? 'Pathway ' + o.groupLetter : 'Single pathway') + '</span>' +
       (ctx.edit ? '<span class="pbadge pbadge-edit" title="Your changes to this pathway are kept in this browser. Reset to Default Sequence in Plan Tools puts the WSLSA order back.">Edited by you</span>' : '') +
-      (ctxCohort(ctx) === 'pre2027' ? '<span class="pbadge pbadge-pre" title="' + esc(COHORT_LABEL.pre2027) + '">Pre-2027 structure</span>' : '') + heroPills(ctx) +
+      (ctxCohort(ctx) === 'pre2027' ? '<button type="button" class="pbadge pbadge-pre" data-action="pre-tab" title="' + esc(COHORT_LABEL.pre2027) + '. Press to see the University\'s pre-2027 sequence.">Pre-2027 structure</button>' : '') + heroPills(ctx) +
       '<button type="button" class="why-btn" data-action="why" aria-expanded="' + !!ui.whyOpen + '" aria-controls="why-text">' + (ui.whyOpen ? 'Hide explanation ▴' : 'Why this pathway? ▾') + '</button>' +
       '<p class="why-text" id="why-text"' + (ui.whyOpen ? '' : ' hidden') + '>' + pathwayWhy(ctx) + '</p>';
-    document.title = 'WSLSA 2027 · ' + d.code + ' ' + d.title + (ctx.edit ? ' (edited)' : '');
+    document.title = 'WSLSA Degree Explorer · ' + d.code + ' ' + d.title + (ctx.edit ? ' (edited)' : '');
   }
 
   // the load a plan runs at now: its re-paced load, or the view chosen in the dock
@@ -2470,12 +2500,54 @@
     ['structure', '01→', 'Program Structure & Credit Breakdown'],
     ['admission', '02→', 'Admission, LPAB Accreditation & Exit Awards'],
     ['catalogue', '03→', 'Full 2027 Subject & LLB Alternate Catalogue'],
+    ['pre2027', '04→', 'Pre-2027 Sequence'],
   ];
   const CUSTOM_TABS = [
     ['structure', '01→', 'Your Plan & Credit Breakdown'],
     ['admission', '02→', 'Admission, LPAB Accreditation & Exit Awards'],
     ['catalogue', '03→', '2027 Subject Catalogue'],
+    ['pre2027', '04→', 'Pre-2027 Sequence'],
   ];
+  // The University's pre-2027 sequence for the degree on screen, with each subject marked against the student's plan:
+  // completed, in the plan, counted through its 2027 equivalent, or not there yet.
+  function preSequences(ctx) { const d = ctx.tdeg || (ctx.custom ? null : ctx.deg); return d ? PRE_FOR[d.code] || [] : []; }
+  function renderPreTab(ctx) {
+    const list = preSequences(ctx);
+    if (!list.length) return '<p class="muted" style="margin:0;max-width:72ch">The University\'s pre-2027 recommended sequence is not available for this plan. It is shown for the degrees in the WSLSA guides that the 2025 Handbook also lists.</p>';
+    const at = Math.min(ui.preSeq || 0, list.length - 1);
+    const seq = list[at];
+    const mine = {};
+    ctx.slots.forEach(function (s) { if (!s.pending && s.code) sameAs(s.code).forEach(function (c) { if (!mine[c] || s.done) mine[c] = s; }); });
+    let have = 0;
+    let coded = 0;
+    const status = function (r) {
+      if (!r.code) return '<span class="pre-st pre-choice">Your choice</span>';
+      coded++;
+      const s = mine[r.code];
+      if (!s) return '<span class="pre-st pre-miss">Not in your plan</span>';
+      have++;
+      const via = s.code !== r.code ? ' as ' + esc(s.code) : '';
+      return s.done ? '<span class="pre-st pre-done">✓ Completed' + via + '</span>' : '<button type="button" class="pre-st pre-plan" data-action="jump" data-slot="' + s.id + '" title="Go to it in your plan">In your plan' + via + ' · ' + esc(sessionLabel(s.year, s.session)) + '</button>';
+    };
+    const years = {};
+    seq.rows.forEach(function (r) { ((years[r.y] = years[r.y] || {})[r.s] = years[r.y][r.s] || []).push(r); });
+    const body = Object.keys(years).map(Number).sort(function (a, b) { return a - b; }).map(function (y) {
+      // a mid-year sequence runs Spring then Autumn, so sessions keep the order the University lists them in
+      const order = seq.rows.filter(function (r) { return r.y === y; }).map(function (r) { return r.s; }).filter(function (v, i, a) { return a.indexOf(v) === i; });
+      return '<div class="pre-year"><h4>Year ' + y + '</h4><div class="pre-sessions">' + order.map(function (sess) {
+        const rows = years[y][sess];
+        return '<div class="pre-sess"><h5>' + sess + ' <span>' + rows.reduce(function (a, r) { return a + r.cp; }, 0) + ' CP</span></h5><ul>' + rows.map(function (r) {
+          return '<li class="pre-row' + (r.code ? '' : ' is-choice') + '"><span class="pre-main">' + (r.code ? '<code>' + esc(r.code) + '</code> ' : '') + '<span class="pre-title">' + esc(r.title) + '</span>' +
+            (r.options ? '<small>' + r.options.map(function (o) { return esc(o[0] + ' ' + o[1]); }).join(' · or · ') + '</small>' : '') + '</span><span class="pre-cp">' + r.cp + ' CP</span>' + status(r) + '</li>';
+        }).join('') + '</ul></div>';
+      }).join('') + '</div></div>';
+    }).join('');
+    return '<div class="pre-head"><div><h3 class="panel-h">The University\'s recommended sequence before 2027</h3>' +
+      '<p class="small muted" style="margin:0;max-width:78ch">From the 2025 Handbook page for ' + esc(seq.program + ' ' + seq.title) + '. It is the order the University recommended to students who started before 2027, shown beside your own plan so you can check what you have covered. ' +
+      (seq.ok ? '' : 'This table did not add up cleanly when it was read, so check it against the Handbook. ') + '<a href="' + esc(PRE.source) + '" target="_blank" rel="noopener">Handbook archive →</a></p></div>' +
+      (list.length > 1 ? '<div class="field pre-pick"><label for="pre-seq">Sequence</label><div class="select-wrap"><select id="pre-seq">' + list.map(function (s, i) { return '<option value="' + i + '"' + (i === at ? ' selected' : '') + '>' + esc((s.program !== list[0].program ? s.title.replace('Bachelor of ', 'B ') + ': ' : '') + s.name) + '</option>'; }).join('') + '</select></div></div>' : '') + '</div>' +
+      '<p class="pre-sum" id="pre-sum"><b>' + have + ' of ' + coded + '</b> named subjects are in your plan or completed' + (ctxCohort(ctx) === 'pre2027' ? '' : '. Your plan is shown in the 2027 Handbook; choose Pre-2027 under Handbook to follow this structure') + '.</p>' + body;
+  }
   function courseFacts(ctx) {
     const d = ctx.deg;
     const f = finishText(ctx);
@@ -2537,6 +2609,8 @@
       html += customStructure(ctx);
     } else if (own && ui.tab === 'admission' && !ctx.tdeg) {
       html += '<p class="muted" style="margin:0;max-width:72ch">Admission, LPAB accreditation and exit awards belong to a specific degree, so a plan built from scratch has none to show. Use <button type="button" class="linkish" data-action="custom-setup">Edit setup</button> to start from one of the 2027 WSLSA pathways, or check your degree in the <a href="' + esc(HANDBOOK_HOME) + '" target="_blank" rel="noopener">WSU Student Handbook →</a></p>';
+    } else if (ui.tab === 'pre2027') {
+      html += renderPreTab(ctx);
     } else if (ui.tab === 'structure') {
       const parts = effectiveStructure(ctx.tdeg || d, ctxCohort(ctx));
       const max = Math.max.apply(null, parts.map(function (c) { return c.cp; }));
@@ -4816,7 +4890,7 @@
       const places = s.offer && s.offer.codes.length ? ' (' + s.offer.codes.map(function (c) { return META.campuses[c] || c; }).join(', ') + ')' : '';
       return s.code + ' ' + s.title + places;
     });
-    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//WSLSA//Degree Pathway Explorer//EN', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//WSLSA//Degree Explorer//EN', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
       'UID:' + Date.now() + '-' + Math.floor(Math.random() * 1e9) + '@wslsa-pathway',
       'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z'),
       'DTSTART;VALUE=DATE:' + day(start), 'DTEND;VALUE=DATE:' + day(after),
@@ -6266,6 +6340,7 @@
     const runs = {};
     codes.forEach(function (code) {
       const e = GLOBAL_BY_CODE[code];
+      if (!e && (PRE_SESSION[code] === 'Autumn' || PRE_SESSION[code] === 'Spring')) { runs[PRE_SESSION[code]] = 1; return; }
       if (!e) { runs.Autumn = runs.Spring = 1; return; }
       if (!parseOffered(e.autumn).none) runs.Autumn = 1;
       if (!parseOffered(e.spring).none) runs.Spring = 1;
@@ -7486,6 +7561,13 @@
       }
       case 'guide-fill': addFromGuide(lastCtx.guide.items.map(function (r, i) { return i; }), ''); break;
       case 'plan-fix': fixPlan(); break;
+      case 'pre-tab': {
+        ui.tab = 'pre2027';
+        renderDetails(lastCtx);
+        const d = $('#details');
+        if (d) d.scrollIntoView({ behavior: scrollMode(), block: 'start' });
+        break;
+      }
       case 'track-filter': setTrack(el.dataset.k); break;
       case 'stage': {
         const n = nextSession(lastCtx);
@@ -7686,6 +7768,7 @@
     else if (t.id === 'tr-credit') { ui.transfer.credit = t.checked; renderTransfer(); }
     else if (t.id === 'sel-campus') { state.campus = t.value; render(); }
     else if (t.id === 'sel-cohort') setCohort(t.value);
+    else if (t.id === 'pre-seq') { ui.preSeq = +t.value; renderDetails(lastCtx); const again = $('#pre-seq'); if (again) again.focus(); }
     else if (t.classList && t.classList.contains('type-sel')) setSlotType(t.dataset.slot, t.value);
     else if (t.classList && t.classList.contains('move-sel')) { if (t.value) quickMove(t.dataset.slot, t.value); }
     else if (t.dataset && t.dataset.action === 'done') {
