@@ -2355,19 +2355,13 @@
   }
   function sumCP(list, doneOnly) { return list.reduce(function (a, s) { return a + (!doneOnly || s.done ? s.cp : 0); }, 0); }
 
-  // Years that are already finished when a plan opens start folded, so a current student lands near
-  // where they are now. Ticking never folds a year: the page must not move under a student's hand.
+  // Which years the student has folded away. A year never folds on its own, finished or not, so completed subjects
+  // stay in sight; the Remaining only view is the way to put them out of the way.
   function foldedYears(ctx, years) {
     const key = ctx.key + '|' + state.load;
     if (!ui.folded || ui.folded.key !== key) {
       const fold = {};
-      // a plan with something left to do, in it or in its guide, folds its finished years
-      if (ctx.slots.some(function (s) { return !s.done; }) || (ctx.custom && ctx.guide)) {
-        years.forEach(function (y) {
-          const all = y.Autumn.concat(y.Spring, y.Summer);
-          if (all.length && all.every(function (s) { return s.done; })) fold[y.year] = true;
-        });
-      }
+      // nothing folds on its own: a finished year stays open, with its subjects in sight, until the student folds it
       ui.folded = { key: key, years: fold };
       ui.viewFold = {};
     }
@@ -7233,6 +7227,14 @@
   document.addEventListener('click', function (ev) {
     if ($('#top-actions').classList.contains('is-open') && !ev.target.closest('.top-menu-btn')) setTopMenu(false);
     if (!ev.target.closest('[data-action="pop-toggle"]')) closePops();
+    // a press anywhere on a year's banner opens or closes the year, as its arrow button does; the banner's own
+    // buttons keep their jobs, and the arrow stays the control for keyboards and screen readers
+    const bar = ev.target.closest('#grid .year-bar');
+    if (bar && !ev.target.closest('button, a, input, select, label')) {
+      const arrow = bar.querySelector('.year-toggle');
+      if (arrow) arrow.click();
+      return;
+    }
     const el = ev.target.closest('[data-action]');
     if (!el) return;
     const a = el.dataset.action;

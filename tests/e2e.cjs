@@ -576,7 +576,7 @@ async function renderPdf(page, key, mode, orient, file) {
   check(/Next to enrol/.test(await ip.textContent('#next')) && /Autumn 2027/.test(await ip.textContent('#next')) && /nothing planned yet/.test(await ip.textContent('#next')), `Next to enrol should pass over sessions that have begun and point to the guide, got ${(await ip.textContent('#next')).slice(0, 80)}`);
   check(!/TBC|2026 data|Summer/.test(await ip.textContent('#advisory summary')), 'completed subjects should raise no session or Summer warnings');
   const finishedFolded = await ip.$$eval('#grid .year', ys => ys.filter(y => { const c = y.querySelectorAll('.subj'); return c.length && Array.from(c).every(x => x.classList.contains('is-done')); }).map(y => y.classList.contains('is-folded')));
-  check(finishedFolded.length > 0 && finishedFolded.every(Boolean) && !!(await ip.$('#dmap .dm-s[data-y="3"][data-s="Autumn"]')) && (await ip.$$('#grid #year-3 .slot-empty')).length === 2, `an imported plan should open with finished years folded and its sessions ahead empty, got ${JSON.stringify(finishedFolded)}`);
+  check(finishedFolded.length > 0 && finishedFolded.every(f => !f) && !!(await ip.$('#dmap .dm-s[data-y="3"][data-s="Autumn"]')) && (await ip.$$('#grid #year-3 .slot-empty')).length === 2, `an imported plan should open with its finished years in sight and its sessions ahead empty, got ${JSON.stringify(finishedFolded)}`);
   await ip.click('[data-action="load"][data-load="PT"]');
   const ptYears = await ip.$$eval('.year', ys => ys.map(y => y.querySelector('h2 small').textContent.slice(0, 4) + ':' + y.querySelectorAll('.subj').length));
   check(ptYears[0] === '2025:5' && ptYears[1] === '2026:1', `part-time should keep sessions that have begun as they are, got ${ptYears.join(' ')}`);
@@ -1501,7 +1501,9 @@ async function renderPdf(page, key, mode, orient, file) {
   await lay.reload();
   await lay.evaluate(() => document.fonts.ready);
   await lay.waitForSelector('#year-1');
-  check(!!(await lay.$('#year-1.is-folded')) && await lay.isHidden('#year-1-body') && !!(await lay.$('#dmap .dm-year.is-done[data-y="1"]')) && !(await lay.$('#year-2.is-folded')), 'a finished year should start folded the next time the plan opens');
+  check(!(await lay.$('#year-1.is-folded')) && await lay.isVisible('#year-1-body') && (await lay.$$('#year-1 .subj.is-done')).length === 8 && !!(await lay.$('#dmap .dm-year.is-done[data-y="1"]')) && !(await lay.$('#year-2.is-folded')), 'a finished year should stay open, with its subjects in sight, the next time the plan opens');
+  await lay.click('#year-1 [data-action="year-toggle"]');
+  check(!!(await lay.$('#year-1.is-folded')) && await lay.isHidden('#year-1-body'), 'the student can still fold a finished year away');
   check((await lay.$$('#year-1 .subj')).length === 8 && /^80 \/ 400/.test((await lay.textContent('#progress-num')).trim()), 'folding should not change the plan or its progress');
   await lay.click('#dmap .dm-s[data-y="1"][data-s="Spring"]');
   check(await lay.isVisible('#year-1-body'), 'a session on the map should open its folded year');
@@ -2869,6 +2871,21 @@ async function renderPdf(page, key, mode, orient, file) {
   await hb.selectOption('#sel-cohort', '2027');
   await hb.click('#tab-structure');
   await hb.evaluate(() => WSLSA.select('2785|BASE'));
+  // a press anywhere on a year's banner opens and closes the year, and the banner's own buttons keep their jobs
+  const folded = y => hb.evaluate(n => ({ folded: document.getElementById('year-' + n).classList.contains('is-folded'), hidden: document.getElementById('year-' + n + '-body').hidden, arrow: document.querySelector('#year-' + n + ' .year-toggle').getAttribute('aria-expanded') }), y);
+  await hb.click('#year-2 .year-bar h2');
+  let yb = await folded(2);
+  check(yb.folded && yb.hidden && yb.arrow === 'false', `pressing a year's banner should close the year, got ${JSON.stringify(yb)}`);
+  await hb.click('#year-2 .year-bar .year-cp');
+  yb = await folded(2);
+  check(!yb.folded && !yb.hidden && yb.arrow === 'true', `pressing it again, anywhere on it, should open the year, got ${JSON.stringify(yb)}`);
+  await hb.click('#year-2 .year-toggle');
+  check((await folded(2)).folded, 'the arrow button should still close the year, once and not twice');
+  await hb.click('#year-2 .year-toggle');
+  await hb.click('#year-2 [data-action="summer-add"]');
+  check(!(await folded(2)).folded && await hb.evaluate(() => WSLSA.context().slots.some(x => x.year === 2 && x.session === 'Summer')), 'Add Summer on the banner should add a Summer session and leave the year open');
+  await hb.click('#section-tools [data-action="undo"]');
+  check(await hb.evaluate(() => getComputedStyle(document.querySelector('#year-2 .year-bar')).cursor) === 'pointer', 'the banner should show that it can be pressed');
   // the time a plan takes runs from its first session to its last, in half years
   const finish = () => hb.evaluate(() => { const p = document.querySelector('#hero-meta .hp-finish'); return p.textContent + ' | ' + p.title; });
   check(/^Finish Spring 2031 · 5 yrs full-time \| Starting 2027 · Autumn 2027 to Spring 2031 is 5 years/.test(await finish()), `a five year pathway should say five years, got ${await finish()}`);

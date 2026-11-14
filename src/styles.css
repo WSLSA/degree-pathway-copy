@@ -1727,3 +1727,8 @@ button.pbadge-pre:hover { background: rgba(227, 199, 116, .18); }
 #bg-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
 #bg-canvas[hidden] { display: none; }
 @media print { #bg-canvas { display: none; } }
+
+/* ---------- the whole of a year's banner opens and closes the year */
+#grid .year-bar { cursor: pointer; transition: filter .15s; }
+#grid .year-bar:hover { filter: brightness(1.12); }
+#grid .year-bar:hover .year-toggle { background: rgba(197, 155, 39, .18); border-color: var(--gold); }
