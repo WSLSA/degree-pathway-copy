@@ -3978,11 +3978,17 @@
       c.hidden = !motionOK();
       if (motionOK() && !document.hidden) raf = requestAnimationFrame(draw);
     };
-    size();
-    start();
-    window.addEventListener('resize', size);
-    document.addEventListener('visibilitychange', start);
-    window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', start);
+    // it starts once the page is up and the browser is idle, so it never delays the plan appearing
+    const begin = function () {
+      size();
+      start();
+      window.addEventListener('resize', size);
+      document.addEventListener('visibilitychange', start);
+      window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', start);
+    };
+    const later = function () { if (window.requestIdleCallback) requestIdleCallback(begin, { timeout: 1200 }); else setTimeout(begin, 300); };
+    c.hidden = true;
+    if (document.readyState === 'complete') later(); else window.addEventListener('load', later, { once: true });
   })();
   // a soft light follows the pointer across the card it is on
   let spotAt = null;

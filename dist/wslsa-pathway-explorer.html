@@ -281,8 +281,8 @@ a.hero-pill:hover { border-color: var(--gold-soft); color: var(--gold-soft); }
 /* ---------- sticky command dock */
 .dock {
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 40; padding-block: 5px 3px;
-  background: color-mix(in srgb, var(--canvas) 88%, transparent);
-  backdrop-filter: saturate(1.3) blur(10px); -webkit-backdrop-filter: saturate(1.3) blur(10px);
+  /* no backdrop blur: blurring what scrolls and moves behind a sticky bar costs a frame each time, and made scrolling stutter */
+  background: color-mix(in srgb, var(--canvas) 94%, transparent);
   border-bottom: 1px solid transparent;
 }
 .dock-card {
@@ -750,7 +750,7 @@ table.cat tr.extra td.c-code { color: var(--slate); }
 /* below this the dock takes two rows, too much to keep on screen, so a small bar stands in for it */
 @media (max-width: 1040px) {
   :root { --stick-h: calc(var(--bar-h) + 60px); }
-  .dock { position: static; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .dock { position: static; background: transparent; }
   .dock-card { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); }
   .dock-card .progress { grid-column: auto; }
 }
@@ -1650,10 +1650,10 @@ html[data-theme="dark"] body::before { background: radial-gradient(42vmax 42vmax
 @keyframes crest-float { from { transform: translate3d(0, 0, 0) rotate(0deg); } to { transform: translate3d(-18px, 14px, 0) rotate(-1.2deg); } }
 .hero-seal .hero-crest { filter: drop-shadow(0 6px 20px rgba(197, 155, 39, .25)); }
 
-/* glass: the dock, the search bar, the degree map and the pinned guide let the page show through, under a gold to crimson line */
+/* the dock, the search bar, the degree map and the pinned guide: nearly solid, under a gold to crimson line. They are not
+   blurred, as blurring the moving page behind them each frame made scrolling stutter */
 .dock-card, .gridbar.is-searching, #dmap, #guide.is-pinned .guide {
-  background: color-mix(in srgb, var(--surface) 86%, transparent);
-  backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  background: color-mix(in srgb, var(--surface) 95%, transparent);
 }
 .dock-card { position: relative; border-top-color: transparent; }
 .dock-card::after, #guide.is-pinned .guide::after { content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 2px; border-radius: 10px 10px 0 0; background: linear-gradient(90deg, var(--gold), var(--crimson) 55%, var(--gold)); pointer-events: none; }
@@ -6058,11 +6058,17 @@ table.pd-cat .mark { color: var(--p-slot); font-weight: 700; }
       c.hidden = !motionOK();
       if (motionOK() && !document.hidden) raf = requestAnimationFrame(draw);
     };
-    size();
-    start();
-    window.addEventListener('resize', size);
-    document.addEventListener('visibilitychange', start);
-    window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', start);
+    // it starts once the page is up and the browser is idle, so it never delays the plan appearing
+    const begin = function () {
+      size();
+      start();
+      window.addEventListener('resize', size);
+      document.addEventListener('visibilitychange', start);
+      window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', start);
+    };
+    const later = function () { if (window.requestIdleCallback) requestIdleCallback(begin, { timeout: 1200 }); else setTimeout(begin, 300); };
+    c.hidden = true;
+    if (document.readyState === 'complete') later(); else window.addEventListener('load', later, { once: true });
   })();
   // a soft light follows the pointer across the card it is on
   let spotAt = null;

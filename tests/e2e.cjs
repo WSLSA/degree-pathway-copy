@@ -2010,7 +2010,7 @@ async function renderPdf(page, key, mode, orient, file) {
   await dk.click(themeBtn);
   check(await themeNow() === 'dark' && await dk.getAttribute(themeBtn, 'aria-pressed') === 'true' && /Light mode/.test(await dk.textContent(themeBtn)), 'pressing it should switch to dark and offer light');
   check(await dk.evaluate(() => localStorage.getItem('wslsa-2027-theme')) === 'dark', 'the choice should be saved');
-  check(await paint('html') === 'rgb(17, 17, 20)' && await paint('.topbar') === 'rgb(26, 25, 30)' && /^color\(srgb 0\.10\d* 0\.09\d* 0\.11\d* \/ 0\.86\)$/.test(await paint('.dock-card')) && await paint('.year') === 'rgb(26, 25, 30)' && await paint('.drawer') === 'rgb(26, 25, 30)', 'every surface should go dark');
+  check(await paint('html') === 'rgb(17, 17, 20)' && await paint('.topbar') === 'rgb(26, 25, 30)' && /^color\(srgb 0\.10\d* 0\.09\d* 0\.11\d* \/ 0\.95\)$/.test(await paint('.dock-card')) && await paint('.year') === 'rgb(26, 25, 30)' && await paint('.drawer') === 'rgb(26, 25, 30)', 'every surface should go dark');
   for (const s of ['.year-bar', '.advisory > summary', '.segmented button[aria-pressed="true"]']) {
     check(await paint(s) === 'rgb(40, 38, 48)' && await paint(s, 'color') === 'rgb(255, 255, 255)', `${s} should stay a dark band with white text`);
   }
@@ -2898,7 +2898,9 @@ async function renderPdf(page, key, mode, orient, file) {
   check(await hb.evaluate(() => { const c = document.getElementById('bg-canvas'); const s = getComputedStyle(c); return s.position === 'fixed' && s.pointerEvents === 'none' && s.zIndex === '-1' && c.hidden; }), 'the background should sit behind the page, and stay still under reduced motion');
   const lively = await newPage(browser, { reducedMotion: 'no-preference' });
   await lively.goto(APP);
-  await lively.waitForTimeout(400);
+  await lively.waitForFunction(() => { const c = document.getElementById('bg-canvas'); return !c.hidden && c.width > 0; }, null, { timeout: 5000 }).catch(() => {});
+  await lively.waitForTimeout(300);
+  check(await lively.evaluate(() => Array.from(document.querySelectorAll('*')).every(e => { const s = getComputedStyle(e); return (s.backdropFilter || 'none') === 'none'; })), 'nothing should blur what lies behind it, as that made scrolling stutter');
   check(await lively.evaluate(() => { const c = document.getElementById('bg-canvas'); if (c.hidden) return false; const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i]) return true; return false; }), 'with motion allowed the background should be drawing');
   // and it can be seen: nothing opaque lies between it and the page's margins
   check(await lively.evaluate(() => getComputedStyle(document.body).backgroundColor === 'rgba(0, 0, 0, 0)' && getComputedStyle(document.documentElement).backgroundColor === 'rgb(246, 241, 234)'), 'the page colour should be on the root, so the background behind the body shows');
