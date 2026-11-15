@@ -326,9 +326,14 @@
   function readStore() {
     try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; }
   }
+  let lastSaved = '';
   function saveState() {
     recordHistory();
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* private mode: state still works for this session */ }
+    // the plan is written only when it differs from what was last written, or when the saved copy has gone
+    try {
+      const json = JSON.stringify(state);
+      if (json !== lastSaved || localStorage.getItem(STORE_KEY) === null) { localStorage.setItem(STORE_KEY, json); lastSaved = json; }
+    } catch (e) { /* private mode: state still works for this session */ }
   }
   function str(v, max) { return typeof v === 'string' ? v.slice(0, max) : ''; }
   function sanitisePicks(key, picks) {
