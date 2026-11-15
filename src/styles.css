@@ -1732,3 +1732,6 @@ button.pbadge-pre:hover { background: rgba(227, 199, 116, .18); }
 #grid .year-bar { cursor: pointer; transition: filter .15s; }
 #grid .year-bar:hover { filter: brightness(1.12); }
 #grid .year-bar:hover .year-toggle { background: rgba(197, 155, 39, .18); border-color: var(--gold); }
+
+/* ---------- the page's colour is on the root, so the moving lights and ambient layer behind the body can be seen */
+body { background: none; }

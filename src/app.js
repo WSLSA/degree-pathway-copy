@@ -2494,9 +2494,9 @@
       });
       if (edit) {
         html += '<div class="year-foot" role="group" aria-label="Options for Year ' + y.year + '"><span class="yf-label">Year ' + y.year + '</span>' +
-          '<button type="button" class="text-btn" data-action="year-insert" data-y="' + y.year + '" title="For a year off, or room before this year: this year and the later ones move a year on">Insert an empty year before</button>' +
+          (yearBegun(ctx.custom ? ctx.plan : null, y.year) ? '' : '<button type="button" class="text-btn" data-action="year-insert" data-y="' + y.year + '" title="For a year off, or room before this year: this year and the later ones move a year on">Insert an empty year before</button>') +
           '<button type="button" class="text-btn" data-action="year-clear" data-y="' + y.year + '" title="Take out every subject and slot in this year that is not ticked">Clear unticked subjects</button>' +
-          '<button type="button" class="text-btn year-del" data-action="year-delete" data-y="' + y.year + '" title="Remove this year and its subjects, and bring the later years one year earlier">Delete Year ' + y.year + ' ×</button></div>';
+          '<button type="button" class="text-btn year-del" data-action="year-delete" data-y="' + y.year + '" title="' + (yearBegun(ctx.custom ? ctx.plan : null, y.year) ? 'Take every subject out of this year. It has begun, so the year stays and later years keep their dates' : 'Remove this year and its subjects, and bring the later years one year earlier') + '">' + (yearBegun(ctx.custom ? ctx.plan : null, y.year) ? 'Empty Year ' : 'Delete Year ') + y.year + ' ×</button></div>';
       }
       html += '</div></article>';
     });
@@ -3936,8 +3936,14 @@
     let last = 0;
     let raf = 0;
     const size = function () {
+      const w0 = w;
+      const h0 = h;
       w = c.width = Math.ceil(window.innerWidth / 2);
       h = c.height = Math.ceil(window.innerHeight / 2);
+      if (lights.length && w0 && h0) {
+        lights.forEach(function (l) { l.x *= w / w0; l.y *= h / h0; });
+        return;
+      }
       const n = Math.max(6, Math.min(12, Math.round(w * h / 60000)));
       lights = [];
       for (let i = 0; i < n; i++) {
@@ -5789,11 +5795,26 @@
       plan[name] = next;
     });
   }
+  // In a plan with past years, a year that has begun is history: taking it out must not pull later years into the past,
+  // and nothing can be pushed in ahead of it.
+  function yearBegun(plan, y) { return !!plan && !!plan.start && orderIdx(y, 'Autumn') < firstOpenIdx(plan.start); }
   function deleteYear(y) {
     ensureEditable();
     const plan = editPlan();
     const last = lastYear(plan);
     if (last <= 1) { toast('A plan needs at least one year.'); return; }
+    if (yearBegun(plan, y)) {
+      const gone = plan.slots.filter(function (x) { return x.y === y; });
+      if (!gone.length) { toast('Year ' + y + ' (' + calYear(y) + ') has begun, so it stays in your plan as an empty year.'); return; }
+      if (!window.confirm('Take every subject out of Year ' + y + ' (' + calYear(y) + ')? The year has begun, so it stays in your plan and the years after it keep their dates. Undo puts the subjects back.')) return;
+      noteChange('emptied Year ' + y);
+      plan.slots = plan.slots.filter(function (x) { return x.y !== y; });
+      if (y > plan.years) plan.years = y;
+      ui.folded = null;
+      renderMoving();
+      toast(plural(gone.length, 'subject') + ' taken out of Year ' + y + '. The year stays, as it has begun, so the later years keep their dates.', { action: 'undo', label: 'Undo' });
+      return;
+    }
     const inYear = plan.slots.filter(function (x) { return x.y === y; });
     const filled = inYear.filter(function (x) { return x.code; });
     const done = inYear.filter(function (x) { return x.done; }).length;
@@ -5807,6 +5828,7 @@
     toast('Year ' + y + ' deleted' + (filled.length ? ', with ' + plural(filled.length, 'subject') : '') + (y < last ? '. The later years moved up.' : '.'), { action: 'undo', label: 'Undo' });
   }
   function insertYear(y) {
+    if (yearBegun(editPlan(), y)) { toast('Year ' + y + ' (' + calYear(y) + ') has begun, so a year cannot be put in before it. Insert one before a year that is still ahead.'); return; }
     ensureEditable();
     const plan = editPlan();
     const last = lastYear(plan);

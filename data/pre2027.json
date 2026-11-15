@@ -533,7 +533,7 @@
        "y": 1,
        "s": "Spring",
        "text": "Select two subjects from the following Year 1 core Arts subjects (refer to the structure tab)",
-       "cp": 10,
+       "cp": 20,
        "options": [
         [
          "HUMN 1052",
@@ -712,7 +712,7 @@
      ],
      "total": 380,
      "checked": false,
-     "cp": 390
+     "cp": 400
     },
     {
      "name": "Full-time mid-year intake",
@@ -2426,27 +2426,6 @@
        "cp": 10
       },
       {
-       "y": 1,
-       "s": "Spring",
-       "code": "MKTG 1001",
-       "title": "Advertising: An Introduction",
-       "cp": 10
-      },
-      {
-       "y": 1,
-       "s": "Spring",
-       "code": "MKTG 1009",
-       "title": "Public Relations Theory and Practice",
-       "cp": 10
-      },
-      {
-       "y": 1,
-       "s": "Spring",
-       "code": "COMM 1018",
-       "title": "News and Media Today",
-       "cp": 10
-      },
-      {
        "y": 2,
        "s": "Autumn",
        "code": "LAWS 2003",
@@ -2622,7 +2601,7 @@
      ],
      "total": 400,
      "checked": false,
-     "cp": 420
+     "cp": 390
     },
     {
      "name": "Full-time mid-year intake",
@@ -5676,13 +5655,6 @@
       {
        "y": 1,
        "s": "Autumn",
-       "code": "INFS 1015",
-       "title": "Systems Analysis and Design (Advanced)",
-       "cp": 10
-      },
-      {
-       "y": 1,
-       "s": "Autumn",
        "code": "INFS 2014",
        "title": "Systems Analysis and Design (Advanced)",
        "cp": 10
@@ -5739,16 +5711,10 @@
       {
        "y": 2,
        "s": "Autumn",
-       "code": "COMM 1026",
-       "title": "Principles of Professional Communication",
-       "cp": 1
-      },
-      {
-       "y": 2,
-       "s": "Autumn",
+       "cp": 10,
        "code": "INFO 1003",
        "title": "Professional Practice, Communication and Ethics",
-       "cp": 10
+       "note": "Note: From Autumn 2024 COMM 1026 is replaced by INFO 1003"
       },
       {
        "y": 2,
@@ -5801,20 +5767,6 @@
       },
       {
        "y": 3,
-       "s": "Autumn",
-       "code": "INFO 3008",
-       "title": "Professional Development",
-       "cp": 10
-      },
-      {
-       "y": 3,
-       "s": "Autumn",
-       "code": "INFO 3019",
-       "title": "Project Management",
-       "cp": 10
-      },
-      {
-       "y": 3,
        "s": "Spring",
        "code": "LAWS 2008",
        "title": "Government and Public Law",
@@ -5832,20 +5784,6 @@
        "s": "Spring",
        "code": "INFO 3011",
        "title": "Social Computing",
-       "cp": 10
-      },
-      {
-       "y": 3,
-       "s": "Spring",
-       "code": "INFO 3001",
-       "title": "Computer Security",
-       "cp": 10
-      },
-      {
-       "y": 3,
-       "s": "Spring",
-       "code": "COMP 2027",
-       "title": "Cyber Security",
        "cp": 10
       },
       {
@@ -5931,7 +5869,7 @@
      ],
      "total": 400,
      "checked": false,
-     "cp": 431
+     "cp": 380
     },
     {
      "name": "Full-time mid-year intake",
@@ -6665,13 +6603,6 @@
       {
        "y": 1,
        "s": "Autumn",
-       "code": "INFS 1006",
-       "title": "Systems Analysis and Design",
-       "cp": 10
-      },
-      {
-       "y": 1,
-       "s": "Autumn",
        "code": "INFS 2013",
        "title": "Systems Analysis and Design",
        "cp": 10
@@ -6728,16 +6659,10 @@
       {
        "y": 2,
        "s": "Autumn",
-       "code": "COMM 1026",
-       "title": "Principles of Professional Communication",
-       "cp": 1
-      },
-      {
-       "y": 2,
-       "s": "Autumn",
+       "cp": 10,
        "code": "INFO 1003",
        "title": "Professional Practice, Communication and Ethics",
-       "cp": 10
+       "note": "Note: From Autumn 2024 COMM 1026 is replaced by INFO 1003"
       },
       {
        "y": 2,
@@ -6790,20 +6715,6 @@
       },
       {
        "y": 3,
-       "s": "Autumn",
-       "code": "INFO 3008",
-       "title": "Professional Development",
-       "cp": 10
-      },
-      {
-       "y": 3,
-       "s": "Autumn",
-       "code": "INFO 3019",
-       "title": "Project Management",
-       "cp": 10
-      },
-      {
-       "y": 3,
        "s": "Spring",
        "code": "LAWS 2008",
        "title": "Government and Public Law",
@@ -6821,20 +6732,6 @@
        "s": "Spring",
        "code": "INFO 3011",
        "title": "Social Computing",
-       "cp": 10
-      },
-      {
-       "y": 3,
-       "s": "Spring",
-       "code": "INFO 3001",
-       "title": "Computer Security",
-       "cp": 10
-      },
-      {
-       "y": 3,
-       "s": "Spring",
-       "code": "COMP 2027",
-       "title": "Cyber Security",
        "cp": 10
       },
       {
@@ -6920,7 +6817,7 @@
      ],
      "total": 400,
      "checked": false,
-     "cp": 431
+     "cp": 380
     },
     {
      "name": "Full-time mid-year intake",
@@ -9138,12 +9035,6 @@
       {
        "y": 2,
        "s": "Autumn",
-       "text": "Select Two core Science subjects comprising",
-       "cp": 10
-      },
-      {
-       "y": 2,
-       "s": "Autumn",
        "text": "Select one Analytical Science subject (depending on testamur major selected)",
        "cp": 10,
        "options": [
@@ -9172,12 +9063,6 @@
          "Epidemiology"
         ]
        ]
-      },
-      {
-       "y": 2,
-       "s": "Autumn",
-       "text": "Select the following",
-       "cp": 10
       },
       {
        "y": 2,
@@ -9340,8 +9225,8 @@
       }
      ],
      "total": 400,
-     "checked": false,
-     "cp": 420
+     "checked": true,
+     "cp": 400
     }
    ]
   },

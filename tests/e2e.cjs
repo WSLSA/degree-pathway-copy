@@ -1139,10 +1139,11 @@ async function renderPdf(page, key, mode, orient, file) {
     const box = document.getElementById('advisory-box');
     const closed = box.offsetHeight;
     box.open = true;
-    await new Promise(r => setTimeout(r, 90));
-    const during = box.offsetHeight;
-    await new Promise(r => setTimeout(r, 450));
+    // the height is read through the whole opening, as the moment it starts moving depends on the machine
+    const seen = [];
+    for (let t = 0; t < 24; t++) { await new Promise(r => setTimeout(r, 25)); seen.push(box.offsetHeight); }
     const open = box.offsetHeight;
+    const during = seen.find(h => h > closed && h < open) || closed;
     box.open = false;
     return { closed, during, open };
   });
@@ -2004,12 +2005,12 @@ async function renderPdf(page, key, mode, orient, file) {
   const paint = (s, prop) => dk.$eval(s, (e, p) => getComputedStyle(e)[p], prop || 'backgroundColor');
   const themeBtn = '[data-action="theme-toggle"]';
   check(await themeNow() === 'light' && await dk.getAttribute(themeBtn, 'aria-pressed') === 'false' && /Dark mode/.test(await dk.textContent(themeBtn)), 'the site should start light, with a Dark mode button');
-  check(await paint('.year-bar') === 'rgb(30, 29, 32)' && await paint('body') === 'rgb(246, 241, 234)', 'light mode should look as it did');
+  check(await paint('.year-bar') === 'rgb(30, 29, 32)' && await paint('html') === 'rgb(246, 241, 234)', 'light mode should look as it did');
   const paperLight = await dk.evaluate(() => WSLSA.buildPrintDoc({ mode: 'A' }).replace(/pd-plan">[^<]*</, ''));
   await dk.click(themeBtn);
   check(await themeNow() === 'dark' && await dk.getAttribute(themeBtn, 'aria-pressed') === 'true' && /Light mode/.test(await dk.textContent(themeBtn)), 'pressing it should switch to dark and offer light');
   check(await dk.evaluate(() => localStorage.getItem('wslsa-2027-theme')) === 'dark', 'the choice should be saved');
-  check(await paint('body') === 'rgb(17, 17, 20)' && await paint('.topbar') === 'rgb(26, 25, 30)' && /^color\(srgb 0\.10\d* 0\.09\d* 0\.11\d* \/ 0\.86\)$/.test(await paint('.dock-card')) && await paint('.year') === 'rgb(26, 25, 30)' && await paint('.drawer') === 'rgb(26, 25, 30)', 'every surface should go dark');
+  check(await paint('html') === 'rgb(17, 17, 20)' && await paint('.topbar') === 'rgb(26, 25, 30)' && /^color\(srgb 0\.10\d* 0\.09\d* 0\.11\d* \/ 0\.86\)$/.test(await paint('.dock-card')) && await paint('.year') === 'rgb(26, 25, 30)' && await paint('.drawer') === 'rgb(26, 25, 30)', 'every surface should go dark');
   for (const s of ['.year-bar', '.advisory > summary', '.segmented button[aria-pressed="true"]']) {
     check(await paint(s) === 'rgb(40, 38, 48)' && await paint(s, 'color') === 'rgb(255, 255, 255)', `${s} should stay a dark band with white text`);
   }
@@ -2042,7 +2043,7 @@ async function renderPdf(page, key, mode, orient, file) {
   const shell = fs.readFileSync(path.join(ROOT, 'dist', 'wslsa-pathway-explorer.html'), 'utf8');
   check(shell.indexOf('wslsa-2027-theme') > 0 && shell.indexOf('wslsa-2027-theme') < shell.indexOf('<style>'), 'the theme should be set before the styles load');
   await dk.click(themeBtn);
-  check(await themeNow() === 'light' && await dk.evaluate(() => localStorage.getItem('wslsa-2027-theme')) === 'light' && await paint('body') === 'rgb(246, 241, 234)', 'it should switch back');
+  check(await themeNow() === 'light' && await dk.evaluate(() => localStorage.getItem('wslsa-2027-theme')) === 'light' && await paint('html') === 'rgb(246, 241, 234)', 'it should switch back');
   check(await dk.evaluate(() => { WSLSA.select('2785|BASE'); return true; }), 'a render should not disturb it');
   check(await themeNow() === 'light', 'the theme should stay as chosen');
   const pmenu = await newPage(browser, { viewport: { width: 390, height: 844 } });
@@ -2899,6 +2900,13 @@ async function renderPdf(page, key, mode, orient, file) {
   await lively.goto(APP);
   await lively.waitForTimeout(400);
   check(await lively.evaluate(() => { const c = document.getElementById('bg-canvas'); if (c.hidden) return false; const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i]) return true; return false; }), 'with motion allowed the background should be drawing');
+  // and it can be seen: nothing opaque lies between it and the page's margins
+  check(await lively.evaluate(() => getComputedStyle(document.body).backgroundColor === 'rgba(0, 0, 0, 0)' && getComputedStyle(document.documentElement).backgroundColor === 'rgb(246, 241, 234)'), 'the page colour should be on the root, so the background behind the body shows');
+  const lightsAt = () => lively.evaluate(() => { const c = document.getElementById('bg-canvas'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n / (c.width * c.height); });
+  const cover = await lightsAt();
+  await lively.setViewportSize({ width: 1360, height: 840 });
+  await lively.waitForTimeout(200);
+  check(Math.abs(await lightsAt() - cover) < 0.25, 'the lights should keep their places when the window changes size');
   await lively.close();
   // the site's name, and the University's pre-2027 sequence beside the plan
   check(await hb.title() === 'WSLSA Degree Explorer · 2785 Bachelor of Accounting/Bachelor of Laws' && /WSLSA Degree Explorer/.test(await hb.textContent('.crest-text small')), `the site should be named WSLSA Degree Explorer, got ${await hb.title()}`);
@@ -2933,6 +2941,21 @@ async function renderPdf(page, key, mode, orient, file) {
   check(yr.slots === 33 && yr.guide === 70 && await hb.evaluate(() => WSLSA.context().slots.filter(x => x.year === 1).length === 1 && WSLSA.context().slots.find(x => x.year === 1).done), `clearing a year should keep what is ticked and list the rest in the guide, got ${JSON.stringify(yr)}`);
   for (let i = 0; i < 4; i++) await hb.click('#section-tools [data-action="undo"]');
   check(!(await shape()).edit, 'Undo should take the year changes back to the pathway');
+  // in a plan with past years, a year that has begun keeps its place: it can be emptied, not removed, and nothing goes in ahead of it
+  const pastPg = await newPage(browser);
+  pastPg.on('dialog', d => d.accept());
+  await pastPg.goto(APP);
+  await pastPg.evaluate(() => { localStorage.clear(); WSLSA.setNow('2026-11-09'); WSLSA.select('2785|BASE'); });
+  await pastPg.click('[data-action="progress-open"]');
+  await pastPg.evaluate(r => WSLSA.importPdfLines(r, '2026-11-09T10:00:00', 'results.pdf'), ['Subject Results', '2785 - Bachelor of Accounting/Bachelor of Laws', '2024 LAWS1003 Fundamentals of Australian Law C 66 10 ✓ Autumn', '2025 LAWS2003 Contracts C 69 10 ✓ Autumn', '2026 LAWS2013 Torts Law C 69 10 ✓ Autumn', 'Total Credit Points Required 400']);
+  await pastPg.click('#progress-apply');
+  const when = () => pastPg.evaluate(() => WSLSA.context().slots.filter(s => s.done).map(s => s.code + '@' + (WSLSA.custom().start + s.year - 1)).join(' '));
+  check(await pastPg.evaluate(() => !document.querySelector('#year-2 [data-action="year-insert"]') && /Empty Year 2/.test(document.querySelector('#year-2 [data-action="year-delete"]').textContent) && !!document.querySelector('#year-4 [data-action="year-insert"]') && /Delete Year 4/.test(document.querySelector('#year-4 [data-action="year-delete"]').textContent)), 'a year that has begun should offer to be emptied, and a year ahead to be deleted or have one put before it');
+  await pastPg.click('#year-2 [data-action="year-delete"]');
+  check(await when() === 'LAWS 1003@2024 LAWS 2013@2026' && await pastPg.evaluate(() => document.querySelectorAll('#year-2 .subj').length === 0 && !!document.getElementById('year-2')), `emptying a past year should leave the later years on their dates, got ${await when()}`);
+  await pastPg.click('#section-tools [data-action="undo"]');
+  check(await when() === 'LAWS 1003@2024 LAWS 2003@2025 LAWS 2013@2026', 'Undo should put the past year back');
+  await pastPg.close();
   // a note on a session, kept with the plan, in its link and on paper
   await hb.click('#year-3 .session[data-s="Spring"] [data-action="session-note"]');
   check(/Note for Spring 2029/.test(await hb.textContent('#note-h')) && await hb.evaluate(() => document.activeElement.id === 'note-text'), 'a note should open its own window, ready to type in');

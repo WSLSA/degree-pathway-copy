@@ -85,11 +85,14 @@ def parse(pdf):
             cp = None
             while j < n and j < i + 6:
                 nxt = lines[j]
-                if nxt.isdigit() and int(nxt) <= 80:
+                if nxt.isdigit() and int(nxt) <= 80 and int(nxt) % 5 == 0:
                     cp = int(nxt)
                     j += 1
                     break
-                if nxt == "" or CODE.match(nxt) or nxt == "Credit Points" or nxt.startswith("Select") or re.match(r"^Year \d+$", nxt):
+                if nxt.isdigit():
+                    j += 1
+                    break
+                if nxt == "" or CODE.match(nxt) or nxt == "Credit Points" or nxt.startswith(("Select", "Note", "From ")) or re.match(r"^Year \d+$", nxt):
                     break
                 words.append(nxt)
                 j += 1
@@ -101,13 +104,14 @@ def parse(pdf):
                     prev.setdefault("options", []).append([code, row["title"]])
                     i = j
                     continue
-                row["cp"] = 10
+                i = j
+                continue
             else:
                 row["cp"] = cp
             seq["rows"].append(row)
             i = j
             continue
-        if line.startswith("Select") and year and session:
+        if (line.startswith("Select") or line.startswith("Note:")) and year and session:
             words = [line]
             j = i + 1
             cp = None
@@ -121,7 +125,14 @@ def parse(pdf):
                     break
                 words.append(nxt)
                 j += 1
-            seq["rows"].append({"y": year, "s": session, "text": " ".join(words).strip().rstrip(":"), "cp": cp if cp is not None else 10})
+            text = " ".join(words).strip().rstrip(":")
+            if cp is None:
+                # a heading for the rows under it has no points of its own; otherwise the wording says how many subjects
+                count = re.search(r"\b(one|two|three|four)\b", text, re.I)
+                heading = re.search(r"comprising$|^Select the following$", text, re.I)
+                cp = 0 if heading or not count else {"one": 10, "two": 20, "three": 30, "four": 40}[count.group(1).lower()]
+            if cp or not text.startswith("Select"):
+                seq["rows"].append({"y": year, "s": session, "text": text, "cp": cp})
             i = j
             continue
         i += 1
@@ -135,6 +146,12 @@ def parse(pdf):
             else:
                 run += r["cp"]
                 rows.append(r)
+        for r in rows:
+            if "text" in r and r["text"].startswith("Note") and len(r.get("options", [])) == 1:
+                r["code"], r["title"] = r["options"][0]
+                r["note"] = r.pop("text")
+                del r["options"]
+        rows = [r for r in rows if "code" in r or r["text"].startswith("Select")]
         s["rows"] = rows
         s["checked"] = all(check) if check else False
         s["cp"] = sum(r["cp"] for r in rows)
@@ -143,7 +160,8 @@ def parse(pdf):
 
 def main():
     src = Path(sys.argv[1])
-    programs = [parse(p) for p in sorted(src.glob("*.pdf"))]
+    # a PDF with no Recommended Sequence table (a page saved as images, say) has nothing to read
+    programs = [p for p in (parse(f) for f in sorted(src.glob("*.pdf"))) if p["sequences"]]
     out = {
         "about": "The University's recommended sequences for students who started before 2027, read from its 2025 Handbook program pages by scripts/extract_pre2027.py. Check against the Handbook archive before relying on a row.",
         "source": "https://hbook.westernsydney.edu.au/archives/2024-2025/",
