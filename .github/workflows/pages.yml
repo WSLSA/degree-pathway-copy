@@ -4,7 +4,9 @@
 name: Test and publish site
 
 on:
+  # the default branch is tested and published on every push; any other branch is tested through its pull request
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -62,7 +64,8 @@ jobs:
   browsers:
     # what a student does most, in Safari's engine (iPhone, iPad, Mac) and in Firefox, on a laptop and a phone
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # installing a browser's system libraries can take a long time when the package servers are slow
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
