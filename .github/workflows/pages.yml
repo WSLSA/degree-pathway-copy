@@ -22,9 +22,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -36,13 +36,13 @@ jobs:
           python3 scripts/build_app.py
           git diff --exit-code -- dist/ || { echo "::error::dist/ is out of date. Run python3 scripts/build_app.py and commit the result."; exit 1; }
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
 
       - name: Cache the test browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -71,15 +71,15 @@ jobs:
       matrix:
         engine: [webkit, firefox]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
 
       - name: Cache the test browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ matrix.engine }}-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -94,7 +94,7 @@ jobs:
 
       - name: Keep screenshots of what failed
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: screenshots-${{ matrix.engine }}
           path: test-results/
@@ -126,10 +126,10 @@ jobs:
             echo "::notice::Site not published yet: in Settings > Pages, set Source to 'GitHub Actions', then re-run this workflow."
           fi
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         if: steps.pages.outputs.enabled == 'true'
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         id: configure
         if: steps.pages.outputs.enabled == 'true'
 
@@ -146,7 +146,7 @@ jobs:
           cp src/assets/og-image.png src/assets/apple-touch-icon.png src/assets/favicon.png _site/
           touch _site/.nojekyll
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         if: steps.pages.outputs.enabled == 'true'
         with:
           path: _site
@@ -154,4 +154,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         if: steps.pages.outputs.enabled == 'true'
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
