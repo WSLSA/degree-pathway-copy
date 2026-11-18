@@ -1,0 +1,32 @@
+name: Something is not working
+description: A button, a page or a PDF in the Degree Explorer does not do what it should.
+title: "Problem: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thank you for telling us. Please do not include your student number, your results or anything else personal, as this page is public.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you pressed or chose, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: degree
+    attributes:
+      label: Your degree and major
+      placeholder: e.g. 2785 Bachelor of Accounting/Bachelor of Laws
+  - type: dropdown
+    id: device
+    attributes:
+      label: What were you using?
+      options: [iPhone or iPad, Android phone or tablet, Mac, Windows computer, Chromebook, Something else]
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: e.g. Safari, Chrome, Edge, Firefox

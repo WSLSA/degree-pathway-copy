@@ -1,0 +1,31 @@
+name: A subject, session or rule is wrong
+description: A subject is missing or in the wrong session, a campus or credit points are wrong, or a pre-2027 rule does not match the Handbook.
+title: "Data: "
+labels: [documentation]
+body:
+  - type: markdown
+    attributes:
+      value: A link to the Handbook page that shows the right answer helps us fix it quickly. Please keep personal details out, as this page is public.
+  - type: input
+    id: degree
+    attributes:
+      label: Degree
+      placeholder: e.g. 2848 Bachelor of Laws
+    validations:
+      required: true
+  - type: input
+    id: subject
+    attributes:
+      label: Subject code
+      placeholder: e.g. LAWS 2020
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What the explorer shows, and what is right
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Where the right answer comes from
+      placeholder: A Handbook link, or the School of Law's advice

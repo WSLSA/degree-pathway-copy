@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: A question about your own degree or enrolment
+    url: mailto:lawenquiry@westernsydney.edu.au
+    about: The School of Law's Law Enquiry Team answers questions about your degree, credit and enrolment.
+  - name: Open the Degree Explorer
+    url: https://wslsa.github.io/degree-pathway-copy/
+    about: The WSLSA Degree Explorer itself.

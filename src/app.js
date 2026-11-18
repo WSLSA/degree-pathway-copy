@@ -21,6 +21,8 @@
   // the student started), so it is declared here, before the plan is read.
   const START_YEAR = 2027;
   const LAW_ENQUIRY = 'lawenquiry@westernsydney.edu.au';
+  // where a student reports a fault or a wrong subject: the site's issue forms on GitHub
+  const REPORT_URL = 'https://github.com/WSLSA/degree-pathway-copy/issues/new/choose';
   const MOD_KEY = /Mac|iPhone|iPad/.test(navigator.platform || '') ? 'Cmd' : 'Ctrl';
   const UNDO_KEYS = MOD_KEY + '+Z';
   const REDO_KEYS = MOD_KEY === 'Cmd' ? 'Cmd+Shift+Z' : 'Ctrl+Y';
@@ -3052,7 +3054,7 @@
     $('#site-foot').innerHTML = '<span class="foot-watermark crest-rev" aria-hidden="true"></span><div class="foot-inner">' +
       '<div class="foot-brand"><span class="crest-rev foot-crest" role="img" aria-label="WSLSA crest"></span><div><p class="foot-sub">Western Sydney</p><p class="foot-name">Law Students\' Association</p><p class="foot-tag">Est. 1996 · By students, for students</p></div></div>' +
       '<div class="foot-col"><h2>Your plan</h2><p>Choices and progress are saved in this browser only and are never uploaded. To continue on another phone or computer, use Copy Share Link and open that link there.</p>' +
-      '<div class="foot-links"><a href="' + esc(ctx.deg.handbook) + '" target="_blank" rel="noopener">Official 2027 Handbook →</a><a href="mailto:' + LAW_ENQUIRY + '">Email the Law Enquiry Team →</a><a href="https://wslsa.com.au/" target="_blank" rel="noopener">wslsa.com.au →</a></div></div>' +
+      '<div class="foot-links"><a href="' + esc(ctx.deg.handbook) + '" target="_blank" rel="noopener">Official 2027 Handbook →</a><a href="mailto:' + LAW_ENQUIRY + '">Email the Law Enquiry Team →</a><a href="https://wslsa.com.au/" target="_blank" rel="noopener">wslsa.com.au →</a><a href="' + REPORT_URL + '" target="_blank" rel="noopener" title="Something not working, or a subject or session wrong? Tell WSLSA on GitHub">Report a problem →</a></div></div>' +
       '<div class="foot-col"><h2>Disclaimer</h2><p>' + esc(disclaimerText()) + '</p></div>' +
       '</div><div class="foot-base">' + FOOT_LINE + '</div>';
   }

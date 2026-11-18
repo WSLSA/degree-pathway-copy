@@ -8,6 +8,8 @@
     "validate": "python3 scripts/validate_data.py",
     "build": "python3 scripts/build_app.py",
     "test": "node tests/e2e.cjs",
+    "test:browsers": "node tests/browsers.cjs",
+    "test:links": "node tests/links.cjs",
     "test:pdf": "node tests/e2e.cjs --pdf",
     "test:import": "node tests/e2e.cjs --import",
     "samples": "node tests/e2e.cjs --samples"

@@ -2910,6 +2910,7 @@ async function renderPdf(page, key, mode, orient, file) {
   await lively.waitForTimeout(200);
   check(Math.abs(await lightsAt() - cover) < 0.25, 'the lights should keep their places when the window changes size');
   await lively.close();
+  check(await hb.$eval('#site-foot a[href="https://github.com/WSLSA/degree-pathway-copy/issues/new/choose"]', a => a.target === '_blank' && /Report a problem/.test(a.textContent)), 'the footer should link to the issue forms');
   // the site's name, and the University's pre-2027 sequence beside the plan
   check(await hb.title() === 'WSLSA Degree Explorer · 2785 Bachelor of Accounting/Bachelor of Laws' && /WSLSA Degree Explorer/.test(await hb.textContent('.crest-text small')), `the site should be named WSLSA Degree Explorer, got ${await hb.title()}`);
   await hb.click('#tab-pre2027');

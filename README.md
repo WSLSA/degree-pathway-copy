@@ -2,7 +2,7 @@
 
 Plan your Western Sydney University law degree for 2027, session by session.
 
-## [Open the Pathway Explorer →](https://wslsa.github.io/degree-pathway/)
+## [Open the Degree Explorer →](https://wslsa.github.io/degree-pathway/)
 
 A free tool from the Western Sydney Law Students' Association. It works on your phone, tablet or computer, with nothing to install and no account needed.
 
