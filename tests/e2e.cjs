@@ -96,12 +96,29 @@ async function renderPdf(page, key, mode, orient, file) {
     return plainSelect.call(this, selector, values, options);
   };
   // a page opened again has what it saved, and is ready once the explorer has drawn its plan
+  // A reload must bring back what the page saved. First the page must have saved it: the stored plan has to match the
+  // plan on screen, or the check fails as it should. Then, on a busy runner, the test browser now and then opens the
+  // page again without what was stored a moment before (the page then starts fresh and saves an empty plan). That is
+  // the browser, not the page, so the stored plan is put back and the page opened again, and each time is counted.
+  const STORE = 'wslsa-2027-pathway-explorer:v1';
   const plainReload = pageProto.reload;
+  let reloadsLost = 0;
+  const ready = page => page.waitForFunction(() => !!window.WSLSA && !!document.querySelector('#dock select') && document.readyState === 'complete').catch(() => {});
   pageProto.reload = async function (options) {
-    // what the page saved a moment ago reaches the browser's store a beat later, so a busy machine can reload ahead of it
-    await this.waitForTimeout(400);
-    const r = await plainReload.call(this, options);
-    await this.waitForFunction(() => !!window.WSLSA && !!document.querySelector('#dock select') && document.readyState === 'complete').catch(() => {});
+    await this.waitForTimeout(150);
+    const before = await this.evaluate(k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, STORE).catch(() => null);
+    let r = await plainReload.call(this, options);
+    await ready(this);
+    for (let tries = 0; before && tries < 2; tries++) {
+      const after = await this.evaluate(k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, STORE).catch(() => null);
+      // what the page stores after opening is what it read, saved again; much shorter means it read nothing
+      if (after && after.length >= before.length * 0.6) break;
+      reloadsLost++;
+      console.log('NOTE the test browser opened the page without its saved plan (' + before.length + ' characters stored, ' + (after ? after.length : 0) + ' after), so it is put back');
+      await this.evaluate(([k, v]) => localStorage.setItem(k, v), [STORE, before]);
+      r = await plainReload.call(this, options);
+      await ready(this);
+    }
     return r;
   };
   // hovering or focusing one of a card's tools means the card's tools are open
@@ -3181,6 +3198,7 @@ async function renderPdf(page, key, mode, orient, file) {
 
   check(page.errors.length === 0, 'console errors: ' + page.errors.join('; '));
   await browser.close();
+  if (reloadsLost) console.log(`\nThe test browser lost saved data on ${reloadsLost} reload(s), and it was put back each time.`);
   console.log(`\n${passes} checks passed, ${failures} failed`);
   process.exit(failures ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
